@@ -309,7 +309,7 @@ ol.pasos li{margin:4px 0}
 
 <script>
 'use strict';
-const VERSION = '1.4';
+const VERSION = '1.4.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1064,7 +1064,7 @@ const deISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date
 const diaSem = s => { const k = deISO(s).getDay(); return k === 0 ? 7 : k; };
 const suma = (s, n) => { const d = deISO(s); d.setDate(d.getDate() + n); return iso(d); };
 const largaFecha = s => { const t = deISO(s).toLocaleDateString('es-ES', {weekday: 'long', day: 'numeric', month: 'long'}); return t.charAt(0).toUpperCase() + t.slice(1); };
-const ICONO = {carril: '🪞', clase: '📘', examen: '📝', entrega: '📤', aules: '🖥️', nota: '👥', billete: '🎫'};
+const ICONO = {entrada: '⏱️', carril: '🪞', clase: '📘', examen: '📝', entrega: '📤', aules: '🖥️', nota: '👥', billete: '🎫'};
 /* los eventos de un día para un grupo: los de ese día y los «cada»; aparte, los de la semana (desde/hasta) */
 function eventosDe(dia, g){
   const ev = (CAL && CAL.eventos) || [], ds = diaSem(dia), en = e => !e.grupos || !e.grupos.length ? g === '' : e.grupos.includes(g);
@@ -1089,7 +1089,7 @@ function tarjetaDia(dia){
   const gen = eventosDe(dia, '');
   if (gen.delDia.length || gen.semana.length) h += `<details class="grupo" open><summary>General</summary>${gen.delDia.map(e => lineaEv(e)).join('')}${gen.semana.map(e => lineaEv(e, 'esta semana')).join('')}</details>`;
   for (const g of gs){ if (!CAL.grupos[g].dias.includes(diaSem(dia))) continue;
-    const {delDia, semana} = eventosDe(dia, g), notas = delDia.filter(e => e.tipo === 'nota'), resto = delDia.filter(e => e.tipo !== 'nota');
+    const {delDia, semana} = eventosDe(dia, g), notas = delDia.filter(e => e.tipo === 'nota'), resto = delDia.filter(e => e.tipo !== 'nota').sort((a, b) => (b.tipo === 'entrada') - (a.tipo === 'entrada'));
     const cab = CAL.grupos[g].nombre + (notas.length ? ' <span class="n">' + notas.map(e => esc(e.texto)).join(' · ') + '</span>' : '');
     const cuerpo = resto.map(e => lineaEv(e)).join('') + semana.map(e => lineaEv(e, 'esta semana')).join('');
     h += `<details class="grupo"${resto.length || semana.length ? ' open' : ''}><summary>${cab}</summary>${cuerpo || '<div class="nota" style="padding:10px 14px;border-top:1px solid var(--linea);margin:0">Nada especial.</div>'}</details>`; }
