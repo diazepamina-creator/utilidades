@@ -34,7 +34,9 @@
     quiere. Para no depender de la fotocopiadora.
   - NOTAS. Corregir un examen casilla a casilla con la rúbrica de su clave
     (herramientas/rubricas.json, que sale de los .tex de latex/examenes) y la
-    nota de la evaluación con los pesos de la programació d'aula. Por número
+    nota de la evaluación con los pesos de la programació d'aula. Las fichas,
+    con la rúbrica de las dos vueltas (herramientas/fichas.json); las del taller,
+    con 0-1-2. Por número
     de lista, sin nombres, y solo en el móvil: nunca van a GitHub.
   - Las páginas se pintan de una en una al exportar, nunca todas a la vez:
     un examen de 40 páginas a 150 ppp no cabe en la memoria de un móvil.
@@ -147,6 +149,8 @@ ol.pasos li{margin:4px 0}
 img.marca{height:22px;vertical-align:-5px;margin-right:5px}
 .rej.connom{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}.rej .num i{font-style:normal;font-size:12px;color:var(--tinta);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
 .rej .num[hidden]{display:none}.nomc{display:block;font-size:11px;margin:0;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cod{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1.5px solid var(--acento);border-radius:50%;color:var(--acento);font-weight:800;font-size:13px;vertical-align:1px}
+.seg4 button{width:40px}.seg button.nada{background:#EFEAE0}.seg [data-ar]{width:auto;padding:0 12px;border-radius:10px!important;font-size:15px}
 .cass2{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}.cass2 .seg button{width:40px}
 .rej .num.hecho{border-color:var(--tinta)}.rej .num.amedias{border-color:var(--acento);border-style:dashed}.rej .num.np{background:#EFEAE0}
 .pq{padding:12px}.pq h2{font-size:16px}.pq .sol{background:#F4F7F2;border-radius:8px;padding:6px 8px;color:#2C4A3A;margin:8px 0 4px}
@@ -173,7 +177,7 @@ details.pr>div{margin:4px 0 0 10px}
 .tabla td{border-top:1px solid var(--linea);padding:3px;text-align:center}
 .tabla input{width:48px;padding:6px 3px;text-align:center;border:1.5px solid var(--linea);border-radius:7px;font-size:15px}
 .tabla input.del::placeholder{color:#557A68;font-weight:700;opacity:1}.tabla input.mal{border-color:var(--mal)}
-.caja .fila>.barra{margin:3px 0}
+.caja .fila>.barra{margin:3px 0}.barra.mal i{background:#E3A49F}
 .recu{border-top:1px solid var(--linea);padding:8px 0;font-size:15px;line-height:2.1}
 .recu input{width:52px;padding:4px;text-align:center;border:1.5px solid var(--linea);border-radius:7px}
 </style>
@@ -212,6 +216,7 @@ details.pr>div{margin:4px 0 0 10px}
   <section id="v-herr" hidden>
     <div class="herrs">
       <button data-h="corregir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l1.5 1.5L12 8M8 15l1.5 1.5L12 14M14 9h3M14 15h3"/></svg><b>Corregir examen</b><span>Con la rúbrica, casilla a casilla: nota y estadísticas</span></button>
+      <button data-h="fichas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="10" cy="12" r="1.6"/><path d="M13 12h3M9 16.5l1.3 1.3 2.4-2.6M14 17h2"/></svg><b>Corregir fichas</b><span>La rúbrica de las dos vueltas; en el taller, 0-1-2</span></button>
       <button data-h="evaluacion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h8"/></svg><b>Nota de la evaluación</b><span>80/10/10, para Itaca, y quién recupera qué</span></button>
       <button data-h="tapar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="11" y="6.5" width="8" height="4" fill="currentColor"/><path d="M6 14h12M6 17h8"/></svg><b>Tapar nombres</b><span>Recuadro negro sobre el nombre, para compartir</span></button>
       <button data-h="reducir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg><b>Reducir peso</b><span>Para Aules o el correo</span></button>
@@ -365,7 +370,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.6.2';
+const VERSION = '1.7';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -411,7 +416,7 @@ function ve(v){
 $$('.pie button').forEach(b => b.onclick = () => ve(b.dataset.v));
 const pila = [];
 const AL_CERRAR = {visor: () => { $('#visorPags').innerHTML = ''; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); },
-  editorPag: () => { if (editorFin) editorFin(); }, corrige: () => { if (H && H.tipo === 'corregir') pintaHerramienta(); }};
+  editorPag: () => { if (editorFin) editorFin(); }, corrige: () => { if (H && (H.tipo === 'corregir' || H.tipo === 'fichas')) pintaHerramienta(); }};
 function abreCapa(id){ $('#' + id).hidden = false; pila.push(id); history.pushState({capa: id}, ''); }
 function cambiaCapa(id){ const v = pila.pop(); if (v){ $('#' + v).hidden = true; (AL_CERRAR[v] || (() => {}))(); } $('#' + id).hidden = false; pila.push(id); history.replaceState({capa: id}, ''); }
 function cierraCapa(){ if (pila.length) history.back(); }
@@ -607,6 +612,7 @@ async function sincroniza(){
     for (const d of locales) if (!vivos.has(d.path)){ await borraDB('docs', d.id); fuera++; }
     try { const b = await api(c, '/contents/herramientas/calendario.json?ref=' + encodeURIComponent(c.rama), true); CAL = JSON.parse(await b.text()); await ponConf('calendario', CAL); } catch (e) {}
     try { const b = await api(c, '/contents/herramientas/rubricas.json?ref=' + encodeURIComponent(c.rama), true); RUB = JSON.parse(await b.text()); await ponConf('rubricas', RUB); } catch (e) {}
+    try { const b = await api(c, '/contents/herramientas/fichas.json?ref=' + encodeURIComponent(c.rama), true); FIC = JSON.parse(await b.text()); await ponConf('fichas', FIC); } catch (e) {}
     await ponConf('ultima', Date.now());
     N.textContent = (bajar.length ? bajar.length + (bajar.length === 1 ? ' archivo nuevo o cambiado' : ' archivos nuevos o cambiados') : 'Todo estaba al día')
       + (fuera ? ' · ' + fuera + ' ya no está' + (fuera === 1 ? '' : 'n') + ' en los originales y se ha' + (fuera === 1 ? '' : 'n') + ' quitado' : '') + ' · ' + remotos.length + ' en total.';
@@ -673,7 +679,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', corregir: 'Corregir examen', evaluacion: 'Nota de la evaluación'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -690,6 +696,7 @@ function pintaHerramienta(){
   if (H.tipo === 'qr') return pintaQR(C);
   if (H.tipo === 'actas') return pintaActas(C);
   if (H.tipo === 'corregir') return pintaCorregir(C);
+  if (H.tipo === 'fichas') return pintaFichas(C);
   if (H.tipo === 'evaluacion') return pintaEvaluacion(C);
   let h = eligeDocs();
   if (H.tipo === 'tapar' && d){
@@ -1308,7 +1315,7 @@ $('#hoyLista').addEventListener('click', e => { const b = e.target.closest('.doc
      noviembre de 2026: solo quien suspende la evaluación, y solo las unidades con
      examen < 5; unidad recuperada (≥ 5) = 5, y si no llega, la más alta de las dos;
      si las recupera todas, la evaluación queda como mínimo en 5. */
-let NT = {alumnos: {}, corr: {}, eval: {}}, RUB = null;
+let NT = {alumnos: {}, corr: {}, eval: {}, fichas: {}}, RUB = null;
 let ntT;
 const guardaNotas = () => { clearTimeout(ntT); ntT = setTimeout(() => guardaDB('conf', NT, 'notas').catch(() => aviso('No se han podido guardar las notas')), 200); };
 const coma = (x, d = 2) => x == null || isNaN(x) ? '—' : (Math.round(x * 10 ** d) / 10 ** d).toLocaleString('es-ES', {maximumFractionDigits: d});
@@ -1451,7 +1458,7 @@ function tablaCorr(ex, R, N){
 }
 
 /* las estadísticas: lo que el grupo sabe y lo que no */
-const barra = (f, t) => `<div class="barra"><i style="width:${Math.round(100 * Math.max(0, Math.min(1, f)))}%"></i><span>${t}</span></div>`;
+const barra = (f, t, mal) => `<div class="barra${mal ? ' mal' : ''}"><i style="width:${Math.round(100 * Math.max(0, Math.min(1, f)))}%"></i><span>${t}</span></div>`;
 function estadCorr(ex, R, N){
   const als = [];
   for (let n = 1; n <= N; n++){ const a = R.al[n]; if (a && !a.np && Object.keys(a.x).length) als.push({n, a, r: notaExamen(ex, a)}); }
@@ -1549,6 +1556,170 @@ function pintaCorrige(){
   }
   $('#crAnt').onclick = () => { CR.n = n - 1; pintaCorrige(); B.parentElement.scrollTop = 0; };
   $('#crSig').onclick = () => { CR.n = n + 1; pintaCorrige(); B.parentElement.scrollTop = 0; };
+}
+
+/* ── CORREGIR FICHAS ──
+   Las de 1.º y 2.º, con la rúbrica de las dos vueltas (latex/fichas-miut/rubrica-fichas.tex):
+   cinco criterios de 0 a 2, nota sobre 10; en la 2.ª vuelta, lo arreglado recupera la mitad
+   de lo perdido en ese criterio. El código de cada criterio que no llega a 2 (? V T C P) es
+   el que se escribe al margen: el más repetido del grupo dice qué se repasa.
+   Las del taller, con su registro: 0 no entregada · 1 entregada · 2 corregida tras la
+   revisión; «—» si esa ficha no le toca (cada uno tiene las de su nivel). Nota de fichas del
+   taller = puntos / puntos posibles × 10. La lista de fichas sale de herramientas/fichas.json. */
+let FIC = null;
+const fichaDe = id => FIC && FIC.fichas.find(f => f.id === id);
+const fichasDe = g => !FIC ? [] : FIC.fichas.filter(f => g === 'T4' ? f.curso === 'T' : f.curso.includes(g[0]) && f.curso !== 'T');
+const corrF = (id, g) => { const k = id + '|' + g; NT.fichas = NT.fichas || {}; return NT.fichas[k] || (NT.fichas[k] = {al: {}}); };
+const etqFicha = f => f.unidad === 'Taller' ? f.nombre + ' · ' + f.titulo : f.unidad + ' · ' + f.nombre + ' · ' + f.titulo;
+/* las dos notas de una ficha corregida con la rúbrica */
+function notaFicha(a){
+  if (!a || a.ne) return {v1: null, v2: null, faltan: 0, codigos: []};
+  const v = a.v1 || [], faltan = [0, 1, 2, 3, 4].filter(i => v[i] == null).length;
+  const v1 = faltan ? null : v.reduce((s, x) => s + x, 0);
+  const v2 = v1 == null || !a.vuelta ? null : v.reduce((s, x, i) => s + x + ((a.ar || [])[i] ? (2 - x) / 2 : 0), 0);
+  return {v1, v2, faltan, codigos: FIC ? FIC.rubrica.filter((r, i) => v[i] != null && v[i] < 2).map(r => r.c) : []};
+}
+const mejorFicha = a => { const r = notaFicha(a); return r.v2 != null ? r.v2 : r.v1; };
+
+function pintaFichas(C){
+  if (!FIC){ C.innerHTML = `<div class="vacio"><p><b>Aún no está la lista de fichas.</b></p><p>Pulsa <b>Actualizar</b> en la Biblioteca: viene de tus originales (<code>herramientas/fichas.json</code>).</p></div>`; return; }
+  const ult = NT.ultimaF || {}, gs = gruposDe('');
+  H.g = gs.includes(H.g) ? H.g : gs.includes(ult.g) ? ult.g : gs[0];
+  const fs = fichasDe(H.g); let f = fichaDe(H.f) || fichaDe(ult.f); if (!f || !fs.includes(f)) f = fs[0];
+  if (!f){ C.innerHTML = '<div class="vacio">No hay fichas para este grupo.</div>'; return; }
+  H.f = f.id; NT.ultimaF = {g: H.g, f: H.f};
+  const R = corrF(f.id, H.g), N = nAlumnos(H.g), taller = f.tipo === 'taller';
+  const unidades = [...new Set(fs.map(x => x.unidad))];
+  let h = `<div class="caja"><div class="fila"><select id="fG">${gs.map(g => `<option value="${g}"${g === H.g ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select>
+    <select id="fF" style="flex:1;min-width:0">${unidades.map(u => `<optgroup label="${esc(u)}">${fs.filter(x => x.unidad === u).map(x => `<option value="${esc(x.id)}"${x.id === f.id ? ' selected' : ''}>${esc(x.nombre + ' · ' + x.titulo)}</option>`).join('')}</optgroup>`).join('')}</select></div>
+    <p class="nota" style="margin:8px 0 0">${esc(f.app)} · ${esc(f.titulo)}${f.subtitulo ? ' · ' + esc(f.subtitulo) : ''}</p>
+    <div class="fila nota" style="margin-top:8px">Alumnos: <input type="number" id="cN" min="1" max="40" value="${N}">
+      ${LISTA[H.g] ? `<span style="flex:1">Con nombres (solo mientras la app esté abierta).</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>`;
+  const hechos = Object.entries(R.al).filter(([n, a]) => +n <= N && (taller ? a.v != null : a.ne || (a.v1 || []).some(x => x != null)));
+  h += `<div class="fila" style="margin:6px 0">${['lista', 'estad', 'resumen'].map(v => `<button class="btn peq${(H.vista || 'lista') === v ? ' prim' : ''}" data-vista="${v}">${{lista: 'Lista', estad: 'Estadísticas', resumen: 'Resumen'}[v]}</button>`).join('')}
+    <span class="nota" style="margin-left:auto" id="fCuenta">${hechos.length} de ${N}</span></div>`;
+  const vista = H.vista || 'lista';
+  if (vista === 'estad') h += taller ? estadTaller(f, R, N) : estadFicha(f, R, N);
+  else if (vista === 'resumen') h += resumenFichas(fs, H.g, N, taller);
+  else if (taller){
+    h += `<div class="caja" style="padding:4px 12px"><p class="nota">0 no entregada · 1 entregada · 2 corregida tras la revisión · — no le toca</p>`;
+    for (let n = 1; n <= N; n++){ const a = R.al[n] || {}, nom = (LISTA[H.g] || {})[n];
+      h += `<div class="cas"><span><b>${n}</b>${nom ? ' <small>' + esc(corto(nom)) + '</small>' : ''}</span><span class="seg seg4" data-tn="${n}">${[['', '—'], [0, '0'], [1, '1'], [2, '2']].map(([v, t]) => `<button data-v="${v}"${(a.v == null ? '' : a.v) === v ? ' class="' + (v === '' ? 'nada' : v === 2 ? 'si' : v === 1 ? 'medio' : 'no') + '"' : ''}>${t}</button>`).join('')}</span></div>`; }
+    h += '</div>';
+  } else {
+    if (LISTA[H.g]) h += `<input type="search" id="cBusca" placeholder="Busca por nombre…" style="width:100%;margin:4px 0" autocomplete="off">`;
+    h += `<div class="rej${LISTA[H.g] ? ' connom' : ''}">`;
+    for (let n = 1; n <= N; n++){ const a = R.al[n], r = notaFicha(a), nom = (LISTA[H.g] || {})[n]; let s = '<small>&nbsp;</small>', cl = '';
+      if (a && a.ne){ s = '<small>no la entrega</small>'; cl = ' np'; }
+      else if (r.v1 != null){ s = `<small class="${tonoNota(mejorFicha(a))}">${coma(r.v1)}${r.v2 != null ? ' → ' + coma(r.v2) : ''}</small>`; cl = ' hecho'; }
+      else if (a && (a.v1 || []).some(x => x != null)){ s = '<small>…</small>'; cl = ' amedias'; }
+      h += `<button class="num${cl}" data-n="${n}"${nom ? ` data-q="${esc(llano(nom))}"` : ''}><b>${n}</b>${nom ? `<i>${esc(corto(nom))}</i>` : ''}${s}</button>`; }
+    h += '</div><p class="nota">Toca un número para corregir su ficha. «7 → 9»: la 1.ª vuelta y la 2.ª.</p>';
+  }
+  h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="fTabla">Copiar como tabla</button><button class="btn peq peligro" id="fBorra">Borrar lo de esta ficha</button></div>`;
+  C.innerHTML = h;
+  $('#fG').onchange = e => { H.g = e.target.value; H.f = null; pintaHerramienta(); };
+  $('#fF').onchange = e => { H.f = e.target.value; pintaHerramienta(); };
+  $('#cN').onchange = e => { NT.alumnos[H.g] = Math.max(1, Math.min(40, Math.round(+e.target.value || 30))); guardaNotas(); pintaHerramienta(); };
+  C.querySelectorAll('[data-vista]').forEach(b => b.onclick = () => { H.vista = b.dataset.vista; pintaHerramienta(); });
+  C.querySelectorAll('.num[data-n]').forEach(b => b.onclick = () => abreCorrigeFicha(+b.dataset.n));
+  C.querySelectorAll('[data-tn] button').forEach(b => b.onclick = () => { const n = +b.parentElement.dataset.tn, v = b.dataset.v;
+    if (v === '') delete R.al[n]; else R.al[n] = {v: +v, t: Date.now()}; guardaNotas();
+    $('#fCuenta').textContent = Object.entries(R.al).filter(([k, a]) => +k <= N && a.v != null).length + ' de ' + N;
+    b.parentElement.querySelectorAll('button').forEach(x => x.className = x === b ? (v === '' ? 'nada' : v === '2' ? 'si' : v === '1' ? 'medio' : 'no') : ''); });
+  montaNombres(C);
+  if ($('#cBusca')){ const bs = $('#cBusca'); bs.oninput = () => { const q = llano(bs.value.trim()); C.querySelectorAll('.num[data-n]').forEach(b => b.hidden = !!q && !(b.dataset.q || '').includes(q)); };
+    bs.onkeydown = e => { if (e.key === 'Enter'){ const v = [...C.querySelectorAll('.num[data-n]')].filter(b => !b.hidden); if (v.length === 1) abreCorrigeFicha(+v[0].dataset.n); } }; }
+  $('#fTabla').onclick = () => copiaTabla(vista === 'resumen' ? tablaResumen(fs, H.g, N, taller) : taller ? tablaTaller(f, R, N) : tablaFicha(f, R, N), 'fichas-' + H.g + '.tsv');
+  $('#fBorra').onclick = () => { if (!hechos.length) return aviso('No hay nada anotado');
+    if (!confirm('¿Borrar lo anotado de ' + f.nombre + ' (' + f.titulo + ') en ' + etqGrupo(H.g) + '? No se puede deshacer.')) return;
+    delete NT.fichas[f.id + '|' + H.g]; guardaNotas(); pintaHerramienta(); };
+}
+function tablaFicha(f, R, N){
+  const filas = [['n.º', '1.ª vuelta', '2.ª vuelta'].concat(FIC.rubrica.map(r => r.nombre + ' (' + r.c + ')'), ['códigos', 'arreglados', 'reto', 'bloques con fallos'])];
+  for (let n = 1; n <= N; n++){ const a = R.al[n]; if (!a) continue; if (a.ne){ filas.push([n, 'no la entrega']); continue; }
+    const r = notaFicha(a); filas.push([n, coma(r.v1), coma(r.v2)].concat([0, 1, 2, 3, 4].map(i => (a.v1 || [])[i] == null ? '' : a.v1[i]),
+      [r.codigos.join(' '), FIC.rubrica.filter((x, i) => (a.ar || [])[i]).map(x => x.c).join(' '), a.reto ? '+' : '', (a.b || []).join(' ')])); }
+  return filas;
+}
+function tablaTaller(f, R, N){ const filas = [['n.º', f.nombre + ' (0-2)']]; for (let n = 1; n <= N; n++){ const a = R.al[n]; filas.push([n, a && a.v != null ? a.v : '—']); } return filas; }
+function estadFicha(f, R, N){
+  const als = []; let ne = 0;
+  for (let n = 1; n <= N; n++){ const a = R.al[n]; if (!a) continue; if (a.ne){ ne++; continue; } const r = notaFicha(a); if (r.v1 != null) als.push({a, r}); }
+  if (!als.length) return '<div class="vacio">Aún no hay fichas corregidas.</div>';
+  const media = l => l.reduce((s, v) => s + v, 0) / l.length, v1 = als.map(x => x.r.v1), dev = als.filter(x => x.r.v2 != null);
+  let h = `<div class="caja"><h2>${als.length} corregidas${ne ? ' · ' + ne + ' sin entregar' : ''}</h2>
+    <p class="res" style="margin:0">1.ª vuelta: media <b>${coma(media(v1))}</b>${dev.length ? ` · 2.ª vuelta (${dev.length}): media <b>${coma(media(dev.map(x => x.r.v2)))}</b>, suben <b>${coma(media(dev.map(x => x.r.v2 - x.r.v1)))}</b> de media` : ' · nadie ha hecho la 2.ª vuelta todavía'}</p></div>`;
+  const cuenta = FIC.rubrica.map((r, i) => ({r, m: media(als.map(x => x.a.v1[i])) / 2, k: als.filter(x => x.a.v1[i] < 2).length}));
+  const mx = Math.max(...cuenta.map(c => c.k)), peores = cuenta.filter(c => c.k === mx), peor = peores[0];
+  h += `<div class="caja"><h2>Por criterio</h2>${cuenta.map(c => `<div class="fila" style="gap:6px;flex-wrap:nowrap"><span style="flex:0 0 46%;font-size:14px"><span class="cod">${c.r.c}</span> ${esc(c.r.nombre)}</span>${barra(c.m, coma(2 * c.m, 1) + ' de 2 · ' + c.k + ' con código')}</div>`).join('')}
+    ${peor.k ? `<p class="nota" style="margin-bottom:0">${peores.length > 1 ? 'Los códigos más repetidos' : 'El código más repetido'}: ${peores.map(c => `<span class="cod">${c.r.c}</span> ${esc(c.r.nombre.toLowerCase())}`).join(', ')} (${peor.k} de ${als.length}). Es lo que toca repasar en la sesión siguiente.</p>` : ''}</div>`;
+  if (f.bloques.length){ const k = {}; for (const x of als) for (const b of x.a.b || []) k[b] = (k[b] || 0) + 1;
+    h += `<div class="caja"><h2>Dónde fallan</h2>${f.bloques.map(b => `<div class="fila" style="gap:6px;flex-wrap:nowrap"><span style="flex:0 0 46%;font-size:14px">${b.id[0] === 'A' ? 'Delante' : 'Detrás'} ${esc(b.id.slice(1))} · ${esc(b.titulo)}</span>${barra((k[b.id] || 0) / als.length, (k[b.id] || 0) + ' de ' + als.length, true)}</div>`).join('')}</div>`; }
+  const retos = als.filter(x => x.a.reto).length; if (retos) h += `<p class="nota">Reto bien: ${retos}.</p>`;
+  return h;
+}
+function estadTaller(f, R, N){ const v = [0, 0, 0]; let nada = 0; for (let n = 1; n <= N; n++){ const a = R.al[n]; if (a && a.v != null) v[a.v]++; else nada++; }
+  return `<div class="caja"><h2>${f.nombre}</h2><p class="res" style="margin:0">Corregida tras la revisión <b>${v[2]}</b> · entregada <b>${v[1]}</b> · no entregada <b>${v[0]}</b> · no le toca ${nada}</p></div>`; }
+/* el resumen del grupo: cada alumno y sus fichas (la mejor vuelta), con la media */
+function resumenFichas(fs, g, N, taller){
+  const usadas = fs.filter(f => Object.keys(corrF(f.id, g).al).length);
+  if (!usadas.length) return '<div class="vacio">Aún no hay fichas anotadas en este grupo.</div>';
+  const t = tablaResumen(fs, g, N, taller);
+  return `<div class="tablaw"><table class="tabla"><thead><tr>${t[0].map((x, i) => `<th${i ? ` title="${esc(x)}"` : ''}>${esc(i && !taller && i <= usadas.length ? usadas[i - 1].unidad.slice(0, 3) + '. ' + usadas[i - 1].n : x)}</th>`).join('')}</tr></thead><tbody>`
+    + t.slice(1).map(r => `<tr>${r.map((x, i) => `<td>${i === 0 ? '<b>' + x + '</b>' : esc(x)}</td>`).join('')}</tr>`).join('') + `</tbody></table></div>
+    <p class="nota">${taller ? 'Nota de fichas = puntos / puntos posibles × 10 (las que no le tocan no cuentan).' : 'En cada ficha, la nota de la 2.ª vuelta si la hay; si no, la de la 1.ª. «NE»: no la entrega (cuenta 0 en la media).'}</p>`;
+}
+function tablaResumen(fs, g, N, taller){
+  const usadas = fs.filter(f => Object.keys(corrF(f.id, g).al).length);
+  const filas = [['n.º'].concat(usadas.map(f => f.nombre + (taller ? '' : ' ' + f.unidad.toLowerCase())), [taller ? 'nota fichas' : 'media'])];
+  for (let n = 1; n <= N; n++){ const fila = [n]; let s = 0, k = 0, pos = 0;
+    for (const f of usadas){ const a = corrF(f.id, g).al[n];
+      if (taller){ if (a && a.v != null){ fila.push(a.v); s += a.v; pos += 2; } else fila.push('—'); }
+      else if (!a) fila.push(''); else if (a.ne){ fila.push('NE'); k++; } else { const v = mejorFicha(a); if (v == null) fila.push('…'); else { fila.push(coma(v)); s += v; k++; } } }
+    fila.push(taller ? (pos ? coma(10 * s / pos) : '') : (k ? coma(s / k) : ''));
+    filas.push(fila); }
+  return filas;
+}
+
+/* la ficha de un alumno: la rúbrica, los bloques donde falla y la 2.ª vuelta */
+function abreCorrigeFicha(n){ CR = {n, modo: 'ficha'}; pintaCorrigeFicha(); abreCapa('corrige'); }
+function pintaCorrigeFicha(){
+  const f = fichaDe(H.f), R = corrF(H.f, H.g), N = nAlumnos(H.g), n = CR.n, a0 = R.al[n] || {v1: [], ar: [], b: []}, r = notaFicha(a0), nom = (LISTA[H.g] || {})[n];
+  $('#crTit').textContent = 'n.º ' + n + ' · ' + (nom ? corto(nom) : etqGrupo(H.g));
+  $('#crNota').innerHTML = a0.ne ? 'NE' : r.v1 == null ? (r.faltan < 5 ? '<small style="opacity:.7">faltan ' + r.faltan + '</small>' : '') : coma(r.v1) + (r.v2 != null ? ' → ' + coma(r.v2) : '');
+  let h = `<p class="nota" style="margin-top:0">${esc(f.unidad)} · ${esc(f.nombre)} · ${esc(f.titulo)}</p>
+    <div class="fila"><label class="nota"><input type="checkbox" id="fNE"${a0.ne ? ' checked' : ''}> no la ha entregado</label></div>`;
+  if (!a0.ne){
+    h += `<div class="caja pq"><div class="fila" style="justify-content:space-between"><h2 style="margin:0">1.ª vuelta</h2><button class="btn peq acento" id="fTodo2">Lo que falta, 2</button></div>
+      <details class="nota" style="margin:6px 0"><summary style="cursor:pointer">Qué es cada nivel</summary>${FIC.rubrica.map(c => `<p style="margin:4px 0"><span class="cod">${c.c}</span> <b>${esc(c.nombre)}</b>. ${esc(c.detalle)}</p>`).join('')}</details>`;
+    FIC.rubrica.forEach((c, i) => { const v = (a0.v1 || [])[i];
+      h += `<div class="cas"><span><span class="cod">${c.c}</span> ${esc(c.nombre)}</span>
+        <span class="seg" data-cr="${i}"><button data-v="2"${v === 2 ? ' class="si"' : ''}>2</button><button data-v="1"${v === 1 ? ' class="medio"' : ''}>1</button><button data-v="0"${v === 0 ? ' class="no"' : ''}>0</button></span></div>`; });
+    h += `<div class="fila" style="margin-top:8px"><label class="nota"><input type="checkbox" id="fReto"${a0.reto ? ' checked' : ''}> reto bien (+, no suma)</label></div></div>`;
+    if (f.bloques.length) h += `<div class="caja pq"><h2>Dónde falla <small class="nota">(opcional)</small></h2><div class="errs">${f.bloques.map(b => `<button class="${(a0.b || []).includes(b.id) ? 'si' : ''}" data-bl="${esc(b.id)}">${b.id[0] === 'A' ? 'Delante' : 'Detrás'} ${esc(b.id.slice(1))} · ${esc(b.titulo)}</button>`).join('')}</div></div>`;
+    if (r.v1 != null && r.codigos.length){
+      h += `<div class="caja pq"><div class="fila" style="justify-content:space-between"><h2 style="margin:0">2.ª vuelta</h2><label class="nota"><input type="checkbox" id="fVuelta"${a0.vuelta ? ' checked' : ''}> la ha vuelto a entregar</label></div>`;
+      if (a0.vuelta) h += '<p class="nota">Lo arreglado bien recupera la mitad de lo perdido en ese criterio.</p>' + FIC.rubrica.map((c, i) => { const v = a0.v1[i]; if (v >= 2) return '';
+        return `<div class="cas"><span><span class="cod">${c.c}</span> ${esc(c.nombre)} <small class="nota">(${v} → ${coma(v + (2 - v) / 2)})</small></span><span class="seg"><button data-ar="${i}"${(a0.ar || [])[i] ? ' class="si"' : ''}>arreglado</button></span></div>`; }).join('');
+      h += '</div>';
+    } else if (r.v1 === 10) h += '<p class="nota">Todo 2: no necesita 2.ª vuelta.</p>';
+  }
+  h += `<div class="fila" style="justify-content:space-between;margin:14px 0 4px"><button class="btn" id="crAnt"${n <= 1 ? ' disabled' : ''}>‹ n.º ${n - 1}</button><button class="btn prim" id="crSig"${n >= N ? ' disabled' : ''}>n.º ${n + 1} ›</button></div>`;
+  const B = $('#crCuerpo'), top = B.parentElement.scrollTop; B.innerHTML = h;
+  const toca = () => { const A = R.al[n] = R.al[n] || {v1: [], ar: [], b: []}; A.v1 = A.v1 || []; A.ar = A.ar || []; A.b = A.b || []; A.t = Date.now(); return A; };
+  const repinta = () => { guardaNotas(); pintaCorrigeFicha(); B.parentElement.scrollTop = top; };
+  $('#fNE').onchange = e => { toca().ne = e.target.checked; repinta(); };
+  if (!a0.ne){
+    $('#fTodo2').onclick = () => { const A = toca(); for (let i = 0; i < 5; i++) if (A.v1[i] == null) A.v1[i] = 2; repinta(); };
+    B.querySelectorAll('[data-cr] button').forEach(b => b.onclick = () => { const A = toca(), i = +b.parentElement.dataset.cr, v = +b.dataset.v; A.v1[i] = A.v1[i] === v ? null : v; if (A.v1[i] === 2 || A.v1[i] == null) A.ar[i] = false; repinta(); });
+    $('#fReto').onchange = e => { toca().reto = e.target.checked; repinta(); };
+    B.querySelectorAll('[data-bl]').forEach(b => b.onclick = () => { const A = toca(), k = A.b.indexOf(b.dataset.bl); if (k < 0) A.b.push(b.dataset.bl); else A.b.splice(k, 1); repinta(); });
+    if ($('#fVuelta')) $('#fVuelta').onchange = e => { toca().vuelta = e.target.checked; repinta(); };
+    B.querySelectorAll('[data-ar]').forEach(b => b.onclick = () => { const A = toca(), i = +b.dataset.ar; A.ar[i] = !A.ar[i]; repinta(); });
+  }
+  $('#crAnt').onclick = () => { CR.n = n - 1; pintaCorrigeFicha(); B.parentElement.scrollTop = 0; };
+  $('#crSig').onclick = () => { CR.n = n + 1; pintaCorrigeFicha(); B.parentElement.scrollTop = 0; };
 }
 
 /* ── LA NOTA DE LA EVALUACIÓN ── */
@@ -1662,8 +1833,8 @@ function pintaRec(E, g, N){
 }
 
 /* ── copia de seguridad de las notas (Ajustes) ── */
-function resumenNotas(){ const c = Object.values(NT.corr).reduce((s, R) => s + Object.keys(R.al).length, 0), e = Object.values(NT.eval).reduce((s, E) => s + Object.keys(E.al).length, 0);
-  return c + ' exámenes corregidos · ' + e + ' filas de evaluación'; }
+function resumenNotas(){ const k = o => Object.values(o || {}).reduce((s, R) => s + Object.keys(R.al).length, 0);
+  return k(NT.corr) + ' exámenes corregidos · ' + k(NT.fichas) + ' fichas anotadas · ' + k(NT.eval) + ' filas de evaluación'; }
 async function copiaNotas(){ const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT})], {type: 'application/json'}), nombre = 'notas-' + hoyISO() + '.json';
   const f = new File([b], nombre, {type: 'application/json'});
   if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); return; } catch (e) { if (e.name === 'AbortError') return; } }
@@ -1671,14 +1842,14 @@ async function copiaNotas(){ const b = new Blob([JSON.stringify({app: 'utilidade
 async function recuperaNotas(file){
   try { const o = JSON.parse(await file.text()); if (o.app !== 'utilidades-notas' || !o.notas) throw new Error('no es una copia de notas');
     if (!confirm('¿Cambiar las notas de este móvil (' + resumenNotas() + ') por las de la copia del ' + new Date(o.fecha).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '?')) return;
-    NT = Object.assign({alumnos: {}, corr: {}, eval: {}}, o.notas); await guardaDB('conf', NT, 'notas'); aviso('Notas recuperadas'); pintaAjustes(); }
+    NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, o.notas); await guardaDB('conf', NT, 'notas'); aviso('Notas recuperadas'); pintaAjustes(); }
   catch (e) { aviso('No se puede leer: ' + e.message, 4000); }
 }
 
 /* ── ARRANQUE ── */
 (async () => {
   await recarga(); pintaLista();
-  NT = Object.assign({alumnos: {}, corr: {}, eval: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null;
+  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null; FIC = (await leeDB('conf', 'fichas')) || null;
   const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
