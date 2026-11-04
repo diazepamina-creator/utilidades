@@ -53,7 +53,7 @@ button{cursor:pointer}
 .cab h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.2px;flex:1}
 .cab .ver{font-size:12px;opacity:.6}
 main{padding:14px 16px calc(90px + env(safe-area-inset-bottom));max-width:760px;margin:0 auto}
-.pie{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--blanco);border-top:1px solid var(--linea);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}
+.pie{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--blanco);border-top:1px solid var(--linea);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom)}
 .pie button{border:0;background:none;padding:8px 2px 9px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;color:var(--suave)}
 .pie button svg{width:24px;height:24px}
 .pie button.activo{color:var(--acento);font-weight:700}
@@ -137,11 +137,22 @@ ol.pasos li{margin:4px 0}
 </style>
 </head>
 <body>
-<header class="cab"><h1 id="titulo">Biblioteca</h1><span class="ver">v<span id="version"></span></span></header>
+<header class="cab"><h1 id="titulo">Hoy</h1><span class="ver">v<span id="version"></span></span></header>
 
 <main>
+  <!-- ── HOY: la guía de la semana (herramientas/calendario.json de los originales) ── -->
+  <section id="v-hoy">
+    <div class="fila" style="justify-content:space-between">
+      <button class="btn peq" id="hoyAntes" aria-label="Día anterior">‹</button>
+      <div style="text-align:center;flex:1"><b id="hoyFecha" style="font-size:18px"></b><div class="nota" id="hoySub" style="margin:0"></div></div>
+      <button class="btn peq" id="hoyDespues" aria-label="Día siguiente">›</button>
+    </div>
+    <div class="fila" style="margin-top:10px"><button class="btn peq" id="hoyVolver" hidden>Volver a hoy</button><button class="btn peq" id="hoySemana">Ver la semana</button><button class="btn peq" id="hoyComparte">Compartir todo lo de hoy</button></div>
+    <div id="hoyLista"></div>
+  </section>
+
   <!-- ── BIBLIOTECA ── -->
-  <section id="v-biblio">
+  <section id="v-biblio" hidden>
     <div class="fila">
       <input id="busca" type="search" placeholder="Buscar ficha, tema, soluciones…" aria-label="Buscar">
       <button class="btn prim" id="bSync">Actualizar</button>
@@ -231,7 +242,8 @@ ol.pasos li{margin:4px 0}
 </main>
 
 <nav class="pie">
-  <button data-v="biblio" class="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a1 1 0 0 1 1-1h4l2 2h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>Biblioteca</button>
+  <button data-v="hoy" class="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M8 15l2.5 2.5L16 13"/></svg>Hoy</button>
+  <button data-v="biblio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a1 1 0 0 1 1-1h4l2 2h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>Biblioteca</button>
   <button data-v="herr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>Herramientas</button>
   <button data-v="escaner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3.5"/></svg>Escanear</button>
   <button data-v="ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes</button>
@@ -297,7 +309,7 @@ ol.pasos li{margin:4px 0}
 
 <script>
 'use strict';
-const VERSION = '1.3.2';
+const VERSION = '1.4';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -324,18 +336,19 @@ const leeDB = async (n, k) => req((await almacen(n)).get(k));
 const guardaDB = async (n, v, k) => req((await almacen(n, 'readwrite')).put(v, k));
 const borraDB = async (n, k) => req((await almacen(n, 'readwrite')).delete(k));
 const todosDB = async n => req((await almacen(n)).getAll());
-const CONF0 = {token: '', dueno: 'diazepamina-creator', repo: 'originales', rama: 'main', opc: {}, catalogo: null, ultima: 0};
+const CONF0 = {token: '', dueno: 'diazepamina-creator', repo: 'originales', rama: 'main', opc: {}, catalogo: null, calendario: null, ultima: 0};
 async function conf(){ const c = Object.assign({}, CONF0); for (const k in CONF0){ const v = await leeDB('conf', k); if (v !== undefined) c[k] = v; } return c; }
 const ponConf = (k, v) => guardaDB('conf', v, k);
 
 /* ── NAVEGACIÓN: cuatro vistas abajo y capas encima. Cada capa abierta es una
    entrada del historial: el botón atrás de Android la cierra en vez de salir ── */
-const TITULOS = {biblio: 'Biblioteca', herr: 'Herramientas', escaner: 'Escanear', ajustes: 'Ajustes'};
+const TITULOS = {hoy: 'Hoy', biblio: 'Biblioteca', herr: 'Herramientas', escaner: 'Escanear', ajustes: 'Ajustes'};
 function ve(v){
   for (const k in TITULOS) $('#v-' + k).hidden = k !== v;
   $$('.pie button').forEach(b => b.classList.toggle('activo', b.dataset.v === v));
   $('#titulo').textContent = TITULOS[v];
   if (v === 'biblio') pintaLista();
+  if (v === 'hoy') pintaHoy();
   if (v === 'ajustes') pintaAjustes();
   scrollTo(0, 0);
 }
@@ -393,8 +406,9 @@ function pintaLista(){
   let h = '';
   const nov = NOVEDADES ? vis.filter(d => NOVEDADES.ids[d.id]).sort((a, b) => ordena(a.carpeta, b.carpeta) || ordena(a.nombre, b.nombre)) : [];
   if (nov.length && !q) h += `<details class="grupo hoy" open><summary>Novedades <span class="n">${nov.length}</span></summary>${nov.map(d => filaDoc(d).replace('<small>', '<small><b style="display:inline;color:var(--acento)">' + NOVEDADES.ids[d.id] + '</b> · ' + esc(d.carpeta) + ' · ')).join('')}<div class="fila" style="padding:8px 14px 12px"><button class="btn peq" id="bVisto">Visto</button></div></details>`;
-  const hoy = vis.filter(d => d.hoy).sort((a, b) => ordena(a.nombre, b.nombre));
-  if (hoy.length) h += `<details class="grupo hoy" open><summary>★ Para hoy <span class="n">${hoy.length}</span></summary>${hoy.map(filaDoc).join('')}</details>`;
+  const delCal = new Set(docsDelDia(hoyISO()).map(d => d.id));
+  const hoy = vis.filter(d => d.hoy || delCal.has(d.id)).sort((a, b) => ordena(a.nombre, b.nombre));
+  if (hoy.length) h += `<details class="grupo hoy" open><summary>★ Para hoy <span class="n">${hoy.length}</span></summary>${hoy.map(filaDoc).join('')}<div class="fila" style="padding:8px 14px 12px"><button class="btn peq" id="bCompHoy">Compartir todo</button></div></details>`;
   for (const g of nombres){ const ds = grupos.get(g), aps = new Map();
     for (const d of ds){ const a = apartado(d.carpeta); if (!aps.has(a)) aps.set(a, []); aps.get(a).push(d); }
     const orden = [...aps.keys()].sort((a, b) => pesoAp(a) - pesoAp(b) || ordena(a, b));
@@ -402,6 +416,7 @@ function pintaLista(){
     const titulo = aps.size === 1 && orden[0] ? g + ' · ' + orden[0] : g;
     h += `<details class="grupo"${abierto || g === 'Mis archivos' ? ' open' : ''}><summary>${esc(titulo)} <span class="n">${ds.length}</span></summary>${dentro}</details>`; }
   L.innerHTML = h;
+  if ($('#bCompHoy')) $('#bCompHoy').onclick = () => comparteVarios(hoy);
   if ($('#bVisto')) $('#bVisto').onclick = async () => { NOVEDADES = null; await borraDB('conf', 'novedades'); pintaLista(); };
 }
 $('#busca').addEventListener('input', pintaLista);
@@ -449,6 +464,14 @@ async function comparte(d){
   if (navigator.canShare && navigator.canShare({files: [f]})){
     try { await navigator.share({files: [f], title: d.nombre}); } catch (e) { if (e.name !== 'AbortError') aviso('No se ha podido compartir: ' + e.message); }
   } else { descarga(d.blob, f.name); aviso('Este navegador no comparte archivos: lo tienes en Descargas.'); }
+}
+/* varios a la vez: Android los manda juntos por Bluetooth, Nearby o correo */
+async function comparteVarios(ds){
+  if (!ds.length) return aviso('No hay nada que compartir');
+  const fs = ds.map(d => new File([d.blob], archivo(bonito(d.nombre)), {type: 'application/pdf'}));
+  if (navigator.canShare && navigator.canShare({files: fs})){
+    try { await navigator.share({files: fs, title: ds.length + ' documentos'}); } catch (e) { if (e.name !== 'AbortError') aviso('No se ha podido compartir: ' + e.message); }
+  } else { for (const f of fs) descarga(f, f.name); aviso('Este navegador no comparte archivos: los tienes en Descargas.'); }
 }
 function descarga(blob, nombre){ const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = nombre; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
 
@@ -526,11 +549,12 @@ async function sincroniza(){
       for (const r of bajar) ids['gh:' + r.path] = viejo.has(r.path) ? 'cambiado' : 'nuevo'; await guardaDB('conf', {fecha: Date.now(), ids}, 'novedades'); }
     const vivos = new Set(remotos.map(r => r.path)); let fuera = 0;
     for (const d of locales) if (!vivos.has(d.path)){ await borraDB('docs', d.id); fuera++; }
+    try { const b = await api(c, '/contents/herramientas/calendario.json?ref=' + encodeURIComponent(c.rama), true); CAL = JSON.parse(await b.text()); await ponConf('calendario', CAL); } catch (e) {}
     await ponConf('ultima', Date.now());
     N.textContent = (bajar.length ? bajar.length + (bajar.length === 1 ? ' archivo nuevo o cambiado' : ' archivos nuevos o cambiados') : 'Todo estaba al día')
       + (fuera ? ' · ' + fuera + ' ya no está' + (fuera === 1 ? '' : 'n') + ' en los originales y se ha' + (fuera === 1 ? '' : 'n') + ' quitado' : '') + ' · ' + remotos.length + ' en total.';
   } catch (e) { N.innerHTML = '<span class="mal">No se ha podido actualizar: ' + esc(e.message) + '.</span>'; }
-  finally { await recarga(); pintaLista(); sincronizando = false; $('#bSync').disabled = false; P.hidden = true; }
+  finally { await recarga(); pintaLista(); if (!$('#v-hoy').hidden) pintaHoy(); sincronizando = false; $('#bSync').disabled = false; P.hidden = true; }
 }
 $('#bSync').onclick = sincroniza;
 
@@ -1032,10 +1056,79 @@ $('#bBorraMios').onclick = async () => { const mios = DOCS.filter(d => d.origen 
   if (!confirm('¿Borrar los ' + mios.length + ' archivos de «Mis archivos»?')) return; for (const d of mios) await borraDB('docs', d.id); await recarga(); pintaAjustes(); aviso('Vaciado'); };
 $('#bBorraTodo').onclick = async () => { if (!confirm('¿Borrar todo: lo traído, «Mis archivos» y el token?')) return; for (const d of DOCS) await borraDB('docs', d.id); await ponConf('token', ''); await recarga(); pintaAjustes(); };
 
+/* ── HOY: lo que toca cada día, de herramientas/calendario.json ── */
+let CAL = null, DIA = null, SEMANA = false;
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const hoyISO = () => iso(new Date());
+const deISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const diaSem = s => { const k = deISO(s).getDay(); return k === 0 ? 7 : k; };
+const suma = (s, n) => { const d = deISO(s); d.setDate(d.getDate() + n); return iso(d); };
+const largaFecha = s => { const t = deISO(s).toLocaleDateString('es-ES', {weekday: 'long', day: 'numeric', month: 'long'}); return t.charAt(0).toUpperCase() + t.slice(1); };
+const ICONO = {carril: '🪞', clase: '📘', examen: '📝', entrega: '📤', aules: '🖥️', nota: '👥', billete: '🎫'};
+/* los eventos de un día para un grupo: los de ese día y los «cada»; aparte, los de la semana (desde/hasta) */
+function eventosDe(dia, g){
+  const ev = (CAL && CAL.eventos) || [], ds = diaSem(dia), en = e => !e.grupos || !e.grupos.length ? g === '' : e.grupos.includes(g);
+  const delDia = ev.filter(e => en(e) && (e.fecha === dia || (e.cada === ds && e.desde <= dia && dia <= e.hasta)));
+  const semana = ev.filter(e => en(e) && !e.cada && e.desde && e.desde <= dia && dia <= e.hasta);
+  return {delDia, semana};
+}
+const docDe = p => DOCS.find(d => d.id === 'gh:' + p);
+function docsDelDia(dia){
+  if (!CAL) return []; const out = new Map();
+  for (const g of [''].concat(Object.keys(CAL.grupos || {}))){ const dias = g ? CAL.grupos[g].dias : [1, 2, 3, 4, 5, 6, 7];
+    if (!dias.includes(diaSem(dia))) continue; const {delDia, semana} = eventosDe(dia, g);
+    for (const e of delDia.concat(semana)) for (const p of e.docs || []){ const d = docDe(p); if (d) out.set(d.id, d); } }
+  return [...out.values()];
+}
+function lineaEv(e, etq){
+  const docs = (e.docs || []).map(p => { const d = docDe(p); return d ? filaDoc(d) : `<div class="doc" style="opacity:.55;cursor:default"><span class="ico">PDF</span><span class="t"><b>${esc(p.split('/').pop().replace(/\.pdf$/i, ''))}</b><small>aún no está en tu biblioteca</small></span></div>`; }).join('');
+  return `<div style="padding:10px 14px;border-top:1px solid var(--linea)"><div>${ICONO[e.tipo] || '•'} ${etq ? '<small class="nota" style="margin:0">' + etq + ' · </small>' : ''}${e.aprox ? '≈ ' : ''}${esc(e.texto)}</div></div>${docs}`;
+}
+function tarjetaDia(dia){
+  let h = ''; const gs = CAL && CAL.grupos ? Object.keys(CAL.grupos) : [];
+  const gen = eventosDe(dia, '');
+  if (gen.delDia.length || gen.semana.length) h += `<details class="grupo" open><summary>General</summary>${gen.delDia.map(e => lineaEv(e)).join('')}${gen.semana.map(e => lineaEv(e, 'esta semana')).join('')}</details>`;
+  for (const g of gs){ if (!CAL.grupos[g].dias.includes(diaSem(dia))) continue;
+    const {delDia, semana} = eventosDe(dia, g), notas = delDia.filter(e => e.tipo === 'nota'), resto = delDia.filter(e => e.tipo !== 'nota');
+    const cab = CAL.grupos[g].nombre + (notas.length ? ' <span class="n">' + notas.map(e => esc(e.texto)).join(' · ') + '</span>' : '');
+    const cuerpo = resto.map(e => lineaEv(e)).join('') + semana.map(e => lineaEv(e, 'esta semana')).join('');
+    h += `<details class="grupo"${resto.length || semana.length ? ' open' : ''}><summary>${cab}</summary>${cuerpo || '<div class="nota" style="padding:10px 14px;border-top:1px solid var(--linea);margin:0">Nada especial.</div>'}</details>`; }
+  return h || '<div class="vacio">No hay clase.</div>';
+}
+function proximos(dia){
+  const ev = (CAL && CAL.eventos) || [], fin = suma(dia, 21);
+  const prox = ev.filter(e => e.fecha && e.fecha > dia && e.fecha <= fin && ['examen', 'entrega', 'aules'].includes(e.tipo)).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
+  const sin = ev.filter(e => e.sinFecha);
+  const nom = e => (e.grupos || []).map(g => (CAL.grupos[g] || {}).nombre || g).join(', ');
+  const faltan = f => { const n = Math.round((deISO(f) - deISO(dia)) / 864e5); return n === 1 ? 'mañana' : 'en ' + n + ' días'; };
+  let h = '';
+  if (prox.length) h += `<details class="grupo" open><summary>Lo que viene <span class="n">3 semanas</span></summary>${prox.map(e => `<div style="padding:9px 14px;border-top:1px solid var(--linea)">${ICONO[e.tipo] || '•'} <b>${largaFecha(e.fecha).split(',')[0]} ${deISO(e.fecha).getDate()}</b> <small class="nota">${faltan(e.fecha)} · ${esc(nom(e))}</small><div>${e.aprox ? '≈ ' : ''}${esc(e.texto)}</div></div>`).join('')}</details>`;
+  if (sin.length) h += `<details class="grupo"><summary>Pendiente de fecha <span class="n">${sin.length}</span></summary>${sin.map(e => lineaEv(e, nom(e))).join('')}</details>`;
+  return h;
+}
+function pintaHoy(){
+  if (!DIA) DIA = hoyISO();
+  const L = $('#hoyLista'), esHoy = DIA === hoyISO();
+  $('#hoyVolver').hidden = esHoy; $('#hoySemana').textContent = SEMANA ? 'Ver solo el día' : 'Ver la semana';
+  if (!CAL){ $('#hoyFecha').textContent = largaFecha(DIA); $('#hoySub').textContent = '';
+    L.innerHTML = '<div class="vacio"><p><b>Aún no hay calendario.</b></p><p>Pulsa <b>Actualizar</b> en la Biblioteca (con el token puesto): el calendario viene de tus originales.</p></div>'; return; }
+  if (SEMANA){ const lunes = suma(DIA, 1 - diaSem(DIA)); $('#hoyFecha').textContent = 'Semana del ' + deISO(lunes).getDate() + ' de ' + deISO(lunes).toLocaleDateString('es-ES', {month: 'long'}); $('#hoySub').textContent = '';
+    let h = ''; for (let k = 0; k < 5; k++){ const d = suma(lunes, k); h += `<h2 style="font-size:16px;margin:18px 0 4px">${largaFecha(d)}${d === hoyISO() ? ' · <span style="color:var(--acento)">hoy</span>' : ''}</h2>` + tarjetaDia(d); }
+    L.innerHTML = h + proximos(lunes); return; }
+  $('#hoyFecha').textContent = largaFecha(DIA); $('#hoySub').textContent = esHoy ? 'hoy' : (DIA < hoyISO() ? 'ya pasado' : '');
+  L.innerHTML = tarjetaDia(DIA) + proximos(DIA);
+}
+$('#hoyAntes').onclick = () => { DIA = suma(DIA || hoyISO(), SEMANA ? -7 : -1); pintaHoy(); };
+$('#hoyDespues').onclick = () => { DIA = suma(DIA || hoyISO(), SEMANA ? 7 : 1); pintaHoy(); };
+$('#hoyVolver').onclick = () => { DIA = hoyISO(); pintaHoy(); };
+$('#hoySemana').onclick = () => { SEMANA = !SEMANA; pintaHoy(); };
+$('#hoyComparte').onclick = () => comparteVarios(docsDelDia(DIA || hoyISO()));
+$('#hoyLista').addEventListener('click', e => { const b = e.target.closest('.doc[data-id]'); if (b) abreHoja(b.dataset.id); });
+
 /* ── ARRANQUE ── */
 (async () => {
   await recarga(); pintaLista();
-  const c = await conf(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
+  const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
