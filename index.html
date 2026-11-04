@@ -36,7 +36,8 @@
     (herramientas/rubricas.json, que sale de los .tex de latex/examenes) y la
     nota de la evaluación con los pesos de la programació d'aula. Las fichas,
     con la rúbrica de las dos vueltas (herramientas/fichas.json); las del taller,
-    con 0-1-2. Por número
+    con 0-1-2. TAREA DE AULES: los campos del formulario, listos para copiar;
+    las sesiones, de una copia del cuaderno de aula que no se guarda. Por número
     de lista, sin nombres, y solo en el móvil: nunca van a GitHub.
   - Las páginas se pintan de una en una al exportar, nunca todas a la vez:
     un examen de 40 páginas a 150 ppp no cabe en la memoria de un móvil.
@@ -152,6 +153,8 @@ img.marca{height:22px;vertical-align:-5px;margin-right:5px}
 .cod{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1.5px solid var(--acento);border-radius:50%;color:var(--acento);font-weight:800;font-size:13px;vertical-align:1px}
 .seg4 button{width:40px}.seg button.nada{background:#EFEAE0}.seg [data-ar]{width:auto;padding:0 12px;border-radius:10px!important;font-size:15px}
 .copia{border-color:var(--acento);background:#FDF3EA}
+.campo pre{white-space:pre-wrap;overflow-wrap:anywhere;font:15px/1.45 system-ui,sans-serif;background:#F7F3EA;border-radius:8px;padding:9px 10px;margin:8px 0 0}
+label.cuad{display:flex;gap:10px;align-items:flex-start;border-top:1px solid var(--linea);padding:8px 0;font-size:14px}
 .cass2{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}.cass2 .seg button{width:40px}
 .rej .num.hecho{border-color:var(--tinta)}.rej .num.amedias{border-color:var(--acento);border-style:dashed}.rej .num.np{background:#EFEAE0}
 .pq{padding:12px}.pq h2{font-size:16px}.pq .sol{background:#F4F7F2;border-radius:8px;padding:6px 8px;color:#2C4A3A;margin:8px 0 4px}
@@ -217,6 +220,7 @@ details.pr>div{margin:4px 0 0 10px}
   <!-- ── HERRAMIENTAS ── -->
   <section id="v-herr" hidden>
     <div class="herrs">
+      <button data-h="aules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="15" rx="2"/><path d="M3 8h18M7 12h6M7 15h10"/><path d="M15 21l2-2 2 2"/></svg><b>Tarea de Aules</b><span>Los campos de la tarea, listos para copiar y pegar</span></button>
       <button data-h="corregir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l1.5 1.5L12 8M8 15l1.5 1.5L12 14M14 9h3M14 15h3"/></svg><b>Corregir examen</b><span>Con la rúbrica, casilla a casilla: nota y estadísticas</span></button>
       <button data-h="fichas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="10" cy="12" r="1.6"/><path d="M13 12h3M9 16.5l1.3 1.3 2.4-2.6M14 17h2"/></svg><b>Corregir fichas</b><span>La rúbrica de las dos vueltas; en el taller, 0-1-2</span></button>
       <button data-h="evaluacion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h8"/></svg><b>Nota de la evaluación</b><span>80/10/10, para Itaca, y quién recupera qué</span></button>
@@ -372,7 +376,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.7.1';
+const VERSION = '1.8';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -681,7 +685,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', aules: 'Tarea de Aules', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -697,6 +701,7 @@ function pintaHerramienta(){
   const C = $('#herrCuerpo'), d = H.docs[0];
   if (H.tipo === 'qr') return pintaQR(C);
   if (H.tipo === 'actas') return pintaActas(C);
+  if (H.tipo === 'aules') return pintaAules(C);
   if (H.tipo === 'corregir') return pintaCorregir(C);
   if (H.tipo === 'fichas') return pintaFichas(C);
   if (H.tipo === 'evaluacion') return pintaEvaluacion(C);
@@ -1244,8 +1249,9 @@ const suma = (s, n) => { const d = deISO(s); d.setDate(d.getDate() + n); return 
 const largaFecha = s => { const t = deISO(s).toLocaleDateString('es-ES', {weekday: 'long', day: 'numeric', month: 'long'}); return t.charAt(0).toUpperCase() + t.slice(1); };
 const ICONO = {entrada: '⏱️', carril: '🪞', clase: '📘', examen: '📝', entrega: '📤', aules: '🖥️', nota: '👥', billete: '🎫'};
 /* los eventos de un día para un grupo: los de ese día y los «cada»; aparte, los de la semana (desde/hasta) */
+const todosEventos = () => ((CAL && CAL.eventos) || []).concat(LOCALES);
 function eventosDe(dia, g){
-  const ev = (CAL && CAL.eventos) || [], ds = diaSem(dia), en = e => !e.grupos || !e.grupos.length ? g === '' : e.grupos.includes(g);
+  const ev = todosEventos(), ds = diaSem(dia), en = e => !e.grupos || !e.grupos.length ? g === '' : e.grupos.includes(g);
   const delDia = ev.filter(e => en(e) && (e.fecha === dia || (e.cada === ds && e.desde <= dia && dia <= e.hasta)));
   const semana = ev.filter(e => en(e) && !e.cada && e.desde && e.desde <= dia && dia <= e.hasta);
   return {delDia, semana};
@@ -1260,7 +1266,7 @@ function docsDelDia(dia){
 }
 function lineaEv(e, etq){
   const docs = (e.docs || []).map(p => { const d = docDe(p); return d ? filaDoc(d) : `<div class="doc" style="opacity:.55;cursor:default"><span class="ico">PDF</span><span class="t"><b>${esc(p.split('/').pop().replace(/\.pdf$/i, ''))}</b><small>aún no está en tu biblioteca</small></span></div>`; }).join('');
-  return `<div style="padding:10px 14px;border-top:1px solid var(--linea)"><div>${ICONO[e.tipo] || '•'} ${etq ? '<small class="nota" style="margin:0">' + etq + ' · </small>' : ''}${e.aprox ? '≈ ' : ''}${esc(e.texto)}</div></div>${docs}`;
+  return `<div style="padding:10px 14px;border-top:1px solid var(--linea)"><div>${ICONO[e.tipo] || '•'} ${etq ? '<small class="nota" style="margin:0">' + etq + ' · </small>' : ''}${e.aprox ? '≈ ' : ''}${esc(e.texto)}${e.local ? ' <small class="nota">(apuntado en el móvil)</small>' : ''}</div></div>${docs}`;
 }
 function tarjetaDia(dia){
   let h = ''; const gs = CAL && CAL.grupos ? Object.keys(CAL.grupos) : [];
@@ -1274,7 +1280,7 @@ function tarjetaDia(dia){
   return h || '<div class="vacio">No hay clase.</div>';
 }
 function proximos(dia){
-  const ev = (CAL && CAL.eventos) || [], fin = suma(dia, 21);
+  const ev = todosEventos(), fin = suma(dia, 21);
   const prox = ev.filter(e => e.fecha && e.fecha > dia && e.fecha <= fin && ['examen', 'entrega', 'aules'].includes(e.tipo)).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
   const sin = ev.filter(e => e.sinFecha);
   const nom = e => (e.grupos || []).map(g => (CAL.grupos[g] || {}).nombre || g).join(', ');
@@ -1725,6 +1731,114 @@ function pintaCorrigeFicha(){
   $('#crSig').onclick = () => { CR.n = n + 1; pintaCorrigeFicha(); B.parentElement.scrollTop = 0; };
 }
 
+/* ── TAREA DE AULES: los campos, listos para copiar y pegar ──
+   Aules (Moodle) no se puede configurar desde fuera, así que la app prepara cada campo
+   tal como se escribe en el formulario: nombre, descripción (en castellano, como el Aules
+   del alumnado), fechas (en valenciano, como las pide el formulario), tipos de archivo,
+   calificación y restricción. Las sesiones de la libreta se pueden sacar de una copia del
+   cuaderno de aula, que se lee y se olvida (no se guarda: lleva observaciones del aula).
+   «Apuntar en Hoy» guarda en el móvil la apertura y el vencimiento como eventos propios,
+   que se suman a los de herramientas/calendario.json. */
+let LOCALES = [], CUAD = null;
+const TIPOS_AULES = {libreta: 'Fotos de la libreta', acta: 'Acta de una app', previa: 'Ficha previa y sus soluciones', examen: 'Aviso del examen'};
+const APPS_AULES = ['La palestra', 'La clonadora del gato naranja', 'Las piezas de Miut', 'La grapadora de Nick'];
+const fechaEs = s => deISO(s).toLocaleDateString('es-ES', {weekday: 'long', day: 'numeric', month: 'long'}).replace(',', '');
+const fechaVa = s => deISO(s).toLocaleDateString('ca-ES', {day: 'numeric', month: 'long', year: 'numeric'});
+const proxDomingo = s => { let d = suma(s, 1); while (diaSem(d) !== 7) d = suma(d, 1); return d; };
+function pintaAules(C){
+  const gs = gruposDe('');
+  const A = H.au = H.au || {tipo: 'libreta', g: (NT.ultimaEv || {}).g || gs[0], tema: '', ses: [], abre: suma(hoyISO(), 1), vence: proxDomingo(suma(hoyISO(), 1)), app: APPS_AULES[0], que: '', fecha: hoyISO(), contenidos: '', notas: ''};
+  if (!gs.includes(A.g)) A.g = gs[0];
+  let h = `<div class="caja"><div class="fila"><select id="auT" style="flex:1">${Object.entries(TIPOS_AULES).map(([k, t]) => `<option value="${k}"${k === A.tipo ? ' selected' : ''}>${t}</option>`).join('')}</select>
+    <select id="auG">${gs.map(g => `<option value="${g}"${g === A.g ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select></div>
+    <div class="fila" style="margin-top:8px"><input type="text" id="auTema" placeholder="Tema (Enteros, Potencias, Racionales…)" value="${esc(A.tema)}" style="flex:1"></div>`;
+  if (A.tipo === 'libreta'){
+    h += `<h2 style="margin-top:14px">Sesiones</h2><div id="auSes">${A.ses.map((s, i) => `<div style="margin:8px 0;padding-top:8px;border-top:1px solid var(--linea)"><div class="fila" style="flex-wrap:nowrap"><input type="date" data-sf="${i}" value="${s.f}" style="width:170px"><span class="nota" style="flex:1">${fechaEs(s.f)}</span><button class="btn peq" data-sq="${i}" aria-label="Quitar">✕</button></div><textarea data-st="${i}" rows="2" placeholder="qué se hizo (lo que leerá el alumno)" style="width:100%;margin-top:6px;border:1.5px solid var(--linea);border-radius:10px;padding:8px;font:15px/1.4 system-ui,sans-serif">${esc(s.t)}</textarea></div>`).join('')}</div>
+      <div class="fila"><button class="btn peq" id="auMas">Añadir sesión</button><button class="btn peq" id="auCuad">Sacar del cuaderno</button><input type="file" id="auCuadF" accept=".txt,.json,application/json,text/plain" hidden></div>
+      <div id="auLista"></div>`;
+  }
+  if (A.tipo === 'acta') h += `<div class="fila" style="margin-top:8px"><select id="auApp" style="flex:1">${APPS_AULES.map(a => `<option${a === A.app ? ' selected' : ''}>${a}</option>`).join('')}</select></div>
+    <input type="text" id="auQue" placeholder="Qué tienen que hacer (los encargos 5, 6 y 8…)" value="${esc(A.que)}" style="width:100%;margin-top:8px">`;
+  if (A.tipo === 'libreta' || A.tipo === 'acta') h += `<div class="fila nota" style="margin-top:10px">Se abre <input type="date" id="auAbre" value="${A.abre}"> a las 00:00 · vence <input type="date" id="auVence" value="${A.vence}"> a las 23:59</div>`;
+  if (A.tipo === 'previa') h += `<div class="fila nota" style="margin-top:10px">Se hace en clase el <input type="date" id="auFecha" value="${A.fecha}"> · las soluciones salen al día siguiente</div>`;
+  if (A.tipo === 'examen') h += `<div class="fila nota" style="margin-top:10px">Examen el <input type="date" id="auFecha" value="${A.fecha}"></div>
+    <input type="text" id="auCont" placeholder="Qué entra (potencias, raíz cuadrada, problemas…)" value="${esc(A.contenidos)}" style="width:100%;margin-top:8px">
+    <input type="text" id="auNotas" placeholder="Algo más (el álbum se entrega ese día…)" value="${esc(A.notas)}" style="width:100%;margin-top:8px">`;
+  h += '</div>' + camposAules(A).map((b, i) => `<div class="caja campo"><div class="fila" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="margin:0">${b.t}</h2>${b.v ? `<button class="btn peq" data-cp="${i}">Copiar</button>` : ''}</div>${b.v ? `<pre>${esc(b.v)}</pre>` : ''}${b.n ? `<p class="nota" style="margin-bottom:0">${b.n}</p>` : ''}</div>`).join('');
+  const ev = eventosAules(A);
+  if (ev.length) h += `<div class="fila" style="margin-top:6px"><button class="btn acento" id="auHoy">Apuntar en Hoy</button><span class="nota">${ev.map(e => fechaEs(e.fecha)).join(' y ')}</span></div>`;
+  if (LOCALES.length) h += `<details class="caja" style="margin-top:14px"><summary class="nota" style="cursor:pointer">Apuntado en el móvil (${LOCALES.length})</summary>${LOCALES.slice().sort((a, b) => a.fecha < b.fecha ? -1 : 1).map(e => `<div class="fila" style="justify-content:space-between;border-top:1px solid var(--linea);padding:6px 0;flex-wrap:nowrap"><span style="font-size:14px">${fechaEs(e.fecha)} · ${etqGrupo(e.grupos[0])}: ${esc(e.texto)}</span><button class="btn peq" data-lq="${e.id}" aria-label="Quitar">✕</button></div>`).join('')}</details>`;
+  C.innerHTML = h;
+  const otra = () => pintaHerramienta(), campo = (id, k, re = true) => { if ($(id)) $(id).onchange = e => { A[k] = e.target.value; if (re) otra(); }; };
+  campo('#auT', 'tipo'); campo('#auG', 'g'); campo('#auTema', 'tema'); campo('#auApp', 'app'); campo('#auQue', 'que'); campo('#auFecha', 'fecha'); campo('#auCont', 'contenidos'); campo('#auNotas', 'notas');
+  if ($('#auAbre')) $('#auAbre').onchange = e => { A.abre = e.target.value; if (A.vence <= A.abre) A.vence = proxDomingo(A.abre); otra(); };
+  campo('#auVence', 'vence');
+  C.querySelectorAll('[data-sf]').forEach(x => x.onchange = () => { A.ses[+x.dataset.sf].f = x.value; A.ses.sort((a, b) => a.f < b.f ? -1 : 1); otra(); });
+  C.querySelectorAll('[data-st]').forEach(x => x.onchange = () => { A.ses[+x.dataset.st].t = x.value; otra(); });
+  C.querySelectorAll('[data-sq]').forEach(x => x.onclick = () => { A.ses.splice(+x.dataset.sq, 1); otra(); });
+  if ($('#auMas')) $('#auMas').onclick = () => { A.ses.push({f: hoyISO(), t: ''}); otra(); };
+  if ($('#auCuad')){ $('#auCuad').onclick = () => CUAD ? pintaCuad(A) : $('#auCuadF').click();
+    $('#auCuadF').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      try { const o = JSON.parse(await f.text()); if (!o.store || !o.store.ses) throw new Error('no es una copia del cuaderno'); CUAD = o.store; pintaCuad(A); }
+      catch (er) { aviso('No puedo leerlo: ' + er.message, 4000); } }; }
+  C.querySelectorAll('[data-cp]').forEach(b => b.onclick = async () => { const v = camposAules(A)[+b.dataset.cp].v;
+    try { await navigator.clipboard.writeText(v); b.textContent = 'Copiado ✓'; setTimeout(() => b.textContent = 'Copiar', 1500); } catch (e) { aviso('No se ha podido copiar'); } });
+  if ($('#auHoy')) $('#auHoy').onclick = async () => { const n = eventosAules(A); for (const e of n){ LOCALES = LOCALES.filter(x => !(x.fecha === e.fecha && x.texto === e.texto && x.grupos[0] === e.grupos[0])); LOCALES.push(e); }
+    await ponConf('eventosLocales', LOCALES); aviso('Apuntado en Hoy'); otra(); };
+  C.querySelectorAll('[data-lq]').forEach(b => b.onclick = async () => { LOCALES = LOCALES.filter(x => x.id !== b.dataset.lq); await ponConf('eventosLocales', LOCALES); otra(); });
+}
+/* las sesiones del cuaderno del grupo: se marcan y pasan a la lista */
+function pintaCuad(A){
+  const D = $('#auLista'), g = A.g === 'T4' ? 'R4' : A.g, ses = Object.values(CUAD.ses).filter(s => s.grupo === g && s.estado === 'si' && s.contenido).sort((a, b) => a.fecha < b.fecha ? 1 : -1).slice(0, 40);
+  const uds = ((CUAD.cfg || {}).unidades || {})[g[0]] || [], ud = id => (uds.find(u => u.id === id) || {}).nombre || '';
+  if (!ses.length){ D.innerHTML = '<p class="nota">No hay sesiones de este grupo en la copia.</p>'; return; }
+  D.innerHTML = `<div class="caja" style="margin-top:8px"><p class="nota" style="margin-top:0">Marca las sesiones que quieres pedir (las más recientes, arriba). La copia del cuaderno no se guarda.</p>
+    ${ses.map((s, i) => `<label class="cuad"><input type="checkbox" data-ci="${i}"${A.ses.some(x => x.f === s.fecha) ? ' checked' : ''}><span><b>${fechaEs(s.fecha)}</b> <small class="nota">${esc(ud(s.unidad).split('·')[0])}</small><br>${esc(s.contenido)}${s.deberes ? '<br><small class="nota">Deberes: ' + esc(s.deberes) + '</small>' : ''}</span></label>`).join('')}
+    <div class="fila" style="margin-top:8px"><button class="btn prim peq" id="auCuadOk">Usar las marcadas</button></div></div>`;
+  $('#auCuadOk').onclick = () => { const m = [...D.querySelectorAll('[data-ci]:checked')].map(x => ses[+x.dataset.ci]);
+    const corta = t => t.replace(/\s+/g, ' ').trim().replace(/\.$/, ''), min = t => t.charAt(0).toLowerCase() + t.slice(1);
+    /* lo que se hizo, breve: frases enteras hasta unos 50 caracteres (luego se puede retocar) */
+    const breve = t => { const fr = corta(t).split(/\.\s+/); let o = fr[0]; for (let i = 1; i < fr.length && o.length < 50; i++) o += '. ' + fr[i]; return o; };
+    for (const s of m) if (!A.ses.some(x => x.f === s.fecha)) A.ses.push({f: s.fecha, t: min(breve(s.contenido)) + (s.deberes ? '; deberes: ' + min(corta(s.deberes)) : '')});
+    A.ses.sort((a, b) => a.f < b.f ? -1 : 1); if (!A.tema && m[0]) A.tema = (ud(m[0].unidad).split('·')[0] || '').trim(); pintaHerramienta(); };
+}
+function camposAules(A){
+  const tema = A.tema.trim() || 'Tema', out = [];
+  const disp = (abre, vence) => ({t: 'Disponibilitat', v: `Permet trameses des de: ${fechaVa(abre)}, 00:00\nData de venciment: ${fechaVa(vence)}, 23:59\nData límit: ${fechaVa(vence)}, 23:59\nRecorda'm de qualificar el: ${fechaVa(suma(vence, 1))}`, n: 'La data límit, igual que el venciment: así no entra nada tarde.'});
+  if (A.tipo === 'libreta'){
+    const ses = A.ses.filter(s => s.f);
+    out.push({t: 'Nom de la tasca', v: 'Fotos de tu libreta · ' + tema});
+    out.push({t: 'Descripció', v: `Sube fotos de tu libreta de ${ses.length === 1 ? 'esta sesión' : 'estas ' + (['', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis'][ses.length] || ses.length) + ' sesiones'} de ${tema.toLowerCase()}:\n\n` + (ses.length ? ses.map(s => '- ' + fechaEs(s.f).replace(/^./, c => c.toUpperCase()) + (s.t ? ': ' + s.t.replace(/\.$/, '') + '.' : '.')).join('\n') : '- (añade las sesiones)')
+      + `\n\nUna foto por página, con buena luz y que se lea bien. Puedes subir varias fotos.\n\nSe puntúa cada página: completa, a medias o en blanco.\n\nPlazo: hasta el ${fechaEs(A.vence)} a las 23:59. Después no se puede entregar.`, n: 'Marca «Mostra la descripció a la pàgina del curs».'});
+    out.push(disp(A.abre, A.vence));
+    out.push({t: 'Tipus de fitxers acceptats', v: '.jpg .jpeg .png .heic .pdf', n: 'Trameses de fitxers: sí · text en línia: no · nombre màxim de fitxers: 10. Si Aules no acepta .heic, quítalo.'});
+    out.push({t: 'Qualificació i tramesa', n: 'Tipus: Punt, màxim 10. «Requereix que els estudiants facen clic al botó Envia»: no. Para corregir: completa 1, a medias ½, en blanco 0; nota = puntos ÷ páginas × 10.'});
+  } else if (A.tipo === 'acta'){
+    out.push({t: 'Nom de la tasca', v: 'Acta de ' + A.app.replace(/ del gato naranja| de Nick/, '') + ' · ' + tema});
+    out.push({t: 'Descripció', v: `Juega en ${A.app}${A.que.trim() ? ' y haz ' + A.que.trim().replace(/\.$/, '') : ''}. Usa siempre el mismo móvil u ordenador: lo que haces se guarda ahí.\n\nCuando acabes, toca «Acta» y después «Descargar .txt». Sube aquí ese archivo, sin cambiarlo: si se toca, el código ya no cuadra.\n\nPlazo: hasta el ${fechaEs(A.vence)} a las 23:59. Después no se puede entregar.`, n: 'Marca «Mostra la descripció a la pàgina del curs».'});
+    out.push(disp(A.abre, A.vence));
+    out.push({t: 'Tipus de fitxers acceptats', v: '.txt', n: 'Trameses de fitxers: sí · text en línia: no · nombre màxim de fitxers: 1.'});
+    out.push({t: 'Para corregir', n: 'Visualitza totes les trameses → Baixa totes les trameses, y el .zip a «Comprobar actas» de esta app: te dice cuáles son buenas, las retocadas y las copiadas, con el nombre de cada alumno.'});
+  } else if (A.tipo === 'previa'){
+    const sig = suma(A.fecha, 1);
+    out.push({t: 'Nom del fitxer (la ficha)', v: 'Ficha previa · ' + tema, n: 'Fitxer, visible siempre. Se hace en papel en clase.'});
+    out.push({t: 'Nom del fitxer (las soluciones)', v: 'Soluciones de la ficha previa · ' + tema});
+    out.push({t: 'Restriccions d\'accés (las soluciones)', v: `Data: des de ${fechaVa(sig)}, 00:00`, n: 'Pulsa el ojo de la restricción para que quede tachado: así no se ve hasta ese día.'});
+  } else {
+    out.push({t: 'Àrea de text i mitjans: EXAMEN', v: `EXAMEN DE ${tema.toUpperCase()}: ${fechaEs(A.fecha)}.` + (A.contenidos.trim() ? `\n\nEntra: ${A.contenidos.trim().replace(/\.$/, '')}.` : '') + `\n\nPara prepararlo: la ficha previa (con sus soluciones) y tus fichas corregidas.` + (A.notas.trim() ? `\n\n${A.notas.trim().replace(/\.$/, '')}.` : '') + `\n\nSin calculadora. Trae lápiz, goma y bolígrafo.`});
+  }
+  return out;
+}
+function eventosAules(A){
+  const t = (A.tema.trim() || 'el tema').toLowerCase(), g = [A.g], id = () => 'l' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  if (A.tipo === 'libreta') return [{id: id(), fecha: A.abre, grupos: g, tipo: 'aules', texto: `Se abre a las 00:00 la tarea «Fotos de tu libreta» de ${t}` + (A.ses.length ? ': sesiones del ' + A.ses.map(s => deISO(s.f).getDate()).join(', ').replace(/, (\d+)$/, ' y $1') + '. Dilo en clase.' : '.'), local: true},
+    {id: id(), fecha: A.vence, grupos: g, tipo: 'entrega', texto: `Vencen a las 23:59 las fotos de la libreta de ${t}.`, local: true}];
+  if (A.tipo === 'acta') return [{id: id(), fecha: A.abre, grupos: g, tipo: 'aules', texto: `Se abre la tarea «Acta de ${A.app}» de ${t}. Dilo en clase.`, local: true},
+    {id: id(), fecha: A.vence, grupos: g, tipo: 'entrega', texto: `Vencen a las 23:59 las actas de ${A.app} (${t}).`, local: true}];
+  if (A.tipo === 'previa') return [{id: id(), fecha: suma(A.fecha, 1), grupos: g, tipo: 'aules', texto: `Salen solas en Aules las soluciones de la ficha previa de ${t}.`, local: true}];
+  return [];
+}
+
 /* ── LA NOTA DE LA EVALUACIÓN ── */
 const UNIDADES0 = {'1|1': [{nombre: 'Divisibilidad', examen: null}, {nombre: 'Enteros', examen: 'enteros-1eso'}, {nombre: 'Potencias', examen: 'potencias-1eso'}],
   '2|1': [{nombre: 'Enteros', examen: 'enteros-2eso'}, {nombre: 'Racionales', examen: null}]};
@@ -1863,7 +1977,7 @@ async function recuperaNotas(file){
 /* ── ARRANQUE ── */
 (async () => {
   await recarga(); pintaLista();
-  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null; FIC = (await leeDB('conf', 'fichas')) || null;
+  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || [];
   const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
