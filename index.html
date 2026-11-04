@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D2B45">
+<title>Utilidades</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<!--
+  UTILIDADES · la caja de herramientas de Andrés para el día a día del aula.
+  App personal (no va a clase): se instala en el móvil y funciona sin conexión.
+
+  Qué hace, y por qué así:
+  - BIBLIOTECA. El material de clase sale de la carpeta latex/aules del
+    repositorio privado de originales, que ya tiene los PDF con el nombre que
+    ve el alumno. La app los trae con un token de GitHub de SOLO LECTURA que
+    se guarda en el móvil (IndexedDB) y en ningún otro sitio. «Actualizar»
+    baja solo lo que ha cambiado (se compara el sha de cada archivo).
+    Opcional: latex/examenes (solo sus carpetas pdf/), que nunca van a Aules.
+  - COMPARTIR. El menú de compartir de Android (navigator.share con archivos)
+    da Bluetooth, Nearby, Drive y correo: es como ya se manda a la pizarra.
+  - HERRAMIENTAS DE PDF. Tapar nombres, reducir peso, unir, sacar, quitar y
+    girar páginas. Todo pasa en el móvil: nada se sube. Tapar y reducir
+    convierten cada página en imagen (así el nombre tapado no se puede
+    recuperar); unir y las páginas trabajan sobre el PDF sin tocar su calidad.
+  - ESCANEAR. Fotos con la cámara → un PDF A4, enderezado con las cuatro
+    esquinas que se ajustan a mano, en «modo documento» (blanco el papel,
+    negra la tinta, sin la sombra de la mano) y con el nombre tapado si se
+    quiere. Para no depender de la fotocopiadora.
+  - Las páginas se pintan de una en una al exportar, nunca todas a la vez:
+    un examen de 40 páginas a 150 ppp no cabe en la memoria de un móvil.
+  Librerías (en lib/, para que funcione sin red): pdf.js 3.11.174 (Apache 2.0)
+  para pintar y pdf-lib 1.17.1 (MIT) para escribir PDF.
+-->
+<script src="lib/pdf.min.js"></script>
+<script src="lib/pdf-lib.min.js"></script>
+<style>
+:root{--papel:#FBF8F1;--blanco:#FFFFFF;--tinta:#1D2B45;--suave:#6B6F7B;--acento:#D9661A;--linea:#E5DDCD;--ok:#2E7D5B;--mal:#B3261E;--tapa:#2B2B2B;
+  --r:14px;--sombra:0 1px 2px rgba(29,43,69,.08),0 4px 14px rgba(29,43,69,.06)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--papel);color:var(--tinta);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior-y:contain}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.cab{position:sticky;top:0;z-index:5;background:var(--tinta);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px}
+.cab h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.2px;flex:1}
+.cab .ver{font-size:12px;opacity:.6}
+main{padding:14px 16px calc(90px + env(safe-area-inset-bottom));max-width:760px;margin:0 auto}
+.pie{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--blanco);border-top:1px solid var(--linea);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom)}
+.pie button{border:0;background:none;padding:8px 2px 9px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px;color:var(--suave)}
+.pie button svg{width:24px;height:24px}
+.pie button.activo{color:var(--acento);font-weight:700}
+.fila{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{border:1.5px solid var(--tinta);background:var(--blanco);border-radius:10px;padding:9px 14px;font-weight:600}
+.btn.prim{background:var(--tinta);color:#fff}
+.btn.acento{background:var(--acento);border-color:var(--acento);color:#fff}
+.btn.peq{padding:5px 10px;font-size:14px}
+.btn:disabled{opacity:.4}
+.btn.peligro{border-color:var(--mal);color:var(--mal)}
+input[type=search],input[type=text],input[type=password],input[type=number],select{border:1.5px solid var(--linea);background:var(--blanco);border-radius:10px;padding:9px 12px;min-width:0}
+input[type=number]{width:74px}
+input[type=search]{flex:1}
+.nota{font-size:14px;color:var(--suave);margin:6px 0}
+.caja{background:var(--blanco);border:1px solid var(--linea);border-radius:var(--r);padding:14px;margin:12px 0;box-shadow:var(--sombra)}
+.caja h2{font-size:16px;margin:0 0 8px}
+details.grupo{background:var(--blanco);border:1px solid var(--linea);border-radius:var(--r);margin:10px 0;box-shadow:var(--sombra);overflow:hidden}
+details.grupo>summary{list-style:none;padding:12px 14px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer}
+details.grupo>summary::-webkit-details-marker{display:none}
+details.grupo>summary::after{content:"";margin-left:auto;width:9px;height:9px;border-right:2px solid var(--suave);border-bottom:2px solid var(--suave);transform:rotate(45deg);transition:transform .15s}
+details.grupo[open]>summary::after{transform:rotate(-135deg)}
+details.grupo>summary .n{font-weight:500;color:var(--suave);font-size:14px}
+details.hoy>summary{color:var(--acento)}
+.doc{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-top:1px solid var(--linea);background:none;padding:11px 14px}
+.doc .ico{flex:none;width:34px;height:42px;border-radius:5px;background:#F4E7DA;color:var(--acento);font-size:10px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px;position:relative}
+.doc .ico::before{content:"";position:absolute;right:0;top:0;border-left:9px solid #E8CDB4;border-bottom:9px solid #E8CDB4;border-right:9px solid var(--blanco);border-top:9px solid var(--blanco);border-radius:0 0 0 3px}
+.doc .t{flex:1;min-width:0}
+.doc .t b{display:block;font-weight:600;overflow-wrap:anywhere}
+.doc .t small{color:var(--suave);font-size:13px}
+.doc .est{color:var(--acento);font-size:18px}
+.vacio{text-align:center;padding:30px 10px;color:var(--suave)}
+.herrs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.herrs button{border:1px solid var(--linea);background:var(--blanco);border-radius:var(--r);padding:16px 12px;text-align:left;box-shadow:var(--sombra);display:flex;flex-direction:column;gap:4px;min-height:104px}
+.herrs button b{font-size:16px}
+.herrs button span{font-size:13px;color:var(--suave)}
+.herrs button svg{width:26px;height:26px;color:var(--acento)}
+.capa{position:fixed;inset:0;z-index:20;background:var(--papel);overflow:auto;display:flex;flex-direction:column}
+.capa[hidden]{display:none}
+.capa .cab{flex:none}
+.capa .cab button{border:0;background:none;color:#fff;font-size:15px;padding:6px 8px;border-radius:8px}
+.capa .cuerpo{padding:14px 16px calc(28px + env(safe-area-inset-bottom));max-width:760px;width:100%;margin:0 auto}
+.hoja-fondo{position:fixed;inset:0;z-index:30;background:rgba(20,26,40,.45);display:flex;align-items:flex-end}
+.hoja-fondo[hidden]{display:none}
+.hoja{background:var(--blanco);width:100%;border-radius:18px 18px 0 0;padding:14px 16px calc(14px + env(safe-area-inset-bottom));max-height:85vh;overflow:auto}
+.hoja h2{font-size:17px;margin:4px 0 2px;overflow-wrap:anywhere}
+.hoja .acc{display:flex;align-items:center;gap:12px;width:100%;border:0;border-top:1px solid var(--linea);background:none;padding:13px 4px;text-align:left;font-size:16px}
+.hoja .acc svg{width:22px;height:22px;color:var(--suave);flex:none}
+.hoja .acc.peligro{color:var(--mal)}
+.miniaturas{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;margin-top:10px}
+.mini{position:relative;background:var(--blanco);border:2px solid var(--linea);border-radius:8px;padding:4px;text-align:center;font-size:12px;color:var(--suave)}
+.mini canvas{width:100%;height:auto;display:block;border-radius:3px}
+.mini.marcada{border-color:var(--acento);background:#FDF0E5}
+.mini.marcada::after{content:"✓";position:absolute;top:4px;right:4px;background:var(--acento);color:#fff;border-radius:50%;width:22px;height:22px;font-size:14px;line-height:22px}
+.chips{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.chip{display:flex;align-items:center;gap:6px;background:var(--blanco);border:1px solid var(--linea);border-radius:10px;padding:7px 8px 7px 12px}
+.chip span{flex:1;min-width:0;overflow-wrap:anywhere;font-size:15px}
+.chip button{border:0;background:none;font-size:17px;padding:2px 7px;color:var(--suave)}
+.opc{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.opc label{display:flex;gap:10px;align-items:flex-start;background:var(--blanco);border:1px solid var(--linea);border-radius:10px;padding:10px 12px}
+.opc label small{display:block;color:var(--suave);font-size:13px}
+.prog{height:6px;background:var(--linea);border-radius:3px;overflow:hidden;margin:8px 0}
+.prog i{display:block;height:100%;width:0;background:var(--acento);transition:width .15s}
+#visorPags{display:flex;flex-direction:column;align-items:center;gap:10px;padding:10px 0 30px;background:#5B6170;min-height:100%}
+#visorPags canvas{background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.3);max-width:none}
+#visor{background:#5B6170}
+#lienzo{touch-action:none;max-width:100%;height:auto;background:#fff;box-shadow:var(--sombra)}
+.editor{position:relative;touch-action:none;user-select:none;margin:8px auto;max-width:100%}
+.editor canvas{display:block;width:100%;height:auto;border-radius:6px}
+.tira{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}
+.tira .mini{flex:none;width:76px}
+.tira .mini.actual{border-color:var(--tinta)}
+.aviso{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:40;background:var(--tinta);color:#fff;padding:10px 16px;border-radius:12px;font-size:15px;max-width:calc(100% - 32px);box-shadow:var(--sombra);opacity:0;pointer-events:none;transition:opacity .2s}
+.aviso.ver{opacity:1}
+.res{font-size:15px}
+.res b{font-size:18px}
+code{background:#F1EBDF;padding:1px 5px;border-radius:5px;font-size:14px}
+ol.pasos{padding-left:20px;margin:6px 0}
+ol.pasos li{margin:4px 0}
+.ok{color:var(--ok)} .mal{color:var(--mal)}
+</style>
+</head>
+<body>
+<header class="cab"><h1 id="titulo">Biblioteca</h1><span class="ver">v<span id="version"></span></span></header>
+
+<main>
+  <!-- ── BIBLIOTECA ── -->
+  <section id="v-biblio">
+    <div class="fila">
+      <input id="busca" type="search" placeholder="Buscar ficha, tema, soluciones…" aria-label="Buscar">
+      <button class="btn prim" id="bSync">Actualizar</button>
+    </div>
+    <div class="prog" id="syncProg" hidden><i></i></div>
+    <p class="nota" id="syncNota"></p>
+    <div id="lista"></div>
+    <div class="fila" style="margin-top:14px">
+      <button class="btn" id="bImporta">Añadir PDF del móvil</button>
+      <input type="file" id="fImporta" accept="application/pdf" multiple hidden>
+    </div>
+  </section>
+
+  <!-- ── HERRAMIENTAS ── -->
+  <section id="v-herr" hidden>
+    <div class="herrs">
+      <button data-h="tapar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="11" y="6.5" width="8" height="4" fill="currentColor"/><path d="M6 14h12M6 17h8"/></svg><b>Tapar nombres</b><span>Recuadro negro sobre el nombre, para compartir</span></button>
+      <button data-h="reducir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg><b>Reducir peso</b><span>Para Aules o el correo</span></button>
+      <button data-h="unir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="10" height="13" rx="1.5"/><rect x="11" y="8" width="10" height="13" rx="1.5"/></svg><b>Unir</b><span>Varios PDF en uno</span></button>
+      <button data-h="paginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12a3 3 0 1 0 3-3"/><path d="M12 6v3h3"/></svg><b>Páginas</b><span>Sacar, quitar o girar páginas</span></button>
+    </div>
+    <p class="nota" style="margin-top:14px">Todo se hace en el móvil: los PDF no se suben a ningún sitio. Lo que sale se guarda en «Mis archivos» de la biblioteca.</p>
+  </section>
+
+  <!-- ── ESCANEAR ── -->
+  <section id="v-escaner" hidden>
+    <div class="fila">
+      <button class="btn acento" id="bFoto">Hacer foto</button>
+      <button class="btn" id="bGaleria">De la galería</button>
+      <input type="file" id="fFoto" accept="image/*" capture="environment" hidden>
+      <input type="file" id="fGaleria" accept="image/*" multiple hidden>
+    </div>
+    <p class="nota" id="escNota">Haz una foto por hoja, con la hoja entera a la vista. Después ajusta las cuatro esquinas.</p>
+    <div class="tira" id="escTira"></div>
+    <div id="escEditor"></div>
+    <div id="escOpciones" hidden>
+      <div class="opc">
+        <label><input type="checkbox" id="escDoc" checked><span>Modo documento<small>Papel blanco y tinta negra, sin sombras. Pesa menos.</small></span></label>
+      </div>
+      <div class="fila"><span>Tapar el nombre:</span>
+        <select id="escTapa"><option value="">no</option><option value="fichas">fichas y carril</option><option value="examen">exámenes</option></select>
+        <label class="nota"><input type="checkbox" id="escImpares"> solo páginas impares</label>
+      </div>
+      <div class="fila" style="margin-top:12px"><button class="btn prim" id="bEscPdf">Crear PDF</button><button class="btn peligro peq" id="bEscVacia">Empezar de nuevo</button></div>
+      <div class="prog" id="escProg" hidden><i></i></div>
+    </div>
+  </section>
+
+  <!-- ── AJUSTES ── -->
+  <section id="v-ajustes" hidden>
+    <div class="caja">
+      <h2>Conexión con tus originales</h2>
+      <p class="nota" id="ajEstado"></p>
+      <div class="fila"><input type="password" id="ajToken" placeholder="Token de GitHub (github_pat_…)" style="flex:1" autocomplete="off"><button class="btn prim" id="bToken">Guardar</button></div>
+      <div class="fila" style="margin-top:8px"><button class="btn peq" id="bProbar">Probar conexión</button><button class="btn peq peligro" id="bQuitaToken">Quitar el token</button></div>
+      <details style="margin-top:10px"><summary class="nota" style="cursor:pointer">Cómo se crea el token (una vez)</summary>
+        <ol class="pasos nota">
+          <li>En GitHub, ve a <b>Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</b>.</li>
+          <li>Nombre: <code>utilidades móvil</code>. Caducidad: la que quieras (un año, por ejemplo).</li>
+          <li><b>Repository access → Only select repositories</b> → <code>originales</code>.</li>
+          <li><b>Permissions → Repository permissions → Contents: Read-only</b>. Nada más.</li>
+          <li>Genera el token, cópialo y pégalo aquí. Solo se guarda en este móvil.</li>
+        </ol>
+        <p class="nota">Si pierdes el móvil, bórralo en GitHub y deja de servir.</p>
+      </details>
+    </div>
+    <div class="caja">
+      <h2>Qué se trae</h2>
+      <div class="opc">
+        <label><input type="checkbox" checked disabled><span>Material de Aules<small><code>latex/aules</code>: fichas, álbumes, soluciones, cabeceras en PDF</small></span></label>
+        <label><input type="checkbox" id="ajExamenes"><span>Exámenes y claves<small><code>latex/examenes/*/pdf</code>. Solo en tu móvil; nunca van a Aules.</small></span></label>
+      </div>
+      <details><summary class="nota" style="cursor:pointer">Repositorio (avanzado)</summary>
+        <div class="fila" style="margin-top:8px"><input type="text" id="ajDueno" style="width:46%"><input type="text" id="ajRepo" style="width:30%"><input type="text" id="ajRama" style="width:18%"></div>
+        <button class="btn peq" id="bRepo" style="margin-top:8px">Guardar</button>
+      </details>
+    </div>
+    <div class="caja">
+      <h2>Espacio</h2>
+      <p class="nota" id="ajEspacio"></p>
+      <div class="fila"><button class="btn peq peligro" id="bBorraGh">Borrar lo traído de GitHub</button><button class="btn peq peligro" id="bBorraTodo">Borrar todo</button></div>
+    </div>
+  </section>
+</main>
+
+<nav class="pie">
+  <button data-v="biblio" class="activo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a1 1 0 0 1 1-1h4l2 2h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/></svg>Biblioteca</button>
+  <button data-v="herr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>Herramientas</button>
+  <button data-v="escaner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3.5"/></svg>Escanear</button>
+  <button data-v="ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ajustes</button>
+</nav>
+
+<!-- ── CAPAS (cada una ocupa la pantalla; el botón atrás de Android las cierra) ── -->
+<div class="hoja-fondo" id="hoja" hidden>
+  <div class="hoja" role="dialog" aria-modal="true">
+    <h2 id="hojaNombre"></h2><p class="nota" id="hojaMeta" style="margin:0 0 6px"></p>
+    <button class="acc" data-a="ver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button>
+    <button class="acc" data-a="compartir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Compartir (Bluetooth, Nearby, correo…)</button>
+    <button class="acc" data-a="hoy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span id="hojaHoy">Para hoy</span></button>
+    <button class="acc" data-a="herr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>Tapar, reducir, páginas…</button>
+    <button class="acc" data-a="descargar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>Descargar</button>
+    <button class="acc peligro" data-a="borrar" id="hojaBorrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Borrar de «Mis archivos»</button>
+  </div>
+</div>
+
+<section class="capa" id="visor" hidden>
+  <header class="cab"><button data-cierra>‹ Volver</button><h1 id="visorNombre" style="font-size:15px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"></h1>
+    <button id="vMenos" aria-label="Alejar">−</button><button id="vMas" aria-label="Acercar">+</button><button id="vComparte">Compartir</button><button id="vPantalla" aria-label="Pantalla completa">⛶</button></header>
+  <div id="visorPags"></div>
+</section>
+
+<section class="capa" id="herramienta" hidden>
+  <header class="cab"><button data-cierra>‹ Volver</button><h1 id="herrTitulo"></h1></header>
+  <div class="cuerpo" id="herrCuerpo"></div>
+</section>
+
+<section class="capa" id="selector" hidden>
+  <header class="cab"><button data-cierra>‹ Volver</button><h1>Elige de la biblioteca</h1></header>
+  <div class="cuerpo"><input id="selBusca" type="search" placeholder="Buscar…" style="width:100%"><div id="selLista"></div></div>
+</section>
+
+<section class="capa" id="editorPag" hidden>
+  <header class="cab"><button data-cierra>‹ Hecho</button><h1>Tapar a mano</h1></header>
+  <div class="cuerpo"><p class="nota">Arrastra sobre la hoja para tapar algo más.</p><canvas id="lienzo"></canvas>
+    <div class="fila" style="margin-top:10px"><button class="btn" id="bDeshaz">Quitar el último recuadro</button></div></div>
+</section>
+
+<section class="capa" id="resultado" hidden>
+  <header class="cab"><button data-cierra>‹ Volver</button><h1>Listo</h1></header>
+  <div class="cuerpo">
+    <div class="caja res"><p id="resTexto" style="margin-top:0"></p>
+      <label class="nota">Nombre del archivo</label>
+      <div class="fila"><input type="text" id="resNombre" style="flex:1"><button class="btn peq" id="bResNombre">Cambiar</button></div>
+      <p class="nota">Guardado en «Mis archivos».</p>
+      <div class="fila" style="margin-top:10px"><button class="btn acento" id="bResComparte">Compartir</button><button class="btn" id="bResVer">Ver</button><button class="btn" id="bResBaja">Descargar</button></div>
+    </div>
+  </div>
+</section>
+
+<div class="aviso" id="aviso" role="status"></div>
+
+<script>
+'use strict';
+const VERSION = '1.0';
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+const {PDFDocument, degrees} = PDFLib;
+$('#version').textContent = VERSION;
+
+/* ── pequeñas ayudas ── */
+const tam = b => b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + ' KB' : (b / 1048576).toFixed(1).replace('.', ',') + ' MB';
+const llano = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const ordena = (a, b) => a.localeCompare(b, 'es', {numeric: true, sensitivity: 'base'});
+let avisoT;
+function aviso(t, ms = 2600){ const a = $('#aviso'); a.textContent = t; a.classList.add('ver'); clearTimeout(avisoT); avisoT = setTimeout(() => a.classList.remove('ver'), ms); }
+const espera = () => new Promise(r => setTimeout(r, 0));
+
+/* ── ALMACÉN: IndexedDB. docs = los PDF (con su blob); conf = ajustes y el token ── */
+let dbP;
+function db(){ return dbP || (dbP = new Promise((ok, mal) => {
+  const r = indexedDB.open('utilidades', 1);
+  r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('docs', {keyPath: 'id'}); d.createObjectStore('conf'); };
+  r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); })); }
+const req = r => new Promise((ok, mal) => { r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); });
+const almacen = async (n, modo = 'readonly') => (await db()).transaction(n, modo).objectStore(n);
+const leeDB = async (n, k) => req((await almacen(n)).get(k));
+const guardaDB = async (n, v, k) => req((await almacen(n, 'readwrite')).put(v, k));
+const borraDB = async (n, k) => req((await almacen(n, 'readwrite')).delete(k));
+const todosDB = async n => req((await almacen(n)).getAll());
+const CONF0 = {token: '', dueno: 'diazepamina-creator', repo: 'originales', rama: 'main', examenes: false, ultima: 0};
+async function conf(){ const c = Object.assign({}, CONF0); for (const k in CONF0){ const v = await leeDB('conf', k); if (v !== undefined) c[k] = v; } return c; }
+const ponConf = (k, v) => guardaDB('conf', v, k);
+
+/* ── NAVEGACIÓN: cuatro vistas abajo y capas encima. Cada capa abierta es una
+   entrada del historial: el botón atrás de Android la cierra en vez de salir ── */
+const TITULOS = {biblio: 'Biblioteca', herr: 'Herramientas', escaner: 'Escanear', ajustes: 'Ajustes'};
+function ve(v){
+  for (const k in TITULOS) $('#v-' + k).hidden = k !== v;
+  $$('.pie button').forEach(b => b.classList.toggle('activo', b.dataset.v === v));
+  $('#titulo').textContent = TITULOS[v];
+  if (v === 'biblio') pintaLista();
+  if (v === 'ajustes') pintaAjustes();
+  scrollTo(0, 0);
+}
+$$('.pie button').forEach(b => b.onclick = () => ve(b.dataset.v));
+const pila = [];
+const AL_CERRAR = {visor: () => { $('#visorPags').innerHTML = ''; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); },
+  editorPag: () => { if (editorFin) editorFin(); }};
+function abreCapa(id){ $('#' + id).hidden = false; pila.push(id); history.pushState({capa: id}, ''); }
+function cambiaCapa(id){ const v = pila.pop(); if (v){ $('#' + v).hidden = true; (AL_CERRAR[v] || (() => {}))(); } $('#' + id).hidden = false; pila.push(id); history.replaceState({capa: id}, ''); }
+function cierraCapa(){ if (pila.length) history.back(); }
+addEventListener('popstate', () => { const id = pila.pop(); if (!id) return; $('#' + id).hidden = true; (AL_CERRAR[id] || (() => {}))(); });
+$$('[data-cierra]').forEach(b => b.onclick = cierraCapa);
+$('#hoja').addEventListener('click', e => { if (e.target.id === 'hoja') cierraCapa(); });
+
+/* ── LA BIBLIOTECA ── */
+let DOCS = [];
+async function recarga(){ DOCS = await todosDB('docs'); }
+/* el nombre del grupo, a partir de la carpeta de latex/aules (1ESO-3-potencias → 1.º ESO · Potencias) */
+function etiqueta(raiz, rel){
+  const seg = rel.split('/'), car = seg.length > 1 ? seg[0] : '';
+  if (raiz.endsWith('examenes')) return 'Exámenes · ' + ({palestra: 'enteros', clonadora: 'potencias', 'plantilla-miut': 'divisibilidad'}[car] || car);
+  const m = car.match(/^(\d)ESO(?:-(\d+)-(.+))?$/);
+  if (m) return m[1] + '.º ESO · ' + (m[3] ? m[3].charAt(0).toUpperCase() + m[3].slice(1).replace(/-/g, ' ') : 'temas anteriores');
+  if (car === 'R4') return 'Taller de refuerzo · 4.º ESO';
+  if (car === 'mas-adelante') return 'Más adelante';
+  return car || 'Aules';
+}
+/* el orden de los grupos: primero los cursos, luego el taller, los exámenes y lo tuyo */
+const pesoGrupo = g => /^\d\.º/.test(g) ? 1 : /^Taller/.test(g) ? 2 : /^Exámenes/.test(g) ? 3 : g === 'Mis archivos' ? 5 : 4;
+function filaDoc(d){
+  const origen = d.origen === 'github' ? 'originales' : 'en el móvil';
+  return `<button class="doc" data-id="${esc(d.id)}"><span class="ico">PDF</span><span class="t"><b>${esc(d.nombre)}</b><small>${tam(d.tam)} · ${origen}</small></span>${d.hoy ? '<span class="est">★</span>' : ''}</button>`;
+}
+function pintaLista(){
+  const q = llano($('#busca').value.trim());
+  const vis = DOCS.filter(d => !q || llano(d.nombre + ' ' + d.carpeta).includes(q));
+  const L = $('#lista');
+  if (!DOCS.length){ L.innerHTML = `<div class="vacio"><p><b>La biblioteca está vacía.</b></p><p>Pon tu token en <a href="#" id="irAjustes">Ajustes</a> y pulsa <b>Actualizar</b> para traer el material de tus originales, o añade un PDF del móvil.</p></div>`;
+    $('#irAjustes').onclick = e => { e.preventDefault(); ve('ajustes'); }; return; }
+  if (!vis.length){ L.innerHTML = '<div class="vacio">Nada con ese nombre.</div>'; return; }
+  const grupos = new Map();
+  for (const d of vis){ if (!grupos.has(d.carpeta)) grupos.set(d.carpeta, []); grupos.get(d.carpeta).push(d); }
+  const nombres = [...grupos.keys()].sort((a, b) => pesoGrupo(a) - pesoGrupo(b) || ordena(a, b));
+  const abierto = q || nombres.length === 1;
+  let h = '';
+  const hoy = vis.filter(d => d.hoy).sort((a, b) => ordena(a.nombre, b.nombre));
+  if (hoy.length) h += `<details class="grupo hoy" open><summary>★ Para hoy <span class="n">${hoy.length}</span></summary>${hoy.map(filaDoc).join('')}</details>`;
+  for (const g of nombres){ const ds = grupos.get(g).sort((a, b) => ordena(a.nombre, b.nombre));
+    h += `<details class="grupo"${abierto || g === 'Mis archivos' ? ' open' : ''}><summary>${esc(g)} <span class="n">${ds.length}</span></summary>${ds.map(filaDoc).join('')}</details>`; }
+  L.innerHTML = h;
+}
+$('#busca').addEventListener('input', pintaLista);
+$('#lista').addEventListener('click', e => { const b = e.target.closest('.doc'); if (b) abreHoja(b.dataset.id); });
+
+/* la hoja de acciones de un documento */
+let hojaDoc = null;
+function abreHoja(id){
+  hojaDoc = DOCS.find(d => d.id === id); if (!hojaDoc) return;
+  $('#hojaNombre').textContent = hojaDoc.nombre;
+  $('#hojaMeta').textContent = hojaDoc.carpeta + ' · ' + tam(hojaDoc.tam);
+  $('#hojaHoy').textContent = hojaDoc.hoy ? 'Quitar de «para hoy»' : 'Añadir a «para hoy»';
+  $('#hojaBorrar').hidden = hojaDoc.origen === 'github';
+  abreCapa('hoja');
+}
+$('#hoja').addEventListener('click', async e => {
+  const b = e.target.closest('.acc'); if (!b || !hojaDoc) return;
+  const d = hojaDoc, a = b.dataset.a;
+  if (a === 'ver'){ cambiaCapa('visor'); verDoc(d); }
+  else if (a === 'compartir'){ cierraCapa(); comparte(d); }
+  else if (a === 'descargar'){ cierraCapa(); descarga(d.blob, archivo(d.nombre)); }
+  else if (a === 'hoy'){ d.hoy = !d.hoy; await guardaDB('docs', d); cierraCapa(); pintaLista(); aviso(d.hoy ? 'En «para hoy»' : 'Quitado de «para hoy»'); }
+  else if (a === 'herr'){ cierraCapa(); ve('herr'); herrDoc = d; aviso('Elige qué hacer con «' + d.nombre + '»'); }
+  else if (a === 'borrar'){ if (!confirm('¿Borrar «' + d.nombre + '» del móvil?')) return; await borraDB('docs', d.id); await recarga(); cierraCapa(); pintaLista(); }
+});
+
+/* compartir: el menú de Android (Bluetooth, Nearby, Drive…). Si el navegador no
+   sabe compartir archivos, se descarga y se comparte desde Descargas */
+const archivo = n => /\.pdf$/i.test(n) ? n : n + '.pdf';
+async function comparte(d){
+  const f = new File([d.blob], archivo(d.nombre), {type: 'application/pdf'});
+  if (navigator.canShare && navigator.canShare({files: [f]})){
+    try { await navigator.share({files: [f], title: d.nombre}); } catch (e) { if (e.name !== 'AbortError') aviso('No se ha podido compartir: ' + e.message); }
+  } else { descarga(d.blob, f.name); aviso('Este navegador no comparte archivos: lo tienes en Descargas.'); }
+}
+function descarga(blob, nombre){ const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = nombre; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
+
+/* añadir PDF del móvil */
+$('#bImporta').onclick = () => $('#fImporta').click();
+$('#fImporta').onchange = async e => { const n = await importa(e.target.files); e.target.value = ''; if (n){ await recarga(); pintaLista(); aviso(n === 1 ? 'Añadido a «Mis archivos»' : n + ' archivos añadidos a «Mis archivos»'); } };
+async function importa(files){
+  let n = 0;
+  for (const f of files){ if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) continue;
+    await guardaDB('docs', {id: 'loc:' + Date.now() + ':' + n, origen: 'local', nombre: f.name.replace(/\.pdf$/i, ''), carpeta: 'Mis archivos', tam: f.size, fecha: Date.now(), hoy: false, blob: f}); n++; }
+  return n;
+}
+async function guardaResultado(blob, nombre){
+  const d = {id: 'loc:' + Date.now(), origen: 'local', nombre, carpeta: 'Mis archivos', tam: blob.size, fecha: Date.now(), hoy: false, blob};
+  await guardaDB('docs', d); await recarga(); return d;
+}
+
+/* ── ACTUALIZAR: trae de GitHub lo que ha cambiado en latex/aules (y latex/examenes) ── */
+const parte = p => p.split('/').map(encodeURIComponent).join('/');
+function api(c, ruta, crudo){
+  return fetch('https://api.github.com/repos/' + c.dueno + '/' + c.repo + ruta, {headers: {
+    Authorization: 'Bearer ' + c.token, Accept: crudo ? 'application/vnd.github.raw+json' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}})
+    .then(r => { if (!r.ok) throw new Error(r.status === 401 ? 'el token no vale o ha caducado' : r.status === 404 ? 'no encuentro el repositorio o la carpeta (¿el token puede leer «' + c.repo + '»?)' : 'GitHub responde ' + r.status); return crudo ? r.blob() : r.json(); });
+}
+/* la lista de PDF de una carpeta: el árbol de esa carpeta, de una vez (no el del repositorio
+   entero, que en originales es enorme y GitHub lo cortaría) */
+async function listaCarpeta(c, carpeta){
+  const i = carpeta.lastIndexOf('/'), padre = carpeta.slice(0, i), nombre = carpeta.slice(i + 1);
+  const dentro = await api(c, '/contents/' + parte(padre) + '?ref=' + encodeURIComponent(c.rama));
+  const e = dentro.find(x => x.name === nombre && x.type === 'dir');
+  if (!e) throw new Error('no hay carpeta ' + carpeta);
+  const arbol = await api(c, '/git/trees/' + e.sha + '?recursive=1');
+  const examen = carpeta.endsWith('examenes');
+  return arbol.tree.filter(b => b.type === 'blob' && /\.pdf$/i.test(b.path) && (!examen || /(^|\/)pdf\//.test(b.path)))
+    .map(b => ({path: carpeta + '/' + b.path, rel: b.path, raiz: carpeta, sha: b.sha, size: b.size}));
+}
+let sincronizando = false;
+async function sincroniza(){
+  if (sincronizando) return;
+  sincronizando = true; $('#bSync').disabled = true;
+  const c = await conf();
+  if (!c.token){ sincronizando = false; $('#bSync').disabled = false; aviso('Primero pon tu token en Ajustes'); ve('ajustes'); return; }
+  const P = $('#syncProg'), N = $('#syncNota'); P.hidden = false; P.firstElementChild.style.width = '4%'; N.textContent = 'Mirando qué hay en tus originales…';
+  try {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    const carpetas = ['latex/aules'].concat(c.examenes ? ['latex/examenes'] : []);
+    let remotos = [];
+    for (const k of carpetas) remotos = remotos.concat(await listaCarpeta(c, k));
+    const locales = (await todosDB('docs')).filter(d => d.origen === 'github');
+    const viejo = new Map(locales.map(d => [d.path, d]));
+    const bajar = remotos.filter(r => !viejo.has(r.path) || viejo.get(r.path).sha !== r.sha);
+    let hechos = 0;
+    for (const r of bajar){
+      N.textContent = 'Bajando ' + (hechos + 1) + ' de ' + bajar.length + ': ' + r.rel.split('/').pop();
+      const blob = await api(c, '/contents/' + parte(r.path) + '?ref=' + encodeURIComponent(c.rama), true);
+      const ant = viejo.get(r.path);
+      await guardaDB('docs', {id: 'gh:' + r.path, origen: 'github', path: r.path, sha: r.sha, nombre: r.rel.split('/').pop().replace(/\.pdf$/i, ''),
+        carpeta: etiqueta(r.raiz, r.rel), tam: blob.size, fecha: Date.now(), hoy: ant ? ant.hoy : false, blob: new Blob([blob], {type: 'application/pdf'})});
+      hechos++; P.firstElementChild.style.width = (4 + 96 * hechos / bajar.length) + '%';
+    }
+    const vivos = new Set(remotos.map(r => r.path)); let fuera = 0;
+    for (const d of locales) if (!vivos.has(d.path)){ await borraDB('docs', d.id); fuera++; }
+    await ponConf('ultima', Date.now());
+    N.textContent = (bajar.length ? bajar.length + (bajar.length === 1 ? ' archivo nuevo o cambiado' : ' archivos nuevos o cambiados') : 'Todo estaba al día')
+      + (fuera ? ' · ' + fuera + ' ya no está' + (fuera === 1 ? '' : 'n') + ' en los originales y se ha' + (fuera === 1 ? '' : 'n') + ' quitado' : '') + ' · ' + remotos.length + ' en total.';
+  } catch (e) { N.innerHTML = '<span class="mal">No se ha podido actualizar: ' + esc(e.message) + '.</span>'; }
+  finally { await recarga(); pintaLista(); sincronizando = false; $('#bSync').disabled = false; P.hidden = true; }
+}
+$('#bSync').onclick = sincroniza;
+
+/* ── EL VISOR: las páginas una debajo de otra, al ancho de la pantalla ── */
+let visorDoc = null, visorZoom = 1, visorTurno = 0;
+async function verDoc(d){
+  visorDoc = d; visorZoom = 1; $('#visorNombre').textContent = d.nombre; await pintaVisor();
+}
+async function pintaVisor(){
+  const turno = ++visorTurno, cont = $('#visorPags'); cont.innerHTML = '';
+  const pdf = await abrePdf(visorDoc.blob);
+  const ancho = Math.min(innerWidth - 16, 900) * visorZoom, dpr = Math.min(devicePixelRatio || 1, 2.5);
+  for (let n = 1; n <= pdf.numPages; n++){
+    if (turno !== visorTurno) return;
+    const pg = await pdf.getPage(n), base = pg.getViewport({scale: 1}), esc1 = ancho / base.width;
+    const vp = pg.getViewport({scale: esc1 * dpr}), cv = document.createElement('canvas');
+    cv.width = Math.round(vp.width); cv.height = Math.round(vp.height); cv.style.width = Math.round(ancho) + 'px';
+    cont.append(cv);
+    await pg.render({canvasContext: cv.getContext('2d'), viewport: vp}).promise;
+  }
+}
+$('#vMas').onclick = () => { visorZoom = Math.min(3, visorZoom * 1.35); pintaVisor(); };
+$('#vMenos').onclick = () => { visorZoom = Math.max(.5, visorZoom / 1.35); pintaVisor(); };
+$('#vComparte').onclick = () => visorDoc && comparte(visorDoc);
+$('#vPantalla').onclick = () => { const v = $('#visor'); if (document.fullscreenElement) document.exitFullscreen(); else if (v.requestFullscreen) v.requestFullscreen().catch(() => aviso('Pantalla completa no disponible')); };
+
+/* ── PDF: pintar y escribir ── */
+async function abrePdf(blob){ return pdfjsLib.getDocument({data: new Uint8Array(await blob.arrayBuffer())}).promise; }
+async function pintaPagina(pdf, n, ppp){
+  const pg = await pdf.getPage(n), base = pg.getViewport({scale: 1}), vp = pg.getViewport({scale: ppp / 72});
+  const cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+  const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
+  await pg.render({canvasContext: c, viewport: vp}).promise;
+  return {cv, w: base.width, h: base.height};
+}
+const jpeg = (cv, q) => new Promise(ok => cv.toBlob(b => b.arrayBuffer().then(ok), 'image/jpeg', q));
+/* pinta cada página con «dibuja», la convierte en JPEG y la mete en un PDF nuevo; de una en una */
+async function rasteriza(blob, ppp, q, dibuja, prog){
+  const pdf = await abrePdf(blob), out = await PDFDocument.create();
+  for (let n = 1; n <= pdf.numPages; n++){
+    const p = await pintaPagina(pdf, n, ppp);
+    if (dibuja) dibuja(p.cv, n);
+    const img = await out.embedJpg(await jpeg(p.cv, q));
+    out.addPage([p.w, p.h]).drawImage(img, {x: 0, y: 0, width: p.w, height: p.h});
+    p.cv.width = p.cv.height = 0;
+    if (prog) prog(n / pdf.numPages);
+    await espera();
+  }
+  return new Blob([await out.save()], {type: 'application/pdf'});
+}
+function tapa(cv, rects){ const c = cv.getContext('2d'); c.fillStyle = '#2B2B2B'; for (const [a, b, d, e] of rects) c.fillRect(a * cv.width, b * cv.height, (d - a) * cv.width, (e - b) * cv.height); }
+function grises(cv){ const c = cv.getContext('2d'), im = c.getImageData(0, 0, cv.width, cv.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4){ const l = .299 * d[i] + .587 * d[i + 1] + .114 * d[i + 2]; d[i] = d[i + 1] = d[i + 2] = l; } c.putImageData(im, 0, 0); }
+
+/* los recuadros del nombre, medidos en los PDF de cada plantilla (en tanto por uno de la página).
+   fichas: la línea NOMBRE arriba a la derecha (La palestra, La clonadora, La grapadora, el carril);
+   examen: la línea «Nombre:» de la izquierda, sin tapar el grupo, el n.º ni el personaje */
+const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, examen: {t: 'Exámenes', r: [.07, .095, .385, .13]}};
+
+/* ── HERRAMIENTAS ── */
+let herrDoc = null, H = null;
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas'};
+$$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
+function abreHerramienta(tipo){
+  H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
+  herrDoc = null; $('#herrTitulo').textContent = NOMBRE_H[tipo]; abreCapa('herramienta'); pintaHerramienta();
+}
+function eligeDocs(){
+  const varios = H.tipo === 'unir';
+  return `<div class="caja"><h2>${varios ? 'Documentos, en este orden' : 'Documento'}</h2>
+    <div class="chips">${H.docs.map((d, i) => `<div class="chip"><span>${esc(d.nombre)} <small class="nota">${tam(d.tam)}</small></span>${varios ? `<button data-sube="${i}" aria-label="Subir">↑</button><button data-baja="${i}" aria-label="Bajar">↓</button>` : ''}<button data-quita="${i}" aria-label="Quitar">✕</button></div>`).join('') || '<p class="nota">Ninguno todavía.</p>'}</div>
+    ${varios || !H.docs.length ? `<div class="fila"><button class="btn peq" id="hElige">Elegir de la biblioteca</button><button class="btn peq" id="hImporta">Del móvil</button><input type="file" id="hFile" accept="application/pdf" ${varios ? 'multiple' : ''} hidden></div>` : ''}</div>`;
+}
+function pintaHerramienta(){
+  const C = $('#herrCuerpo'), d = H.docs[0];
+  let h = eligeDocs();
+  if (H.tipo === 'tapar' && d){
+    h += `<div class="caja"><h2>Qué se tapa</h2>
+      <div class="fila"><select id="hPlant">${Object.entries(PLANTILLAS).map(([k, p]) => `<option value="${k}">${p.t}</option>`).join('')}<option value="otro">Otro recuadro</option></select>
+      <label class="nota"><input type="checkbox" id="hImp"${H.impares ? ' checked' : ''}> solo páginas impares (escaneado a doble cara)</label></div>
+      <div class="fila nota" style="margin-top:8px">izq. <input type="number" id="r0" step=".5"> der. <input type="number" id="r2" step=".5"> arriba <input type="number" id="r1" step=".5"> abajo <input type="number" id="r3" step=".5"> %</div>
+      <p class="nota">Mira las miniaturas: el nombre tiene que quedar tapado y el número de lista, a la vista. Toca una hoja para tapar algo más a mano.</p>
+      <div class="miniaturas" id="hMinis"></div>
+      <div class="fila" style="margin-top:12px"><button class="btn acento" id="hHaz">Crear PDF sin nombres</button></div><div class="prog" id="hProg" hidden><i></i></div></div>`;
+  } else if (H.tipo === 'reducir' && d){
+    h += `<div class="caja"><h2>Cuánto</h2><div class="opc">
+      <label><input type="radio" name="hCal" value="100,0.6"><span>Ligero<small>Para el correo. Se lee bien en pantalla.</small></span></label>
+      <label><input type="radio" name="hCal" value="130,0.72" checked><span>Equilibrado<small>Para Aules. Se puede imprimir.</small></span></label>
+      <label><input type="radio" name="hCal" value="160,0.82"><span>Bueno<small>Reduce menos, pero se imprime como el original.</small></span></label>
+      <label><input type="checkbox" id="hGris"><span>En blanco y negro<small>Pesa bastante menos.</small></span></label></div>
+      <p class="nota">Ahora pesa ${tam(d.tam)}. Sirve para escaneos y fotos: los PDF hechos con LaTeX ya pesan poco. Las páginas pasan a ser imágenes y el texto ya no se podrá seleccionar.</p>
+      <div class="fila"><button class="btn acento" id="hHaz">Reducir</button></div><div class="prog" id="hProg" hidden><i></i></div></div>`;
+  } else if (H.tipo === 'unir'){
+    h += `<div class="fila"><button class="btn acento" id="hHaz"${H.docs.length < 2 ? ' disabled' : ''}>Unir ${H.docs.length > 1 ? H.docs.length + ' documentos' : ''}</button></div>`;
+  } else if (H.tipo === 'paginas' && d){
+    h += `<div class="caja"><h2>Marca las páginas</h2><p class="nota">Toca las que quieras. Si no marcas ninguna, girar se aplica a todas.</p>
+      <div class="miniaturas" id="hMinis"></div>
+      <div class="fila" style="margin-top:12px"><button class="btn acento" id="hSaca">Sacar las marcadas</button><button class="btn" id="hQuita">Quitar las marcadas</button>
+      <button class="btn" id="hGira90">Girar ↻ 90°</button><button class="btn" id="hGira180">Girar 180°</button></div></div>`;
+  }
+  C.innerHTML = h;
+  /* los documentos */
+  C.querySelectorAll('[data-quita]').forEach(b => b.onclick = () => { H.docs.splice(+b.dataset.quita, 1); H.paginas = null; H.marcadas.clear(); H.extra = {}; pintaHerramienta(); });
+  C.querySelectorAll('[data-sube]').forEach(b => b.onclick = () => { const i = +b.dataset.sube; if (i > 0){ [H.docs[i - 1], H.docs[i]] = [H.docs[i], H.docs[i - 1]]; pintaHerramienta(); } });
+  C.querySelectorAll('[data-baja]').forEach(b => b.onclick = () => { const i = +b.dataset.baja; if (i < H.docs.length - 1){ [H.docs[i + 1], H.docs[i]] = [H.docs[i], H.docs[i + 1]]; pintaHerramienta(); } });
+  if ($('#hElige')) $('#hElige').onclick = abreSelector;
+  if ($('#hImporta')) { $('#hImporta').onclick = () => $('#hFile').click();
+    $('#hFile').onchange = async e => { const antes = DOCS.length; await importa(e.target.files); await recarga();
+      const nuevos = DOCS.filter(x => x.origen === 'local').sort((a, b) => b.fecha - a.fecha).slice(0, DOCS.length - antes).reverse();
+      H.docs = H.tipo === 'unir' ? H.docs.concat(nuevos) : nuevos.slice(0, 1); H.paginas = null; pintaHerramienta(); }; }
+  if (H.tipo === 'tapar' && d) montaTapar();
+  if (H.tipo === 'paginas' && d) montaPaginas();
+  if ($('#hHaz')) $('#hHaz').onclick = () => ({tapar: hazTapar, reducir: hazReducir, unir: hazUnir})[H.tipo]();
+}
+/* el selector de la biblioteca (para las herramientas) */
+function abreSelector(){ $('#selBusca').value = ''; pintaSelector(); abreCapa('selector'); }
+function pintaSelector(){
+  const q = llano($('#selBusca').value.trim());
+  const ds = DOCS.filter(d => !q || llano(d.nombre + ' ' + d.carpeta).includes(q)).sort((a, b) => pesoGrupo(a.carpeta) - pesoGrupo(b.carpeta) || ordena(a.carpeta, b.carpeta) || ordena(a.nombre, b.nombre));
+  $('#selLista').innerHTML = ds.length ? '<div class="caja" style="padding:0">' + ds.map(d => filaDoc(d).replace('<small>', '<small>' + esc(d.carpeta) + ' · ')).join('') + '</div>' : '<div class="vacio">La biblioteca está vacía.</div>';
+}
+$('#selBusca').addEventListener('input', pintaSelector);
+$('#selLista').addEventListener('click', e => { const b = e.target.closest('.doc'); if (!b) return; const d = DOCS.find(x => x.id === b.dataset.id);
+  if (H.tipo === 'unir') H.docs.push(d); else { H.docs = [d]; H.paginas = null; H.marcadas.clear(); H.extra = {}; }
+  cierraCapa(); setTimeout(pintaHerramienta, 50); });
+
+/* miniaturas de un documento, pintadas pequeñas (para elegir y ver lo tapado) */
+async function miniaturas(d, cont, alPintar){
+  const pdf = await abrePdf(d.blob); H.paginas = pdf.numPages; H.pdf = pdf;
+  for (let n = 1; n <= pdf.numPages; n++){
+    if (!cont.isConnected) return;
+    const div = document.createElement('div'); div.className = 'mini'; div.dataset.n = n;
+    const p = await pintaPagina(pdf, n, 34); div.append(p.cv); div.append(document.createTextNode('p. ' + n)); cont.append(div);
+    div._orig = p.cv; if (alPintar) alPintar(div, n);
+  }
+}
+/* TAPAR */
+function rectsDe(n){ return (H.impares && n % 2 === 0 ? [] : [H.rect]).concat(H.extra[n] || []); }
+function pintaMini(div, n){ /* la miniatura con lo tapado encima */
+  if (!div._limpia){ div._limpia = document.createElement('canvas'); div._limpia.width = div._orig.width; div._limpia.height = div._orig.height; div._limpia.getContext('2d').drawImage(div._orig, 0, 0); }
+  const c = div._orig.getContext('2d'); c.drawImage(div._limpia, 0, 0); tapa(div._orig, rectsDe(n));
+}
+function montaTapar(){
+  const sel = $('#hPlant'), campos = ['r0', 'r1', 'r2', 'r3'];
+  const casa = Object.entries(PLANTILLAS).find(([, p]) => p.r.every((v, i) => Math.abs(v - H.rect[i]) < 1e-6));
+  sel.value = casa ? casa[0] : 'otro';
+  const ponCampos = () => campos.forEach((k, i) => $('#' + k).value = +(H.rect[i] * 100).toFixed(1));
+  const repinta = () => $$('#hMinis .mini').forEach(div => pintaMini(div, +div.dataset.n));
+  ponCampos();
+  sel.onchange = () => { if (PLANTILLAS[sel.value]) { H.rect = PLANTILLAS[sel.value].r.slice(); ponCampos(); repinta(); } };
+  campos.forEach((k, i) => $('#' + k).oninput = () => { H.rect[i] = Math.min(100, Math.max(0, +$('#' + k).value || 0)) / 100; sel.value = 'otro'; repinta(); });
+  $('#hImp').onchange = () => { H.impares = $('#hImp').checked; repinta(); };
+  const cont = $('#hMinis');
+  miniaturas(H.docs[0], cont, pintaMini);
+  cont.onclick = e => { const div = e.target.closest('.mini'); if (div) editaPagina(+div.dataset.n, () => pintaMini(div, +div.dataset.n)); };
+}
+/* tapar a mano en una página, en grande */
+let editorFin = null;
+async function editaPagina(n, alAcabar){
+  abreCapa('editorPag');
+  const cv = $('#lienzo'), p = await pintaPagina(H.pdf, n, 110), limpio = p.cv;
+  const dibuja = () => { cv.width = limpio.width; cv.height = limpio.height; const c = cv.getContext('2d'); c.drawImage(limpio, 0, 0); tapa(cv, rectsDe(n)); };
+  dibuja();
+  let ini = null;
+  const punto = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
+  cv.onpointerdown = e => { ini = punto(e); cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (!ini) return; dibuja(); const [a, b] = ini, [x, y] = punto(e), c = cv.getContext('2d'); c.fillStyle = 'rgba(43,43,43,.55)';
+    c.fillRect(Math.min(a, x) * cv.width, Math.min(b, y) * cv.height, Math.abs(x - a) * cv.width, Math.abs(y - b) * cv.height); };
+  cv.onpointerup = e => { if (!ini) return; const [a, b] = ini, [x, y] = punto(e); ini = null;
+    if (Math.abs(x - a) > .006 && Math.abs(y - b) > .004) (H.extra[n] = H.extra[n] || []).push([Math.min(a, x), Math.min(b, y), Math.max(a, x), Math.max(b, y)]); dibuja(); };
+  $('#bDeshaz').onclick = () => { (H.extra[n] || []).pop(); dibuja(); };
+  editorFin = () => { editorFin = null; alAcabar(); };
+}
+const progreso = id => f => { const P = $(id); if (!P) return; P.hidden = false; P.firstElementChild.style.width = Math.round(f * 100) + '%'; };
+async function hazTapar(){
+  const d = H.docs[0], b = $('#hHaz'); b.disabled = true;
+  try { const blob = await rasteriza(d.blob, 150, .82, (cv, n) => tapa(cv, rectsDe(n)), progreso('#hProg'));
+    muestraResultado(await guardaResultado(blob, d.nombre + ' - sin nombres'), 'Nombres tapados en ' + H.paginas + ' páginas.'); }
+  catch (e) { aviso('Error: ' + e.message); } finally { b.disabled = false; }
+}
+/* REDUCIR */
+async function hazReducir(){
+  const d = H.docs[0], b = $('#hHaz'), [ppp, q] = document.querySelector('input[name=hCal]:checked').value.split(',').map(Number), gris = $('#hGris').checked;
+  b.disabled = true;
+  try { const blob = await rasteriza(d.blob, ppp, q, gris ? grises : null, progreso('#hProg'));
+    /* un PDF hecho con LaTeX ya pesa poco: en imagen pesaría más. Entonces no se guarda nada */
+    if (blob.size >= d.tam * .95){ $('#hProg').hidden = true; aviso('No se puede reducir más: así saldría de ' + tam(blob.size) + ' y ahora pesa ' + tam(d.tam) + '. Reducir sirve para escaneos y fotos.', 6000); return; }
+    const r = await guardaResultado(blob, d.nombre + ' - reducido');
+    muestraResultado(r, 'De ' + tam(d.tam) + ' a <b>' + tam(blob.size) + '</b> (' + Math.round(100 - 100 * blob.size / d.tam) + ' % menos).'); }
+  catch (e) { aviso('Error: ' + e.message); } finally { b.disabled = false; }
+}
+/* UNIR: sin pasar por imagen, las páginas tal cual */
+async function hazUnir(){
+  const b = $('#hHaz'); b.disabled = true;
+  try { const out = await PDFDocument.create(); let n = 0;
+    for (const d of H.docs){ const src = await PDFDocument.load(await d.blob.arrayBuffer(), {ignoreEncryption: true});
+      (await out.copyPages(src, src.getPageIndices())).forEach(p => { out.addPage(p); n++; }); }
+    const blob = new Blob([await out.save()], {type: 'application/pdf'});
+    muestraResultado(await guardaResultado(blob, H.docs[0].nombre + ' (y ' + (H.docs.length - 1) + ' más)'), H.docs.length + ' documentos, ' + n + ' páginas en uno.'); }
+  catch (e) { aviso('Error: ' + e.message); } finally { b.disabled = false; }
+}
+/* PÁGINAS: sacar, quitar y girar, sin pasar por imagen */
+function montaPaginas(){
+  const cont = $('#hMinis');
+  miniaturas(H.docs[0], cont, (div, n) => div.classList.toggle('marcada', H.marcadas.has(n)));
+  cont.onclick = e => { const div = e.target.closest('.mini'); if (!div) return; const n = +div.dataset.n; H.marcadas.has(n) ? H.marcadas.delete(n) : H.marcadas.add(n); div.classList.toggle('marcada'); };
+  const marc = () => [...H.marcadas].sort((a, b) => a - b).map(n => n - 1);
+  const lista = ns => ns.map(i => i + 1).join(', ');
+  $('#hSaca').onclick = () => paginas('saca', marc());
+  $('#hQuita').onclick = () => paginas('quita', marc());
+  $('#hGira90').onclick = () => paginas('gira', marc(), 90);
+  $('#hGira180').onclick = () => paginas('gira', marc(), 180);
+  async function paginas(op, sel, grados){
+    const d = H.docs[0];
+    if (op !== 'gira' && !sel.length) return aviso('Marca alguna página');
+    if (op === 'quita' && sel.length === H.paginas) return aviso('No se pueden quitar todas');
+    try { const src = await PDFDocument.load(await d.blob.arrayBuffer(), {ignoreEncryption: true}); let out, txt, nombre;
+      if (op === 'saca'){ out = await PDFDocument.create(); (await out.copyPages(src, sel)).forEach(p => out.addPage(p)); txt = 'Páginas ' + lista(sel) + ' en un PDF aparte.'; nombre = d.nombre + ' - p. ' + lista(sel).replace(/, /g, ',') ; }
+      else if (op === 'quita'){ out = src; sel.slice().reverse().forEach(i => out.removePage(i)); txt = 'Quitadas las páginas ' + lista(sel) + '.'; nombre = d.nombre + ' - sin p. ' + lista(sel).replace(/, /g, ','); }
+      else { out = src; const todas = sel.length ? sel : src.getPageIndices(); todas.forEach(i => { const p = out.getPage(i); p.setRotation(degrees((p.getRotation().angle + grados) % 360)); });
+        txt = (sel.length ? 'Páginas ' + lista(sel) : 'Todas las páginas') + ' giradas ' + grados + '°.'; nombre = d.nombre + ' - girado'; }
+      const blob = new Blob([await out.save()], {type: 'application/pdf'});
+      muestraResultado(await guardaResultado(blob, nombre), txt); }
+    catch (e) { aviso('Error: ' + e.message); }
+  }
+}
+/* el resultado: guardado ya en «Mis archivos»; se puede renombrar, ver, compartir */
+let resDoc = null;
+function muestraResultado(d, texto){
+  resDoc = d; $('#resTexto').innerHTML = texto + ' Pesa ' + tam(d.tam) + '.'; $('#resNombre').value = d.nombre;
+  if ($('#herramienta').hidden) abreCapa('resultado'); else cambiaCapa('resultado');
+}
+$('#bResNombre').onclick = async () => { const n = $('#resNombre').value.trim(); if (!n || !resDoc) return; resDoc.nombre = n.replace(/\.pdf$/i, ''); await guardaDB('docs', resDoc); await recarga(); aviso('Nombre cambiado'); };
+$('#bResComparte').onclick = () => resDoc && comparte(resDoc);
+$('#bResBaja').onclick = () => resDoc && descarga(resDoc.blob, archivo(resDoc.nombre));
+$('#bResVer').onclick = () => { if (!resDoc) return; abreCapa('visor'); verDoc(resDoc); };
+
+/* ── ESCANEAR ── las fotos, sus cuatro esquinas, y un PDF A4 enderezado */
+const ESC = {fotos: [], actual: 0};
+const MAXFOTO = 2200;   /* lado mayor de la foto con que se trabaja: más es memoria y no se lee mejor */
+$('#bFoto').onclick = () => $('#fFoto').click();
+$('#bGaleria').onclick = () => $('#fGaleria').click();
+$('#fFoto').onchange = e => { anadeFotos(e.target.files); e.target.value = ''; };
+$('#fGaleria').onchange = e => { anadeFotos(e.target.files); e.target.value = ''; };
+async function anadeFotos(files){
+  for (const f of files){
+    let bm; try { bm = await createImageBitmap(f, {imageOrientation: 'from-image'}); } catch (e) { bm = await createImageBitmap(f); }
+    const k = Math.min(1, MAXFOTO / Math.max(bm.width, bm.height));
+    const cv = document.createElement('canvas'); cv.width = Math.round(bm.width * k); cv.height = Math.round(bm.height * k);
+    cv.getContext('2d').drawImage(bm, 0, 0, cv.width, cv.height); bm.close && bm.close();
+    ESC.fotos.push({cv, esq: buscaEsquinas(cv)}); ESC.actual = ESC.fotos.length - 1;
+  }
+  pintaEscaner();
+}
+/* las esquinas de partida: busca la hoja (lo claro) en la foto pequeña; si no la encuentra, un margen */
+function buscaEsquinas(cv){
+  const W = 160, H = Math.round(cv.height * W / cv.width), t = document.createElement('canvas'); t.width = W; t.height = H;
+  const c = t.getContext('2d'); c.drawImage(cv, 0, 0, W, H); const d = c.getImageData(0, 0, W, H).data, L = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) L[i] = .299 * d[4 * i] + .587 * d[4 * i + 1] + .114 * d[4 * i + 2];
+  const ord = Float32Array.from(L).sort(), umbral = (ord[Math.floor(W * H * .1)] + ord[Math.floor(W * H * .9)]) / 2;
+  /* las cuatro esquinas: los puntos claros que más se alejan hacia cada esquina de la foto */
+  const mejor = [[-1e9, 0, 0], [-1e9, 0, 0], [-1e9, 0, 0], [-1e9, 0, 0]]; let claros = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){ if (L[y * W + x] < umbral) continue; claros++;
+    const s = [-x - y, x - y, x + y, -x + y]; for (let k = 0; k < 4; k++) if (s[k] > mejor[k][0]) mejor[k] = [s[k], x, y]; }
+  const esq = mejor.map(([, x, y]) => [(x + .5) / W, (y + .5) / H]);
+  const area = Math.abs(esq.reduce((s, p, i) => { const q = esq[(i + 1) % 4]; return s + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
+  if (claros < W * H * .15 || area < .2) return [[.04, .04], [.96, .04], [.96, .96], [.04, .96]];
+  return esq;   /* si la hoja llena la foto, las esquinas salen en las de la foto: está bien */
+}
+function pintaEscaner(){
+  const T = $('#escTira'), hay = ESC.fotos.length;
+  $('#escOpciones').hidden = !hay; $('#escNota').textContent = hay ? 'Ajusta las cuatro esquinas a la hoja. Añade más fotos para un PDF de varias páginas.' : 'Haz una foto por hoja, con la hoja entera a la vista. Después ajusta las cuatro esquinas.';
+  T.innerHTML = ESC.fotos.map((f, i) => `<div class="mini${i === ESC.actual ? ' actual' : ''}" data-i="${i}"><canvas></canvas>p. ${i + 1} <button class="btn peq" data-borra="${i}" style="padding:0 6px;border:0">✕</button></div>`).join('');
+  T.querySelectorAll('.mini').forEach(div => { const f = ESC.fotos[+div.dataset.i], m = div.querySelector('canvas'); m.width = 70; m.height = Math.round(70 * f.cv.height / f.cv.width); m.getContext('2d').drawImage(f.cv, 0, 0, m.width, m.height); });
+  T.onclick = e => { const b = e.target.closest('[data-borra]'); if (b){ ESC.fotos.splice(+b.dataset.borra, 1); ESC.actual = Math.max(0, Math.min(ESC.actual, ESC.fotos.length - 1)); pintaEscaner(); return; }
+    const div = e.target.closest('.mini'); if (div){ ESC.actual = +div.dataset.i; pintaEscaner(); } };
+  pintaEditor();
+}
+/* el editor de esquinas: la foto y cuatro asas que se arrastran */
+function pintaEditor(){
+  const E = $('#escEditor'); E.innerHTML = '';
+  const f = ESC.fotos[ESC.actual]; if (!f) return;
+  const box = document.createElement('div'); box.className = 'editor'; const cv = document.createElement('canvas'); box.append(cv); E.append(box);
+  const k = Math.min(1, 1100 / Math.max(f.cv.width, f.cv.height)); cv.width = Math.round(f.cv.width * k); cv.height = Math.round(f.cv.height * k);
+  const c = cv.getContext('2d');
+  const dibuja = () => { c.drawImage(f.cv, 0, 0, cv.width, cv.height);
+    const P = f.esq.map(([x, y]) => [x * cv.width, y * cv.height]), r = cv.width / 40;
+    c.fillStyle = 'rgba(217,102,26,.14)'; c.strokeStyle = '#D9661A'; c.lineWidth = Math.max(2, cv.width / 300);
+    c.beginPath(); P.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill(); c.stroke();
+    P.forEach(([x, y]) => { c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = 'rgba(255,255,255,.85)'; c.fill(); c.stroke(); }); };
+  dibuja();
+  let cual = -1;
+  const punto = e => { const R = cv.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - R.left) / R.width)), Math.min(1, Math.max(0, (e.clientY - R.top) / R.height))]; };
+  cv.style.touchAction = 'none';
+  cv.onpointerdown = e => { const [x, y] = punto(e), R = cv.getBoundingClientRect(); let mejor = 1e9;
+    f.esq.forEach(([a, b], i) => { const dd = Math.hypot((a - x) * R.width, (b - y) * R.height); if (dd < mejor){ mejor = dd; cual = i; } });
+    if (mejor > 60) cual = -1; else cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (cual < 0) return; f.esq[cual] = punto(e); dibuja(); };
+  cv.onpointerup = () => { cual = -1; };
+}
+/* la homografía que lleva el rectángulo de salida a las cuatro esquinas de la foto */
+function homografia(de, a){
+  const A = [], B = [];
+  for (let i = 0; i < 4; i++){ const [u, v] = de[i], [x, y] = a[i];
+    A.push([u, v, 1, 0, 0, 0, -u * x, -v * x]); B.push(x); A.push([0, 0, 0, u, v, 1, -u * y, -v * y]); B.push(y); }
+  for (let i = 0; i < 8; i++){ let p = i; for (let r = i + 1; r < 8; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
+    [A[i], A[p]] = [A[p], A[i]]; [B[i], B[p]] = [B[p], B[i]];
+    for (let r = 0; r < 8; r++){ if (r === i) continue; const m = A[r][i] / A[i][i]; for (let k = i; k < 8; k++) A[r][k] -= m * A[i][k]; B[r] -= m * B[i]; } }
+  return B.map((b, i) => b / A[i][i]);
+}
+/* endereza: cada píxel de la hoja A4 de salida se busca en la foto (interpolación bilineal) */
+function endereza(f, W, H){
+  const sw = f.cv.width, sh = f.cv.height, src = f.cv.getContext('2d').getImageData(0, 0, sw, sh).data;
+  const h = homografia([[0, 0], [W, 0], [W, H], [0, H]], f.esq.map(([x, y]) => [x * sw, y * sh]));
+  const out = new ImageData(W, H), o = out.data;
+  for (let v = 0; v < H; v++) for (let u = 0; u < W; u++){
+    const den = h[6] * u + h[7] * v + 1, x = (h[0] * u + h[1] * v + h[2]) / den, y = (h[3] * u + h[4] * v + h[5]) / den;
+    const j = 4 * (v * W + u);
+    if (x < 0 || y < 0 || x >= sw - 1 || y >= sh - 1){ o[j] = o[j + 1] = o[j + 2] = 255; o[j + 3] = 255; continue; }
+    const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0, i0 = 4 * (y0 * sw + x0), i1 = i0 + 4, i2 = i0 + 4 * sw, i3 = i2 + 4;
+    for (let k = 0; k < 3; k++) o[j + k] = (src[i0 + k] * (1 - fx) + src[i1 + k] * fx) * (1 - fy) + (src[i2 + k] * (1 - fx) + src[i3 + k] * fx) * fy;
+    o[j + 3] = 255;
+  }
+  return out;
+}
+/* modo documento: divide por el fondo (el papel, con su sombra) y oscurece la tinta */
+function modoDocumento(im){
+  const W = im.width, H = im.height, d = im.data, B = 16, bw = Math.ceil(W / B), bh = Math.ceil(H / B), fondo = new Float32Array(bw * bh);
+  const L = new Uint8ClampedArray(W * H);
+  for (let i = 0; i < W * H; i++) L[i] = .299 * d[4 * i] + .587 * d[4 * i + 1] + .114 * d[4 * i + 2];
+  /* el fondo de cada bloque: un valor alto (el papel), no el máximo (una mota brillante) */
+  const hist = new Uint32Array(256);
+  for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++){ hist.fill(0); let n = 0;
+    for (let y = by * B; y < Math.min(H, by * B + B); y++) for (let x = bx * B; x < Math.min(W, bx * B + B); x++){ hist[L[y * W + x]]++; n++; }
+    let acc = 0, v = 255; for (; v > 0; v--){ acc += hist[v]; if (acc >= n * .1) break; } fondo[by * bw + bx] = Math.max(v, 60); }
+  /* suavizado del fondo (3 × 3) para que no se vean los bloques */
+  const f2 = new Float32Array(bw * bh);
+  for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++){ let s = 0, n = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){ const yy = by + dy, xx = bx + dx; if (yy >= 0 && yy < bh && xx >= 0 && xx < bw){ s += fondo[yy * bw + xx]; n++; } } f2[by * bw + bx] = s / n; }
+  for (let y = 0; y < H; y++){ const gy = Math.min(bh - 1.001, Math.max(0, y / B - .5)), y0 = gy | 0, fy = gy - y0;
+    for (let x = 0; x < W; x++){ const gx = Math.min(bw - 1.001, Math.max(0, x / B - .5)), x0 = gx | 0, fx = gx - x0;
+      const a = f2[y0 * bw + x0], b = f2[y0 * bw + x0 + 1] ?? a, c = f2[(y0 + 1) * bw + x0] ?? a, e = f2[(y0 + 1) * bw + x0 + 1] ?? a;
+      const bg = (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + e * fx) * fy;
+      let v = L[y * W + x] * 255 / bg; v = 255 - (255 - Math.min(255, v)) * 1.5; v = v > 238 ? 255 : v;
+      const j = 4 * (y * W + x); d[j] = d[j + 1] = d[j + 2] = v; } }
+  return im;
+}
+$('#bEscVacia').onclick = () => { if (ESC.fotos.length && !confirm('¿Quitar todas las fotos?')) return; ESC.fotos = []; ESC.actual = 0; pintaEscaner(); };
+$('#bEscPdf').onclick = async () => {
+  const b = $('#bEscPdf'), doc = $('#escDoc').checked, plant = PLANTILLAS[$('#escTapa').value], imp = $('#escImpares').checked, prog = progreso('#escProg');
+  b.disabled = true;
+  try {
+    const out = await PDFDocument.create(), A4 = [595.28, 841.89];
+    for (let i = 0; i < ESC.fotos.length; i++){
+      const f = ESC.fotos[i], [p0, p1, p2, p3] = f.esq.map(([x, y]) => [x * f.cv.width, y * f.cv.height]);
+      const ancho = (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p3[0], p2[1] - p3[1])) / 2;
+      const alto = (Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1])) / 2;
+      const apaisada = ancho > alto, W = apaisada ? 1754 : 1240, Hh = apaisada ? 1240 : 1754;
+      let im = endereza(f, W, Hh); if (doc) im = modoDocumento(im);
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; cv.getContext('2d').putImageData(im, 0, 0);
+      if (plant && !(imp && i % 2 === 1)) tapa(cv, [plant.r]);
+      const img = await out.embedJpg(await jpeg(cv, doc ? .7 : .8)), [pw, ph] = apaisada ? [A4[1], A4[0]] : A4;
+      out.addPage([pw, ph]).drawImage(img, {x: 0, y: 0, width: pw, height: ph});
+      prog((i + 1) / ESC.fotos.length); await espera();
+    }
+    const blob = new Blob([await out.save()], {type: 'application/pdf'}), hoy = new Date();
+    const nombre = 'Escaneo ' + hoy.toLocaleDateString('es-ES') + ' ' + hoy.toTimeString().slice(0, 5).replace(':', '.');
+    const r = await guardaResultado(blob, nombre);
+    muestraResultado(r, ESC.fotos.length + (ESC.fotos.length === 1 ? ' página' : ' páginas') + (plant ? ', con el nombre tapado' : '') + '.');
+  } catch (e) { aviso('Error: ' + e.message); }
+  finally { b.disabled = false; $('#escProg').hidden = true; }
+};
+
+/* ── AJUSTES ── */
+async function pintaAjustes(){
+  const c = await conf();
+  $('#ajToken').value = ''; $('#ajToken').placeholder = c.token ? 'Token guardado (…' + c.token.slice(-4) + '). Pega otro para cambiarlo' : 'Token de GitHub (github_pat_…)';
+  $('#ajEstado').innerHTML = c.token ? 'Conectado a <code>' + esc(c.dueno + '/' + c.repo) + '</code>' + (c.ultima ? ' · última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) : '') : 'Sin token: la biblioteca solo tiene lo que añadas del móvil.';
+  $('#ajExamenes').checked = !!c.examenes; $('#ajDueno').value = c.dueno; $('#ajRepo').value = c.repo; $('#ajRama').value = c.rama;
+  const gh = DOCS.filter(d => d.origen === 'github'), loc = DOCS.filter(d => d.origen !== 'github'), suma = l => l.reduce((s, d) => s + (d.tam || 0), 0);
+  let t = gh.length + ' de los originales (' + tam(suma(gh)) + ') · ' + loc.length + ' en «Mis archivos» (' + tam(suma(loc)) + ')';
+  if (navigator.storage && navigator.storage.estimate){ try { const e = await navigator.storage.estimate(); t += ' · ocupado ' + tam(e.usage || 0) + ' de ' + tam(e.quota || 0) + ' disponibles'; } catch (e) {} }
+  $('#ajEspacio').textContent = t;
+}
+$('#bToken').onclick = async () => { const t = $('#ajToken').value.trim(); if (!t) return aviso('Pega el token primero'); await ponConf('token', t); aviso('Token guardado'); pintaAjustes(); };
+$('#bQuitaToken').onclick = async () => { if (!confirm('¿Quitar el token de este móvil? Lo traído se queda.')) return; await ponConf('token', ''); pintaAjustes(); };
+$('#bProbar').onclick = async () => { const c = await conf(); if (!c.token) return aviso('No hay token');
+  try { const r = await api(c, ''); aviso('Conexión correcta con ' + r.full_name + (r.private ? ' (privado)' : '')); } catch (e) { aviso('No conecta: ' + e.message, 4500); } };
+$('#ajExamenes').onchange = async () => { await ponConf('examenes', $('#ajExamenes').checked); aviso($('#ajExamenes').checked ? 'Se traerán en la próxima actualización' : 'Se quitarán en la próxima actualización'); };
+$('#bRepo').onclick = async () => { await ponConf('dueno', $('#ajDueno').value.trim() || CONF0.dueno); await ponConf('repo', $('#ajRepo').value.trim() || CONF0.repo); await ponConf('rama', $('#ajRama').value.trim() || CONF0.rama); aviso('Guardado'); pintaAjustes(); };
+$('#bBorraGh').onclick = async () => { if (!confirm('¿Borrar del móvil todo lo traído de GitHub? Con «Actualizar» vuelve.')) return; for (const d of DOCS) if (d.origen === 'github') await borraDB('docs', d.id); await recarga(); pintaAjustes(); };
+$('#bBorraTodo').onclick = async () => { if (!confirm('¿Borrar todo: lo traído, «Mis archivos» y el token?')) return; for (const d of DOCS) await borraDB('docs', d.id); await ponConf('token', ''); await recarga(); pintaAjustes(); };
+
+/* ── ARRANQUE ── */
+(async () => {
+  await recarga(); pintaLista();
+  const c = await conf(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
