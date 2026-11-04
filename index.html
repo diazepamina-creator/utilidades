@@ -35,10 +35,12 @@
   - Las páginas se pintan de una en una al exportar, nunca todas a la vez:
     un examen de 40 páginas a 150 ppp no cabe en la memoria de un móvil.
   Librerías (en lib/, para que funcione sin red): pdf.js 3.11.174 (Apache 2.0)
-  para pintar y pdf-lib 1.17.1 (MIT) para escribir PDF.
+  para pintar, pdf-lib 1.17.1 (MIT) para escribir PDF y qrcode-generator 1.4.4
+  (MIT) para los QR.
 -->
 <script src="lib/pdf.min.js"></script>
 <script src="lib/pdf-lib.min.js"></script>
+<script src="lib/qrcode.js"></script>
 <style>
 :root{--papel:#FBF8F1;--blanco:#FFFFFF;--tinta:#1D2B45;--suave:#6B6F7B;--acento:#D9661A;--linea:#E5DDCD;--ok:#2E7D5B;--mal:#B3261E;--tapa:#2B2B2B;
   --r:14px;--sombra:0 1px 2px rgba(29,43,69,.08),0 4px 14px rgba(29,43,69,.06)}
@@ -160,6 +162,8 @@ ol.pasos li{margin:4px 0}
       <button data-h="reducir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg><b>Reducir peso</b><span>Para Aules o el correo</span></button>
       <button data-h="unir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="10" height="13" rx="1.5"/><rect x="11" y="8" width="10" height="13" rx="1.5"/></svg><b>Unir</b><span>Varios PDF en uno</span></button>
       <button data-h="cuadernillo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5z"/><path d="M12 6v14"/></svg><b>Cuadernillo A5</b><span>Para imprimir en A4 y grapar por el centro</span></button>
+      <button data-h="varias"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 12h16M12 3v18" stroke-dasharray="2 2"/></svg><b>Varias por hoja</b><span>2 o 4 copias para recortar: billetes, tarjetas</span></button>
+      <button data-h="qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg><b>QR para la pizarra</b><span>Un enlace en grande para que lo escaneen</span></button>
       <button data-h="paginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12a3 3 0 1 0 3-3"/><path d="M12 6v3h3"/></svg><b>Páginas</b><span>Sacar, quitar o girar páginas</span></button>
     </div>
     <p class="nota" style="margin-top:14px">Todo se hace en el móvil: los PDF no se suben a ningún sitio. Lo que sale se guarda en «Mis archivos» de la biblioteca.</p>
@@ -268,6 +272,15 @@ ol.pasos li{margin:4px 0}
     <div class="fila" style="margin-top:10px"><button class="btn" id="bDeshaz">Quitar el último recuadro</button></div></div>
 </section>
 
+<section class="capa" id="qrVista" hidden style="background:#fff">
+  <header class="cab"><button data-cierra>‹ Volver</button><h1>QR</h1><button id="qrPantalla" aria-label="Pantalla completa">⛶</button><button id="qrComparte">Compartir</button></header>
+  <div id="qrCaja" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;background:#fff;color:#111">
+    <canvas id="qrLienzo" style="width:min(88vw,74vh);height:auto;image-rendering:pixelated"></canvas>
+    <div id="qrRotulo" style="font-size:clamp(20px,4vw,40px);font-weight:700;margin-top:14px;text-align:center"></div>
+    <div id="qrEnlace" style="font-size:clamp(13px,2vw,20px);color:#555;margin-top:4px;text-align:center;overflow-wrap:anywhere"></div>
+  </div>
+</section>
+
 <section class="capa" id="resultado" hidden>
   <header class="cab"><button data-cierra>‹ Volver</button><h1>Listo</h1></header>
   <div class="cuerpo">
@@ -284,7 +297,7 @@ ol.pasos li{margin:4px 0}
 
 <script>
 'use strict';
-const VERSION = '1.2';
+const VERSION = '1.3';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -339,7 +352,8 @@ $('#hoja').addEventListener('click', e => { if (e.target.id === 'hoja') cierraCa
 
 /* ── LA BIBLIOTECA ── */
 let DOCS = [];
-async function recarga(){ DOCS = await todosDB('docs'); }
+let NOVEDADES = null;
+async function recarga(){ DOCS = await todosDB('docs'); NOVEDADES = (await leeDB('conf', 'novedades')) || null; }
 /* el nombre del grupo. Para latex/aules, a partir de su carpeta (1ESO-3-potencias → 1.º ESO · Potencias);
    para los exámenes, por la app; para lo demás, el grupo del catálogo ({sub}: la primera subcarpeta) */
 function etiqueta(fuente, rel, nombres){
@@ -377,6 +391,8 @@ function pintaLista(){
   const nombres = [...grupos.keys()].sort((a, b) => pesoGrupo(a) - pesoGrupo(b) || ordena(a, b));
   const abierto = q || nombres.length === 1;
   let h = '';
+  const nov = NOVEDADES ? vis.filter(d => NOVEDADES.ids[d.id]).sort((a, b) => ordena(a.carpeta, b.carpeta) || ordena(a.nombre, b.nombre)) : [];
+  if (nov.length && !q) h += `<details class="grupo hoy" open><summary>Novedades <span class="n">${nov.length}</span></summary>${nov.map(d => filaDoc(d).replace('<small>', '<small><b style="display:inline;color:var(--acento)">' + NOVEDADES.ids[d.id] + '</b> · ' + esc(d.carpeta) + ' · ')).join('')}<div class="fila" style="padding:8px 14px 12px"><button class="btn peq" id="bVisto">Visto</button></div></details>`;
   const hoy = vis.filter(d => d.hoy).sort((a, b) => ordena(a.nombre, b.nombre));
   if (hoy.length) h += `<details class="grupo hoy" open><summary>★ Para hoy <span class="n">${hoy.length}</span></summary>${hoy.map(filaDoc).join('')}</details>`;
   for (const g of nombres){ const ds = grupos.get(g), aps = new Map();
@@ -386,6 +402,7 @@ function pintaLista(){
     const titulo = aps.size === 1 && orden[0] ? g + ' · ' + orden[0] : g;
     h += `<details class="grupo"${abierto || g === 'Mis archivos' ? ' open' : ''}><summary>${esc(titulo)} <span class="n">${ds.length}</span></summary>${dentro}</details>`; }
   L.innerHTML = h;
+  if ($('#bVisto')) $('#bVisto').onclick = async () => { NOVEDADES = null; await borraDB('conf', 'novedades'); pintaLista(); };
 }
 $('#busca').addEventListener('input', pintaLista);
 $('#lista').addEventListener('click', e => { const b = e.target.closest('.doc'); if (b) abreHoja(b.dataset.id); });
@@ -491,6 +508,9 @@ async function sincroniza(){
         carpeta: r.grupo, tam: blob.size, fecha: Date.now(), hoy: ant ? ant.hoy : false, blob: new Blob([blob], {type: 'application/pdf'})});
       hechos++; P.firstElementChild.style.width = (4 + 96 * hechos / bajar.length) + '%';
     }
+    /* las novedades: lo que ha llegado o cambiado en esta actualización (se queda hasta «Visto») */
+    if (bajar.length && locales.length){ const prev = (await leeDB('conf', 'novedades')) || {ids: {}}; const ids = Object.assign({}, prev.ids);
+      for (const r of bajar) ids['gh:' + r.path] = viejo.has(r.path) ? 'cambiado' : 'nuevo'; await guardaDB('conf', {fecha: Date.now(), ids}, 'novedades'); }
     const vivos = new Set(remotos.map(r => r.path)); let fuera = 0;
     for (const d of locales) if (!vivos.has(d.path)){ await borraDB('docs', d.id); fuera++; }
     await ponConf('ultima', Date.now());
@@ -559,7 +579,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -573,6 +593,7 @@ function eligeDocs(){
 }
 function pintaHerramienta(){
   const C = $('#herrCuerpo'), d = H.docs[0];
+  if (H.tipo === 'qr') return pintaQR(C);
   let h = eligeDocs();
   if (H.tipo === 'tapar' && d){
     h += `<div class="caja"><h2>Qué se tapa</h2>
@@ -597,6 +618,13 @@ function pintaHerramienta(){
       <label><input type="checkbox" id="hContra" checked><span>La última página es la contraportada<small>Las páginas en blanco que falten van antes de ella, no al final.</small></span></label></div>
       <p class="nota" id="hInfo">Las páginas A4 se reducen a A5 (al 71 %); las que ya son A5 van tal cual.</p>
       <div class="fila"><button class="btn acento" id="hHaz">Montar el cuadernillo</button></div></div>`;
+  } else if (H.tipo === 'varias' && d){
+    h += `<div class="caja"><h2>Cuántas</h2><div class="opc">
+      <label><input type="radio" name="hN" value="2" checked><span>2 por hoja<small>Cada copia, en media hoja (A5). Se corta por la mitad.</small></span></label>
+      <label><input type="radio" name="hN" value="4"><span>4 por hoja<small>Cada copia, en un cuarto de hoja (A6). Dos cortes.</small></span></label>
+      <label><input type="checkbox" id="hMarcas" checked><span>Líneas de corte<small>Discontinuas y finas, en gris.</small></span></label></div>
+      <p class="nota">Si el PDF tiene varias páginas, cada página sale en su hoja, repetida. Para algo a doble cara, imprime a doble cara por el borde largo: cada copia queda detrás de la suya.</p>
+      <div class="fila"><button class="btn acento" id="hHaz">Hacer la hoja</button></div></div>`;
   } else if (H.tipo === 'unir'){
     h += `<div class="fila"><button class="btn acento" id="hHaz"${H.docs.length < 2 ? ' disabled' : ''}>Unir ${H.docs.length > 1 ? H.docs.length + ' documentos' : ''}</button></div>`;
   } else if (H.tipo === 'paginas' && d){
@@ -617,7 +645,7 @@ function pintaHerramienta(){
       H.docs = H.tipo === 'unir' ? H.docs.concat(nuevos) : nuevos.slice(0, 1); H.paginas = null; pintaHerramienta(); }; }
   if (H.tipo === 'tapar' && d) montaTapar();
   if (H.tipo === 'paginas' && d) montaPaginas();
-  if ($('#hHaz')) $('#hHaz').onclick = () => ({tapar: hazTapar, reducir: hazReducir, unir: hazUnir, cuadernillo: hazCuadernillo})[H.tipo]();
+  if ($('#hHaz')) $('#hHaz').onclick = () => ({tapar: hazTapar, reducir: hazReducir, unir: hazUnir, cuadernillo: hazCuadernillo, varias: hazVarias})[H.tipo]();
 }
 /* el selector de la biblioteca (para las herramientas) */
 function abreSelector(){ $('#selBusca').value = ''; pintaSelector(); abreCapa('selector'); }
@@ -733,6 +761,62 @@ async function hazCuadernillo(){
       emb.length + ' páginas' + (faltan ? ' (+' + faltan + ' en blanco)' : '') + ' → ' + (n / 4) + (n / 4 === 1 ? ' hoja A4' : ' hojas A4') + '. Imprime a <b>doble cara, margen corto y tamaño real</b>, y grapa por el centro.');
   } catch (e) { aviso('Error: ' + e.message); } finally { b.disabled = false; }
 }
+/* VARIAS POR HOJA: cada página, repetida 2 (A5) o 4 (A6) veces en un A4 vertical (en MyOrbys no hay
+   apaisado), girada si así cabe más grande. Con 2 por hoja, una página vertical va girada (lo de arriba
+   a la derecha, como en el cuadernillo); con 4, no hace falta. Sin pasar por imagen. */
+async function hazVarias(){
+  const d = H.docs[0], b = $('#hHaz'), N = +document.querySelector('input[name=hN]:checked').value, marcas = $('#hMarcas').checked;
+  b.disabled = true;
+  try {
+    const src = await PDFDocument.load(await d.blob.arrayBuffer(), {ignoreEncryption: true}), out = await PDFDocument.create();
+    const emb = await out.embedPages(src.getPages()), W = 595.28, Hh = 841.89, M = 8;
+    const celdas = N === 2 ? [[0, Hh / 2, W, Hh / 2], [0, 0, W, Hh / 2]] : [[0, Hh / 2, W / 2, Hh / 2], [W / 2, Hh / 2, W / 2, Hh / 2], [0, 0, W / 2, Hh / 2], [W / 2, 0, W / 2, Hh / 2]];
+    for (const p of emb){
+      const hoja = out.addPage([W, Hh]);
+      for (const [cx, cy, cw, ch] of celdas){
+        const aw = cw - 2 * M, ah = ch - 2 * M, k0 = Math.min(aw / p.width, ah / p.height), k90 = Math.min(aw / p.height, ah / p.width);
+        if (k90 > k0 * 1.02){ const k = k90, bw = p.height * k, bh = p.width * k, x = cx + (cw - bw) / 2, y = cy + (ch - bh) / 2;
+          hoja.drawPage(p, {x, y: y + bh, xScale: k, yScale: k, rotate: degrees(-90)}); }
+        else { const k = k0, bw = p.width * k, bh = p.height * k; hoja.drawPage(p, {x: cx + (cw - bw) / 2, y: cy + (ch - bh) / 2, xScale: k, yScale: k}); }
+      }
+      if (marcas){ const gris = PDFLib.rgb(.6, .6, .6), o = {thickness: .5, color: gris, dashArray: [4, 4]};
+        hoja.drawLine(Object.assign({start: {x: 0, y: Hh / 2}, end: {x: W, y: Hh / 2}}, o));
+        if (N === 4) hoja.drawLine(Object.assign({start: {x: W / 2, y: 0}, end: {x: W / 2, y: Hh}}, o)); }
+    }
+    const blob = new Blob([await out.save()], {type: 'application/pdf'});
+    muestraResultado(await guardaResultado(blob, d.nombre + ' - ' + N + ' por hoja'), emb.length + (emb.length === 1 ? ' página' : ' páginas') + ', ' + N + ' copias en cada hoja A4.');
+  } catch (e) { aviso('Error: ' + e.message); } finally { b.disabled = false; }
+}
+
+/* QR PARA LA PIZARRA: un enlace en grande, a pantalla completa, para que la clase lo escanee */
+const APPS_QR = [['La clonadora del gato naranja', 'la-clonadora'], ['La palestra', 'la-palestra'], ['Las piezas de Miut', 'miut-piezas'],
+  ['La grapadora de Nick', 'grapadora-de-nick'], ['La ciudad', 'numeros-partidos'], ['Todas las apps', '']].map(([t, r]) => [t, 'https://diazepamina-creator.github.io/' + (r ? r + '/' : '')]);
+async function pintaQR(C){
+  const recientes = (await leeDB('conf', 'qrRecientes')) || [];
+  C.innerHTML = `<div class="caja"><h2>Enlace</h2>
+    <input type="text" id="qrUrl" placeholder="https://…" style="width:100%" inputmode="url" autocomplete="off">
+    <input type="text" id="qrTit" placeholder="Rótulo debajo (opcional)" style="width:100%;margin-top:8px">
+    <div class="fila" style="margin-top:10px"><button class="btn acento" id="qrVer">Mostrar en grande</button><button class="btn" id="qrPega">Pegar</button></div></div>
+    <div class="caja"><h2>Tus apps</h2><div class="chips">${APPS_QR.map(([t, u]) => `<div class="chip"><span>${esc(t)}</span><button data-qr="${esc(u)}" data-t="${esc(t)}">Mostrar</button></div>`).join('')}</div></div>
+    ${recientes.length ? `<div class="caja"><h2>Últimos</h2><div class="chips">${recientes.map(([t, u]) => `<div class="chip"><span>${esc(t || u)}</span><button data-qr="${esc(u)}" data-t="${esc(t)}">Mostrar</button></div>`).join('')}</div></div>` : ''}
+    <p class="nota">Un ejercicio concreto también vale: copia el enlace del QR de una ficha o de «Practicar» en la app.</p>`;
+  $('#qrVer').onclick = () => { const u = $('#qrUrl').value.trim(); if (!u) return aviso('Escribe o pega un enlace'); muestraQR(u, $('#qrTit').value.trim(), true); };
+  $('#qrPega').onclick = async () => { try { $('#qrUrl').value = (await navigator.clipboard.readText()).trim(); } catch (e) { aviso('No puedo leer el portapapeles: pégalo a mano'); } };
+  C.querySelectorAll('[data-qr]').forEach(b => b.onclick = () => muestraQR(b.dataset.qr, b.dataset.t, false));
+}
+async function muestraQR(url, titulo, guarda){
+  if (guarda){ const r = ((await leeDB('conf', 'qrRecientes')) || []).filter(([, u]) => u !== url); r.unshift([titulo, url]); await guardaDB('conf', r.slice(0, 6), 'qrRecientes'); }
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+  const q = qrcode(0, 'M'); q.addData(url); q.make();
+  const n = q.getModuleCount(), borde = 4, lado = Math.min(1600, 40 * (n + 2 * borde)), m = lado / (n + 2 * borde), cv = $('#qrLienzo');
+  cv.width = cv.height = lado; const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, lado, lado); c.fillStyle = '#000';
+  for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) c.fillRect(Math.floor((k + borde) * m), Math.floor((r + borde) * m), Math.ceil(m), Math.ceil(m));
+  $('#qrRotulo').textContent = titulo || ''; $('#qrEnlace').textContent = url.replace(/^https?:\/\//, '');
+  QRACT = {url, titulo};
+  if ($('#herramienta').hidden) abreCapa('qrVista'); else { abreCapa('qrVista'); }
+}
+let QRACT = null;
+
 /* PÁGINAS: sacar, quitar y girar, sin pasar por imagen */
 function montaPaginas(){
   const cont = $('#hMinis');
@@ -768,6 +852,11 @@ $('#bResNombre').onclick = async () => { const n = $('#resNombre').value.trim();
 $('#bResComparte').onclick = () => resDoc && comparte(resDoc);
 $('#bResBaja').onclick = () => resDoc && descarga(resDoc.blob, archivo(resDoc.nombre));
 $('#bResVer').onclick = () => { if (!resDoc) return; abreCapa('visor'); verDoc(resDoc); };
+
+$('#qrPantalla').onclick = () => { const v = $('#qrVista'); if (document.fullscreenElement) document.exitFullscreen(); else if (v.requestFullscreen) v.requestFullscreen().catch(() => aviso('Pantalla completa no disponible')); };
+$('#qrComparte').onclick = () => $('#qrLienzo').toBlob(async b => { const f = new File([b], 'qr.png', {type: 'image/png'});
+  if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: (QRACT && QRACT.titulo) || 'QR'}); } catch (e) {} } else descarga(b, 'qr.png'); });
+AL_CERRAR.qrVista = () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
 
 /* ── ESCANEAR ── las fotos, sus cuatro esquinas, y un PDF A4 enderezado */
 const ESC = {fotos: [], actual: 0};
