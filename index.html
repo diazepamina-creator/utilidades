@@ -175,6 +175,7 @@ ol.pasos li{margin:4px 0}
       <button data-h="cuadernillo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5z"/><path d="M12 6v14"/></svg><b>Cuadernillo A5</b><span>Para imprimir en A4 y grapar por el centro</span></button>
       <button data-h="varias"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M4 12h16M12 3v18" stroke-dasharray="2 2"/></svg><b>Varias por hoja</b><span>2 o 4 copias para recortar: billetes, tarjetas</span></button>
       <button data-h="qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></svg><b>QR para la pizarra</b><span>Un enlace en grande para que lo escaneen</span></button>
+      <button data-h="actas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 14l2 2 4-4"/></svg><b>Comprobar actas</b><span>Las actas de las apps: si son buenas y qué dicen</span></button>
       <button data-h="paginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12a3 3 0 1 0 3-3"/><path d="M12 6v3h3"/></svg><b>Páginas</b><span>Sacar, quitar o girar páginas</span></button>
     </div>
     <p class="nota" style="margin-top:14px">Todo se hace en el móvil: los PDF no se suben a ningún sitio. Lo que sale se guarda en «Mis archivos» de la biblioteca.</p>
@@ -309,7 +310,7 @@ ol.pasos li{margin:4px 0}
 
 <script>
 'use strict';
-const VERSION = '1.4.1';
+const VERSION = '1.5';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -616,7 +617,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -631,6 +632,7 @@ function eligeDocs(){
 function pintaHerramienta(){
   const C = $('#herrCuerpo'), d = H.docs[0];
   if (H.tipo === 'qr') return pintaQR(C);
+  if (H.tipo === 'actas') return pintaActas(C);
   let h = eligeDocs();
   if (H.tipo === 'tapar' && d){
     h += `<div class="caja"><h2>Qué se tapa</h2>
@@ -853,6 +855,111 @@ async function muestraQR(url, titulo, guarda){
   if ($('#herramienta').hidden) abreCapa('qrVista'); else { abreCapa('qrVista'); }
 }
 let QRACT = null;
+
+/* COMPROBAR ACTAS. Las apps de clase (La palestra, Las piezas de Miut, La clonadora) dan un acta
+   de texto con un «Código de verificación» al pie: la huella FNV-1a del texto. Si alguien retoca el
+   acta a mano, la huella deja de cuadrar. Miut y la clonadora añaden un «Código de expediente»
+   (MIUT1. / CLONADORA1. + el estado en JSON, con su propia huella dentro): es una sola palabra, así que
+   sobrevive aunque el editor de Aules toque los espacios del texto. La huella no es criptográfica (el
+   algoritmo está en el código de las apps): disuade del retoque casual, no de alguien decidido.
+   Copiar el acta de otro cambiando solo el nombre rompe la huella; copiarla desde su móvil, no: por eso
+   se marcan las actas IGUALES salvo el nombre. Entra: texto pegado (una o varias), archivos .txt o
+   .html, o el .zip de «Descarregar totes les trameses» de la tarea de Aules. Todo en el móvil. */
+const fnv = txt => { let h = 2166136261; for (let i = 0; i < txt.length; i++){ h ^= txt.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const x = h.toString(16).toUpperCase().padStart(8, '0'); return x.slice(0, 4) + '-' + x.slice(4); };
+const PIE_ACTA = 'Código de verificación: ';
+const CABECERAS = /^(ACTA · [^\n]+|LA PALESTRA · acta de la jornada)$/gm;
+function aTexto(html){ const d = new DOMParser().parseFromString(html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h\d|tr)>/gi, '\n$&'), 'text/html');
+  return (d.body.textContent || '').replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n'); }
+/* parte un texto en actas: cada una empieza en su cabecera */
+function parteActas(texto, quien){
+  const t = texto.replace(/\u00a0/g, ' ').replace(/\r\n?/g, '\n'), ini = []; let m; CABECERAS.lastIndex = 0;
+  while ((m = CABECERAS.exec(t))) ini.push(m.index);
+  return ini.map((p, i) => ({quien, txt: t.slice(p, i + 1 < ini.length ? ini[i + 1] : t.length).trim()}));
+}
+function compruebaActa(a){
+  const t = a.txt, app = /^ACTA · (.+)$/m.exec(t), pal = /^LA PALESTRA/.test(t);
+  const APPS_ACTA = {'LA CLONADORA DEL GATO NARANJA': 'La clonadora', 'LAS PIEZAS DE MIUT': 'Las piezas de Miut'};
+  const r = {quien: a.quien, app: pal ? 'La palestra' : app ? APPS_ACTA[app[1]] || app[1] : '¿?', texto: null, exp: null};
+  const i = t.lastIndexOf(PIE_ACTA);
+  if (i >= 0){ const cod = (/^([0-9A-F]{4}-[0-9A-F]{4})/.exec(t.slice(i + PIE_ACTA.length)) || [])[1], c = t.slice(0, i), sin = c.replace(/\s+$/, '');
+    r.codigo = cod; r.texto = !!cod && [c, sin, sin + '\n', sin + '\n\n'].some(v => fnv(v) === cod); }
+  const e = /(MIUT1|CLONADORA1)\.([A-Za-z0-9_-]+)/.exec(t);
+  if (e){ try { const json = decodeURIComponent(escape(atob(e[2].replace(/-/g, '+').replace(/_/g, '/')))), o = JSON.parse(json), v = o.v; delete o.v;
+      r.exp = fnv(JSON.stringify(o)) === v; r.expDatos = o; } catch (err) { r.exp = false; } }
+  const L = re => (re.exec(t) || [])[1];
+  r.nombre = L(/^Nombre: (.*)$/m) || L(/^N\.º de lista: (.*)$/m) || '';
+  r.fecha = L(/^Fecha: (.*)$/m) || ''; r.tiempo = L(/^Tiempo(?: en la app)?: (.*)$/m) || '';
+  r.progreso = L(/^(Encargos hechos: .*)$/m) || L(/^(Retos hechos: .*)$/m) || (L(/^(Resueltas: .*)$/m) || '').replace(/\s{2,}/g, ' · ');
+  r.errores = L(/^Errores con nombre: (.*)$/m) || (/Dónde tropieza:\n((?:  .*\n?)+)/.exec(t + '\n') || [, ''])[1].trim().replace(/\n\s*/g, '; ');
+  /* si el texto no cuadra pero el expediente sí, el expediente manda: hay que ver si el texto dice lo mismo */
+  if (r.texto !== true && r.exp === true && r.expDatos){ const o = r.expDatos, hechos = o.h ? Object.values(o.h).filter(Boolean).length : null;
+    r.aviso = [];
+    if ((o.n || '') !== (r.nombre === '(sin nombre)' ? '' : r.nombre)) r.aviso.push('el expediente es de «' + (o.n || 'sin nombre') + '»');
+    const dice = /hechos: (\d+)/.exec(r.progreso || ''); if (hechos !== null && dice && +dice[1] !== hechos) r.aviso.push('el texto dice ' + dice[1] + ' hechos y el expediente, ' + hechos);
+    r.expResumen = (hechos !== null ? hechos + ' hechos' : '') + (o.t ? ' · ' + Math.round(o.t / 60) + ' min' : ''); }
+  /* la huella del contenido sin nombre, fecha ni códigos: dos iguales = copiada */
+  r.cuerpo = t.split('\n').filter(l => !/^(Nombre|N\.º de lista|Fecha|Código de|Tiempo)/.test(l) && !/^(MIUT1|CLONADORA1)\./.test(l.trim())).join('\n').trim();
+  return r;
+}
+/* un .zip mínimo: el directorio central y DecompressionStream para lo comprimido */
+async function leeZip(buf){
+  const v = new DataView(buf), u8 = new Uint8Array(buf), out = [];
+  let e = buf.byteLength - 22; while (e >= 0 && v.getUint32(e, true) !== 0x06054b50) e--;
+  if (e < 0) throw new Error('no es un .zip');
+  let p = v.getUint32(e + 16, true); const n = v.getUint16(e + 10, true);
+  for (let k = 0; k < n; k++){
+    const met = v.getUint16(p + 10, true), tamC = v.getUint32(p + 20, true), ln = v.getUint16(p + 28, true), lx = v.getUint16(p + 30, true), lc = v.getUint16(p + 32, true), off = v.getUint32(p + 42, true);
+    const nombre = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + ln)); p += 46 + ln + lx + lc;
+    if (nombre.endsWith('/')) continue;
+    const ini = off + 30 + v.getUint16(off + 26, true) + v.getUint16(off + 28, true), datos = u8.slice(ini, ini + tamC);
+    const crudo = met === 0 ? datos : new Uint8Array(await new Response(new Blob([datos]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    out.push({nombre, texto: new TextDecoder().decode(crudo)});
+  }
+  return out;
+}
+let ACTAS = [];
+function pintaActas(C){
+  C.innerHTML = `<div class="caja"><h2>Las actas</h2>
+    <textarea id="acTexto" rows="6" style="width:100%;border:1.5px solid var(--linea);border-radius:10px;padding:10px;font:14px/1.35 ui-monospace,monospace" placeholder="Pega aquí una o varias actas"></textarea>
+    <div class="fila" style="margin-top:8px"><button class="btn acento" id="acMira">Comprobar</button><button class="btn" id="acArch">Archivos o .zip de Aules</button><input type="file" id="acFile" multiple accept=".txt,.html,.htm,.zip,text/plain,text/html,application/zip" hidden><button class="btn peq" id="acVacia">Vaciar</button></div>
+    <p class="nota">En la tarea de Aules: «Descarregar totes les trameses» y elige aquí el .zip. Todo se lee en el móvil.</p></div>
+    <div id="acRes"></div>`;
+  $('#acMira').onclick = () => { const t = $('#acTexto').value; if (!t.trim()) return aviso('Pega alguna acta');
+    const nuevas = parteActas(t, 'pegada'); if (!nuevas.length) return aviso('No encuentro ninguna acta (empiezan por «ACTA ·» o «LA PALESTRA ·»)'); ACTAS = ACTAS.concat(nuevas); $('#acTexto').value = ''; pintaResActas(); };
+  $('#acArch').onclick = () => $('#acFile').click();
+  $('#acFile').onchange = async e => { for (const f of e.target.files){
+      try { if (/\.zip$/i.test(f.name)){ for (const z of await leeZip(await f.arrayBuffer())){ const quien = (z.nombre.split('/').find(x => /_assignsubmission/.test(x)) || z.nombre.split('/').pop()).split('_')[0] || z.nombre;
+            ACTAS = ACTAS.concat(parteActas(/\.html?$/i.test(z.nombre) ? aTexto(z.texto) : z.texto, quien)); } }
+        else { const t = await f.text(); ACTAS = ACTAS.concat(parteActas(/\.html?$/i.test(f.name) ? aTexto(t) : t, f.name.replace(/\.(txt|html?)$/i, ''))); } }
+      catch (err) { aviso(f.name + ': ' + err.message); } }
+    e.target.value = ''; pintaResActas(); };
+  $('#acVacia').onclick = () => { ACTAS = []; pintaResActas(); };
+  pintaResActas();
+}
+function pintaResActas(){
+  const R = $('#acRes'); if (!R) return;
+  if (!ACTAS.length){ R.innerHTML = ''; return; }
+  const rs = ACTAS.map(compruebaActa), porCuerpo = new Map();
+  rs.forEach((r, i) => { if (r.cuerpo.length > 80){ if (!porCuerpo.has(r.cuerpo)) porCuerpo.set(r.cuerpo, []); porCuerpo.get(r.cuerpo).push(i); } });
+  const estado = r => r.texto === true ? 'buena' : r.exp === true && !(r.aviso && r.aviso.length) ? 'buena (expediente)' : r.exp === true ? 'retocada' : r.texto === false || r.exp === false ? 'no cuadra' : 'sin código';
+  const sello = r => { const e = estado(r);
+    return e === 'buena' ? '<b class="ok">✓ buena</b>' : e === 'buena (expediente)' ? '<b class="ok">✓ buena</b> <small class="nota">(por el expediente: el editor tocó el texto)</small>'
+      : e === 'retocada' ? '<b class="mal">✗ retocada</b> <small class="mal">' + esc(r.aviso.join('; ')) + '</small>'
+      : e === 'no cuadra' ? '<b class="mal">✗ no cuadra</b> <small class="nota">retocada, o el editor de Aules cambió los espacios: pide el .txt</small>' : '<b class="nota">sin código</b>'; };
+  const buenas = rs.filter(r => estado(r).startsWith('buena')).length;
+  R.innerHTML = `<div class="caja"><h2>${rs.length} ${rs.length === 1 ? 'acta' : 'actas'} · ${buenas} buenas</h2>
+    <div class="fila"><button class="btn peq" id="acCsv">Copiar como tabla</button></div></div>` + rs.map((r, i) => {
+      const gemelas = (porCuerpo.get(r.cuerpo) || []).filter(j => j !== i);
+      return `<div class="caja" style="padding:12px 14px"><div class="fila" style="justify-content:space-between"><b>${esc(r.quien !== 'pegada' ? r.quien : (r.nombre || 'sin nombre'))}</b>${sello(r)}</div>
+        <div class="nota" style="margin:4px 0">${esc(r.app)}${r.nombre && r.quien !== 'pegada' ? ' · en el acta: ' + esc(r.nombre) : ''}${r.fecha ? ' · ' + esc(r.fecha) : ''}${r.tiempo ? ' · ' + esc(r.tiempo) : ''}</div>
+        ${r.progreso ? `<div>${esc(r.progreso)}</div>` : ''}${r.errores ? `<div class="nota" style="margin:4px 0">Errores: ${esc(r.errores)}</div>` : ''}
+        ${gemelas.length ? `<div class="mal" style="margin-top:4px">⚠ Igual que la de ${gemelas.map(j => esc(rs[j].quien !== 'pegada' ? rs[j].quien : rs[j].nombre || 'otra')).join(', ')} (salvo nombre y fecha)</div>` : ''}</div>`; }).join('');
+  $('#acCsv').onclick = async () => { const cab = ['quién', 'app', 'nombre en el acta', 'fecha', 'tiempo', 'progreso', 'código', 'errores'];
+    const filas = rs.map(r => [r.quien, r.app, r.nombre, r.fecha, r.tiempo, r.progreso, estado(r) + (r.aviso && r.aviso.length ? ': ' + r.aviso.join('; ') : ''), r.errores]);
+    const tsv = [cab].concat(filas).map(f => f.map(x => String(x || '').replace(/\t|\n/g, ' ')).join('\t')).join('\n');
+    try { await navigator.clipboard.writeText(tsv); aviso('Copiado: pégalo en una hoja de cálculo'); } catch (e) { descarga(new Blob([tsv], {type: 'text/tab-separated-values'}), 'actas.tsv'); } };
+}
 
 /* PÁGINAS: sacar, quitar y girar, sin pasar por imagen */
 function montaPaginas(){
