@@ -365,7 +365,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.6.1';
+const VERSION = '1.6.2';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1348,7 +1348,8 @@ function notaDeCorrector(exId, g, n){
 let LISTA = {};
 const corto = nom => { if (nom.includes(',')){ const [ape, n] = nom.split(','); return (n.trim().split(/\s+/)[0] || '') + ' ' + (ape.trim()[0] || '') + '.'; }
   const w = nom.trim().split(/\s+/); return w[0] + (w[1] ? ' ' + w[1][0] + '.' : ''); };
-const normGrupo = s => { const m = /([1-4])\D*?([A-Z])\s*$/i.exec(String(s || '').trim()); return m ? m[1] + m[2].toUpperCase() : null; };
+const normGrupo = s => { s = String(s || '').trim(); if (/taller/i.test(s)) return 'T4';
+  const m = /^\D*([1-4])\s*(?:r|n|t|º|o|°|\.º|er|ero|ndo|do)?\s*(?:d'|de\s+)?(?:ESO)?\s*[-·.]?\s*([A-H])$/i.exec(s); return m ? m[1] + m[2].toUpperCase() : null; };
 function leeLista(txt, gActual){
   const ls = txt.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
   const sep = [';', '\t', ','].map(c => [c, ls.slice(0, 6).reduce((s, l) => s + l.split(c).length - 1, 0)]).sort((a, b) => b[1] - a[1])[0][0];
@@ -1360,14 +1361,17 @@ function leeLista(txt, gActual){
   const iG = cab.findIndex(h => /grup|curs|unitat|unidad|clase/.test(h));
   const iNom = cab.findIndex(h => /\bnom\b|nombre/.test(h) && !/cognom|apellid/.test(h));
   const iApe = cab.map((h, j) => /cognom|apellid/.test(h) ? j : -1).filter(j => j >= 0);
-  const out = {};
+  const out = {}; let seccion = null, secciones = 0;
   for (const f of filas.slice(hayCab ? 1 : 0)){
-    if (!esN(f[cn])) continue;
+    /* un renglón sin número que nombra un grupo («1r ESO A», «Taller…») abre su lista */
+    if (!esN(f[cn])){ const t = f.filter(Boolean).join(' ').trim(); if (t){ seccion = normGrupo(t) || 'otro: ' + t.slice(0, 30); secciones++; } continue; }
     const nombre = iNom >= 0 && iApe.length ? iApe.map(j => f[j]).filter(Boolean).join(' ') + ', ' + f[iNom]
       : f.filter((x, j) => j !== cn && j !== iG && x && !/^\d+$/.test(x)).join(' ');
     if (!nombre.replace(/[,\s]/g, '')) continue;
-    const g = (iG >= 0 && normGrupo(f[iG])) || gActual;
-    (out[g] = out[g] || {})[+f[cn]] = nombre;
+    const g = iG >= 0 ? (normGrupo(f[iG]) || 'otro: ' + (f[iG] || '¿?')) : seccion || gActual;
+    const L = out[g] = out[g] || {};
+    if (L[+f[cn]]) throw new Error('el n.º ' + f[cn] + ' sale dos veces en ' + (g.startsWith('otro') ? g.slice(6) : etqGrupo(g)) + ': parece que hay varias listas y no sé de qué grupo es cada una. Deja en el archivo solo un grupo, o añade una columna «Grupo»');
+    L[+f[cn]] = nombre;
   }
   if (!Object.keys(out).length) throw new Error('no hay ningún alumno con número');
   return out;
@@ -1378,11 +1382,13 @@ function montaNombres(C){
   $('#cLista').onclick = () => $('#cListaF').click();
   $('#cListaF').onchange = async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return;
     const buf = await file.arrayBuffer(); let txt; try { txt = new TextDecoder('utf-8', {fatal: true}).decode(buf); } catch (er) { txt = new TextDecoder('windows-1252').decode(buf); }
-    try { const L = leeLista(txt, H.g), gs = Object.keys(L);
-      if (gs.length === 1 && gs[0] === H.g && !confirm('El archivo no dice el grupo: ¿son los de ' + etqGrupo(H.g) + '? (' + Object.keys(L[H.g]).length + ' alumnos)')) return;
+    try { const L = leeLista(txt, H.g), mios = gruposDe(''), fuera = Object.keys(L).filter(g => !mios.includes(g));
+      for (const g of fuera) delete L[g]; const gs = Object.keys(L);
+      if (!gs.length) return aviso('Ningún alumno es de tus grupos (' + fuera.map(g => g.startsWith('otro') ? g.slice(6) : etqGrupo(g)).join(', ') + ')', 5000);
+      if (gs.length === 1 && gs[0] === H.g && !fuera.length && !confirm('El archivo no dice el grupo: ¿son los de ' + etqGrupo(H.g) + '? (' + Object.keys(L[H.g]).length + ' alumnos)')) return;
       Object.assign(LISTA, L);
       for (const g of gs){ const mx = Math.max(...Object.keys(L[g]).map(Number)); if (mx !== NT.alumnos[g]){ NT.alumnos[g] = mx; guardaNotas(); } }
-      aviso('Nombres de ' + gs.map(etqGrupo).join(', ') + ': ' + gs.reduce((s, g) => s + Object.keys(L[g]).length, 0) + ' alumnos'); pintaHerramienta(); }
+      aviso(gs.map(g => etqGrupo(g) + ': ' + Object.keys(L[g]).length).join(' · ') + (fuera.length ? ' · no cargo ' + fuera.map(g => g.startsWith('otro') ? g.slice(6) : etqGrupo(g)).join(', ') + ' (no son grupos tuyos)' : ''), 5000); pintaHerramienta(); }
     catch (er) { aviso('No puedo leer la lista: ' + er.message, 4500); } };
 }
 
