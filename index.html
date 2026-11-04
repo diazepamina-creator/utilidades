@@ -159,6 +159,7 @@ ol.pasos li{margin:4px 0}
       <button data-h="tapar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="11" y="6.5" width="8" height="4" fill="currentColor"/><path d="M6 14h12M6 17h8"/></svg><b>Tapar nombres</b><span>Recuadro negro sobre el nombre, para compartir</span></button>
       <button data-h="reducir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg><b>Reducir peso</b><span>Para Aules o el correo</span></button>
       <button data-h="unir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="10" height="13" rx="1.5"/><rect x="11" y="8" width="10" height="13" rx="1.5"/></svg><b>Unir</b><span>Varios PDF en uno</span></button>
+      <button data-h="cuadernillo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5z"/><path d="M12 6v14"/></svg><b>Cuadernillo A5</b><span>Para imprimir en A4 y grapar por el centro</span></button>
       <button data-h="paginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12a3 3 0 1 0 3-3"/><path d="M12 6v3h3"/></svg><b>Páginas</b><span>Sacar, quitar o girar páginas</span></button>
     </div>
     <p class="nota" style="margin-top:14px">Todo se hace en el móvil: los PDF no se suben a ningún sitio. Lo que sale se guarda en «Mis archivos» de la biblioteca.</p>
@@ -283,7 +284,7 @@ ol.pasos li{margin:4px 0}
 
 <script>
 'use strict';
-const VERSION = '1.1';
+const VERSION = '1.2';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -354,7 +355,7 @@ function etiqueta(fuente, rel, nombres){
 /* el orden de los grupos: primero los cursos, luego el taller, los exámenes y lo tuyo */
 /* la biblioteca va en dos niveles: la sección (lo de antes del primer « · ») y, dentro, el apartado */
 const seccion = g => g.split(' · ')[0], apartado = g => g.split(' · ').slice(1).join(' · ');
-const pesoGrupo = g => { const t = seccion(g); return /^Aules 1/.test(t) ? 1 : /^Aules 2/.test(t) ? 2 : /^Aules/.test(t) ? 3 : /^Taller/.test(t) ? 4 : /^Carril/.test(t) ? 5
+const pesoGrupo = g => { const t = seccion(g); return /^Aules 1/.test(t) ? 1 : /^Aules 2/.test(t) ? 2 : /^Aules/.test(t) ? 3 : /^Para imprimir/.test(t) ? 3.5 : /^Taller/.test(t) ? 4 : /^Carril/.test(t) ? 5
   : /^Cuadernillos/.test(t) ? 7 : /^Exámenes/.test(t) ? 8 : /^Olimpiadas/.test(t) ? 9 : t === 'Mis archivos' ? 10 : 6; };
 const ORDEN_AP = ['fichas 1.º', 'fichas 2.º', 'fichas', 'ficha previa', 'repaso', 'para los que acaban', 'soluciones', 'álbum', 'del profesor', 'claves y rúbrica', 'Aules'];
 const pesoAp = a => { const i = ORDEN_AP.indexOf(a); return i < 0 ? 50 : i; };
@@ -558,7 +559,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -589,6 +590,13 @@ function pintaHerramienta(){
       <label><input type="checkbox" id="hGris"><span>En blanco y negro<small>Pesa bastante menos.</small></span></label></div>
       <p class="nota">Ahora pesa ${tam(d.tam)}. Sirve para escaneos y fotos: los PDF hechos con LaTeX ya pesan poco. Las páginas pasan a ser imágenes y el texto ya no se podrá seleccionar.</p>
       <div class="fila"><button class="btn acento" id="hHaz">Reducir</button></div><div class="prog" id="hProg" hidden><i></i></div></div>`;
+  } else if (H.tipo === 'cuadernillo' && d){
+    h += `<div class="caja"><h2>Cómo</h2><div class="opc">
+      <label><input type="radio" name="hOri" value="v" checked><span>Para MyOrbys<small>Las dos caras giradas igual, con lo de arriba a la derecha. Es la que sale bien en la impresora del centro.</small></span></label>
+      <label><input type="radio" name="hOri" value="a"><span>Apaisada<small>Para impresoras que dejan elegir la orientación.</small></span></label>
+      <label><input type="checkbox" id="hContra" checked><span>La última página es la contraportada<small>Las páginas en blanco que falten van antes de ella, no al final.</small></span></label></div>
+      <p class="nota" id="hInfo">Las páginas A4 se reducen a A5 (al 71 %); las que ya son A5 van tal cual.</p>
+      <div class="fila"><button class="btn acento" id="hHaz">Montar el cuadernillo</button></div></div>`;
   } else if (H.tipo === 'unir'){
     h += `<div class="fila"><button class="btn acento" id="hHaz"${H.docs.length < 2 ? ' disabled' : ''}>Unir ${H.docs.length > 1 ? H.docs.length + ' documentos' : ''}</button></div>`;
   } else if (H.tipo === 'paginas' && d){
@@ -609,7 +617,7 @@ function pintaHerramienta(){
       H.docs = H.tipo === 'unir' ? H.docs.concat(nuevos) : nuevos.slice(0, 1); H.paginas = null; pintaHerramienta(); }; }
   if (H.tipo === 'tapar' && d) montaTapar();
   if (H.tipo === 'paginas' && d) montaPaginas();
-  if ($('#hHaz')) $('#hHaz').onclick = () => ({tapar: hazTapar, reducir: hazReducir, unir: hazUnir})[H.tipo]();
+  if ($('#hHaz')) $('#hHaz').onclick = () => ({tapar: hazTapar, reducir: hazReducir, unir: hazUnir, cuadernillo: hazCuadernillo})[H.tipo]();
 }
 /* el selector de la biblioteca (para las herramientas) */
 function abreSelector(){ $('#selBusca').value = ''; pintaSelector(); abreCapa('selector'); }
@@ -697,6 +705,33 @@ async function hazUnir(){
     const blob = new Blob([await out.save()], {type: 'application/pdf'});
     muestraResultado(await guardaResultado(blob, H.docs[0].nombre + ' (y ' + (H.docs.length - 1) + ' más)'), H.docs.length + ' documentos, ' + n + ' páginas en uno.'); }
   catch (e) { aviso('Error: ' + e.message); } finally { b.disabled = false; }
+}
+/* CUADERNILLO A5: el mismo montaje que latex/cuadernillos/gen/monta.py, para cualquier PDF.
+   Hojas A4 apaisadas con dos páginas A5 por cara (las A4 se reducen al 71 %). Hasta un múltiplo de 4
+   con blancas ANTES de la contraportada. La hoja 1 lleva por delante la última y la primera, y por
+   detrás la 2 y la penúltima; las de dentro corren sus páginas 0,1 mm hacia el lomo por cada hoja
+   que tienen por fuera. «Para MyOrbys»: las dos caras giradas igual, lo de arriba a la derecha.
+   Se imprime a doble cara, margen corto, tamaño real, y se grapa por el centro. Sin pasar por imagen. */
+async function hazCuadernillo(){
+  const d = H.docs[0], b = $('#hHaz'), vertical = document.querySelector('input[name=hOri]:checked').value === 'v', contra = $('#hContra').checked;
+  b.disabled = true;
+  try {
+    const src = await PDFDocument.load(await d.blob.arrayBuffer(), {ignoreEncryption: true}), out = await PDFDocument.create();
+    const emb = await out.embedPages(src.getPages());
+    let pags = emb.slice(); const faltan = (-pags.length % 4 + 4) % 4, blancas = Array(faltan).fill(null);
+    pags = contra && pags.length > 1 ? pags.slice(0, -1).concat(blancas, pags.slice(-1)) : pags.concat(blancas);
+    const n = pags.length, AW = 841.89, AH = 595.28, MW = AW / 2, CORRE = .1 * 72 / 25.4;
+    const pon = (hoja, p, x0, c) => { if (!p) return; const k = Math.min(MW / p.width, AH / p.height), w = p.width * k, hh = p.height * k;
+      const px = x0 + (MW - w) / 2 + c, py = (AH - hh) / 2;
+      if (vertical) hoja.drawPage(p, {x: py, y: AW - px, xScale: k, yScale: k, rotate: degrees(-90)});
+      else hoja.drawPage(p, {x: px, y: py, xScale: k, yScale: k}); };
+    for (let k = 0; k < n / 4; k++) for (const [izq, der] of [[n - 2 * k, 1 + 2 * k], [2 + 2 * k, n - 1 - 2 * k]]){
+      const hoja = out.addPage(vertical ? [AH, AW] : [AW, AH]), c = k * CORRE;
+      pon(hoja, pags[izq - 1], 0, c); pon(hoja, pags[der - 1], MW, -c); }
+    const blob = new Blob([await out.save()], {type: 'application/pdf'});
+    muestraResultado(await guardaResultado(blob, d.nombre + ' - cuadernillo para imprimir'),
+      emb.length + ' páginas' + (faltan ? ' (+' + faltan + ' en blanco)' : '') + ' → ' + (n / 4) + (n / 4 === 1 ? ' hoja A4' : ' hojas A4') + '. Imprime a <b>doble cara, margen corto y tamaño real</b>, y grapa por el centro.');
+  } catch (e) { aviso('Error: ' + e.message); } finally { b.disabled = false; }
 }
 /* PÁGINAS: sacar, quitar y girar, sin pasar por imagen */
 function montaPaginas(){
