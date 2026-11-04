@@ -297,7 +297,7 @@ ol.pasos li{margin:4px 0}
 
 <script>
 'use strict';
-const VERSION = '1.3.1';
+const VERSION = '1.3.2';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1013,7 +1013,8 @@ async function pintaAjustes(){
   $('#ajToken').value = ''; $('#ajToken').placeholder = c.token ? 'Token guardado (…' + c.token.slice(-4) + '). Pega otro para cambiarlo' : 'Token de GitHub (github_pat_…)';
   $('#ajEstado').innerHTML = c.token ? 'Conectado a <code>' + esc(c.dueno + '/' + c.repo) + '</code>' + (c.ultima ? ' · última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) : '') : 'Sin token: la biblioteca solo tiene lo que añadas del móvil.';
   const cat = c.catalogo || {fuentes: [{opcional: 'examenes', texto: 'Exámenes y claves', detalle: 'latex/examenes/*/pdf. Solo en tu móvil; nunca van a Aules.', defecto: false}]};
-  $('#ajOpc').innerHTML = cat.fuentes.filter(f => f.opcional).map(f => `<label><input type="checkbox" data-opc="${esc(f.opcional)}"${activa(f, c) ? ' checked' : ''}><span>${esc(f.texto || f.opcional)}<small>${esc(f.detalle || '')}</small></span></label>`).join('');
+  const vistasOpc = new Set();
+  $('#ajOpc').innerHTML = cat.fuentes.filter(f => f.opcional && !vistasOpc.has(f.opcional) && vistasOpc.add(f.opcional)).map(f => `<label><input type="checkbox" data-opc="${esc(f.opcional)}"${activa(f, c) ? ' checked' : ''}><span>${esc(f.texto || f.opcional)}<small>${esc(f.detalle || '')}</small></span></label>`).join('');
   $$('#ajOpc [data-opc]').forEach(x => x.onchange = async () => { const k = await conf(); const o = Object.assign({}, k.opc); o[x.dataset.opc] = x.checked; await ponConf('opc', o); aviso(x.checked ? 'Se traerá en la próxima actualización' : 'Se quitará en la próxima actualización'); });
   $('#ajDueno').value = c.dueno; $('#ajRepo').value = c.repo; $('#ajRama').value = c.rama;
   const gh = DOCS.filter(d => d.origen === 'github'), loc = DOCS.filter(d => d.origen !== 'github'), suma = l => l.reduce((s, d) => s + (d.tam || 0), 0);
