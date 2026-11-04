@@ -376,7 +376,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.8';
+const VERSION = '1.8.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1812,7 +1812,7 @@ function camposAules(A){
       + `\n\nUna foto por página, con buena luz y que se lea bien. Puedes subir varias fotos.\n\nSe puntúa cada página: completa, a medias o en blanco.\n\nPlazo: hasta el ${fechaEs(A.vence)} a las 23:59. Después no se puede entregar.`, n: 'Marca «Mostra la descripció a la pàgina del curs».'});
     out.push(disp(A.abre, A.vence));
     out.push({t: 'Tipus de fitxers acceptats', v: '.jpg .jpeg .png .heic .pdf', n: 'Trameses de fitxers: sí · text en línia: no · nombre màxim de fitxers: 10. Si Aules no acepta .heic, quítalo.'});
-    out.push({t: 'Qualificació i tramesa', n: 'Tipus: Punt, màxim 10. «Requereix que els estudiants facen clic al botó Envia»: no. Para corregir: completa 1, a medias ½, en blanco 0; nota = puntos ÷ páginas × 10.'});
+    out.push({t: 'Qualificació i tramesa', n: 'Tipus: Punt, màxim 10. «Requereix que els estudiants facen clic al botó Envia»: no (así pueden cambiar las fotos hasta el vencimiento). «Reobertura dels intents»: mai; con eso, el número máximo de intentos da igual. Para corregir: completa 1, a medias ½, en blanco 0; nota = puntos ÷ páginas × 10.'});
   } else if (A.tipo === 'acta'){
     out.push({t: 'Nom de la tasca', v: 'Acta de ' + A.app.replace(/ del gato naranja| de Nick/, '') + ' · ' + tema});
     out.push({t: 'Descripció', v: `Juega en ${A.app}${A.que.trim() ? ' y haz ' + A.que.trim().replace(/\.$/, '') : ''}. Usa siempre el mismo móvil u ordenador: lo que haces se guarda ahí.\n\nCuando acabes, toca «Acta» y después «Descargar .txt». Sube aquí ese archivo, sin cambiarlo: si se toca, el código ya no cuadra.\n\nPlazo: hasta el ${fechaEs(A.vence)} a las 23:59. Después no se puede entregar.`, n: 'Marca «Mostra la descripció a la pàgina del curs».'});
