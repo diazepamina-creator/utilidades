@@ -151,6 +151,7 @@ img.marca{height:22px;vertical-align:-5px;margin-right:5px}
 .rej .num[hidden]{display:none}.nomc{display:block;font-size:11px;margin:0;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cod{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1.5px solid var(--acento);border-radius:50%;color:var(--acento);font-weight:800;font-size:13px;vertical-align:1px}
 .seg4 button{width:40px}.seg button.nada{background:#EFEAE0}.seg [data-ar]{width:auto;padding:0 12px;border-radius:10px!important;font-size:15px}
+.copia{border-color:var(--acento);background:#FDF3EA}
 .cass2{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}.cass2 .seg button{width:40px}
 .rej .num.hecho{border-color:var(--tinta)}.rej .num.amedias{border-color:var(--acento);border-style:dashed}.rej .num.np{background:#EFEAE0}
 .pq{padding:12px}.pq h2{font-size:16px}.pq .sol{background:#F4F7F2;border-radius:8px;padding:6px 8px;color:#2C4A3A;margin:8px 0 4px}
@@ -194,6 +195,7 @@ details.pr>div{margin:4px 0 0 10px}
       <button class="btn peq" id="hoyDespues" aria-label="Día siguiente">›</button>
     </div>
     <div class="fila" style="margin-top:10px"><button class="btn peq" id="hoyVolver" hidden>Volver a hoy</button><button class="btn peq" id="hoySemana">Ver la semana</button><button class="btn peq" id="hoyComparte">Compartir todo lo de hoy</button></div>
+    <div id="hoyCopia"></div>
     <div id="hoyLista"></div>
   </section>
 
@@ -370,7 +372,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.7';
+const VERSION = '1.7.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1217,7 +1219,7 @@ async function pintaAjustes(){
   let t = gh.length + ' de los originales (' + tam(suma(gh)) + ') · ' + loc.length + ' en «Mis archivos» (' + tam(suma(loc)) + ')';
   if (navigator.storage && navigator.storage.estimate){ try { const e = await navigator.storage.estimate(); t += ' · ocupado ' + tam(e.usage || 0) + ' de ' + tam(e.quota || 0) + ' disponibles'; } catch (e) {} }
   $('#ajEspacio').textContent = t;
-  $('#ajNotas').textContent = resumenNotas();
+  $('#ajNotas').textContent = resumenNotas() + ' · ' + (NT.ultimaCopia ? 'última copia: ' + new Date(NT.ultimaCopia).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) : 'sin ninguna copia todavía');
 }
 $('#bCopiaNotas').onclick = copiaNotas;
 $('#bRecNotas').onclick = () => $('#fRecNotas').click();
@@ -1283,6 +1285,7 @@ function proximos(dia){
   return h;
 }
 function pintaHoy(){
+  avisoCopia();
   if (!DIA) DIA = hoyISO();
   const L = $('#hoyLista'), esHoy = DIA === hoyISO();
   $('#hoyVolver').hidden = esHoy; $('#hoySemana').textContent = SEMANA ? 'Ver solo el día' : 'Ver la semana';
@@ -1317,7 +1320,7 @@ $('#hoyLista').addEventListener('click', e => { const b = e.target.closest('.doc
      si las recupera todas, la evaluación queda como mínimo en 5. */
 let NT = {alumnos: {}, corr: {}, eval: {}, fichas: {}}, RUB = null;
 let ntT;
-const guardaNotas = () => { clearTimeout(ntT); ntT = setTimeout(() => guardaDB('conf', NT, 'notas').catch(() => aviso('No se han podido guardar las notas')), 200); };
+const guardaNotas = () => { NT.cambio = Date.now(); clearTimeout(ntT); ntT = setTimeout(() => guardaDB('conf', NT, 'notas').catch(() => aviso('No se han podido guardar las notas')), 200); };
 const coma = (x, d = 2) => x == null || isNaN(x) ? '—' : (Math.round(x * 10 ** d) / 10 ** d).toLocaleString('es-ES', {maximumFractionDigits: d});
 const leeNum = s => { s = String(s == null ? '' : s).trim().replace(',', '.'); if (!s) return null; const v = Number(s); return isFinite(v) ? v : null; };
 const examenDe = id => RUB && RUB.examenes.find(e => e.id === id);
@@ -1835,10 +1838,21 @@ function pintaRec(E, g, N){
 /* ── copia de seguridad de las notas (Ajustes) ── */
 function resumenNotas(){ const k = o => Object.values(o || {}).reduce((s, R) => s + Object.keys(R.al).length, 0);
   return k(NT.corr) + ' exámenes corregidos · ' + k(NT.fichas) + ' fichas anotadas · ' + k(NT.eval) + ' filas de evaluación'; }
+/* el aviso de copia: hay notas cambiadas después de la última copia y esa copia tiene
+   más de DIAS_COPIA días (o no hay ninguna). La copia va al OneDrive por el menú de
+   compartir: la app no puede entrar sola en el OneDrive de la GVA. */
+const DIAS_COPIA = 2;
+function faltaCopia(){ if (!NT.cambio || (NT.ultimaCopia || 0) >= NT.cambio) return null;
+  const dias = NT.ultimaCopia ? (Date.now() - NT.ultimaCopia) / 864e5 : Infinity; return dias >= DIAS_COPIA ? dias : null; }
+function avisoCopia(){ const d = faltaCopia(), A = $('#hoyCopia'); if (!A) return;
+  A.innerHTML = d == null ? '' : `<div class="caja copia"><b>Notas sin copia</b><p class="nota" style="margin:4px 0 8px">${d === Infinity ? 'Aún no has guardado ninguna copia.' : 'La última copia es de hace ' + Math.floor(d) + ' días y desde entonces has corregido más.'} Solo están en este ${/iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent)) ? 'iPad' : 'móvil'}.</p>
+    <div class="fila"><button class="btn acento peq" id="hoyCopiaYa">Guardar copia en OneDrive</button><span class="nota">Elige OneDrive en el menú de compartir.</span></div></div>`;
+  if ($('#hoyCopiaYa')) $('#hoyCopiaYa').onclick = copiaNotas; }
+const hechaCopia = async () => { NT.ultimaCopia = Date.now(); await guardaDB('conf', NT, 'notas'); avisoCopia(); if (!$('#v-ajustes').hidden) pintaAjustes(); };
 async function copiaNotas(){ const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT})], {type: 'application/json'}), nombre = 'notas-' + hoyISO() + '.json';
   const f = new File([b], nombre, {type: 'application/json'});
-  if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); return; } catch (e) { if (e.name === 'AbortError') return; } }
-  descarga(b, nombre); }
+  if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); await hechaCopia(); aviso('Copia hecha'); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  descarga(b, nombre); await hechaCopia(); aviso('Copia descargada: muévela a tu OneDrive'); }
 async function recuperaNotas(file){
   try { const o = JSON.parse(await file.text()); if (o.app !== 'utilidades-notas' || !o.notas) throw new Error('no es una copia de notas');
     if (!confirm('¿Cambiar las notas de este móvil (' + resumenNotas() + ') por las de la copia del ' + new Date(o.fecha).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '?')) return;
