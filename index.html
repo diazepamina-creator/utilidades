@@ -143,6 +143,10 @@ ol.pasos li{margin:4px 0}
 .rej .num{border:1.5px solid var(--linea);background:var(--blanco);border-radius:10px;padding:8px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:1px}
 .rej .num b{font-size:18px}.rej .num small{font-size:13px;font-weight:700;color:var(--suave)}
 .rej .num small.ok{color:var(--ok)}.rej .num small.mal{color:var(--mal)}
+.mods{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:14px}.mods span{display:flex;align-items:center;gap:6px}.mods img{height:30px}
+img.marca{height:22px;vertical-align:-5px;margin-right:5px}
+.rej.connom{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}.rej .num i{font-style:normal;font-size:12px;color:var(--tinta);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+.rej .num[hidden]{display:none}.nomc{display:block;font-size:11px;margin:0;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cass2{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}.cass2 .seg button{width:40px}
 .rej .num.hecho{border-color:var(--tinta)}.rej .num.amedias{border-color:var(--acento);border-style:dashed}.rej .num.np{background:#EFEAE0}
 .pq{padding:12px}.pq h2{font-size:16px}.pq .sol{background:#F4F7F2;border-radius:8px;padding:6px 8px;color:#2C4A3A;margin:8px 0 4px}
@@ -361,7 +365,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.6';
+const VERSION = '1.6.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1335,6 +1339,53 @@ function notaDeCorrector(exId, g, n){
   const r = notaExamen(ex, a); return r.faltan ? null : r.nota;  /* a medio corregir no cuenta */
 }
 
+/* ── LOS NOMBRES: del CSV del OneDrive, solo en memoria ──
+   Se cargan cada vez (el selector de archivos del móvil llega al OneDrive) y viven
+   en una variable: no se escriben en IndexedDB, ni en la copia de seguridad, ni
+   en GitHub. Al cerrar la app, se olvidan. El CSV puede ser «número;nombre», con
+   nombre y apellidos en columnas, con cabecera o sin ella y con una columna de
+   grupo («1r ESO A», «1A»…); si no la tiene, es del grupo que se está viendo. */
+let LISTA = {};
+const corto = nom => { if (nom.includes(',')){ const [ape, n] = nom.split(','); return (n.trim().split(/\s+/)[0] || '') + ' ' + (ape.trim()[0] || '') + '.'; }
+  const w = nom.trim().split(/\s+/); return w[0] + (w[1] ? ' ' + w[1][0] + '.' : ''); };
+const normGrupo = s => { const m = /([1-4])\D*?([A-Z])\s*$/i.exec(String(s || '').trim()); return m ? m[1] + m[2].toUpperCase() : null; };
+function leeLista(txt, gActual){
+  const ls = txt.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
+  const sep = [';', '\t', ','].map(c => [c, ls.slice(0, 6).reduce((s, l) => s + l.split(c).length - 1, 0)]).sort((a, b) => b[1] - a[1])[0][0];
+  const filas = ls.map(l => l.split(sep).map(x => x.trim().replace(/^"(.*)"$/, '$1').trim()));
+  const ncol = Math.max(...filas.map(f => f.length)), esN = x => /^\d{1,2}$/.test(x || '') && +x >= 1 && +x <= 60;
+  let cn = -1, mejor = 0; for (let j = 0; j < ncol; j++){ const k = filas.filter(f => esN(f[j])).length; if (k > mejor){ mejor = k; cn = j; } }
+  if (cn < 0 || mejor < 2) throw new Error('no encuentro la columna del número de lista');
+  const hayCab = !esN(filas[0][cn]), cab = hayCab ? filas[0].map(h => llano(h)) : [];
+  const iG = cab.findIndex(h => /grup|curs|unitat|unidad|clase/.test(h));
+  const iNom = cab.findIndex(h => /\bnom\b|nombre/.test(h) && !/cognom|apellid/.test(h));
+  const iApe = cab.map((h, j) => /cognom|apellid/.test(h) ? j : -1).filter(j => j >= 0);
+  const out = {};
+  for (const f of filas.slice(hayCab ? 1 : 0)){
+    if (!esN(f[cn])) continue;
+    const nombre = iNom >= 0 && iApe.length ? iApe.map(j => f[j]).filter(Boolean).join(' ') + ', ' + f[iNom]
+      : f.filter((x, j) => j !== cn && j !== iG && x && !/^\d+$/.test(x)).join(' ');
+    if (!nombre.replace(/[,\s]/g, '')) continue;
+    const g = (iG >= 0 && normGrupo(f[iG])) || gActual;
+    (out[g] = out[g] || {})[+f[cn]] = nombre;
+  }
+  if (!Object.keys(out).length) throw new Error('no hay ningún alumno con número');
+  return out;
+}
+function montaNombres(C){
+  if ($('#cOlvida')) $('#cOlvida').onclick = () => { LISTA = {}; aviso('Nombres olvidados'); pintaHerramienta(); };
+  if (!$('#cLista')) return;
+  $('#cLista').onclick = () => $('#cListaF').click();
+  $('#cListaF').onchange = async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+    const buf = await file.arrayBuffer(); let txt; try { txt = new TextDecoder('utf-8', {fatal: true}).decode(buf); } catch (er) { txt = new TextDecoder('windows-1252').decode(buf); }
+    try { const L = leeLista(txt, H.g), gs = Object.keys(L);
+      if (gs.length === 1 && gs[0] === H.g && !confirm('El archivo no dice el grupo: ¿son los de ' + etqGrupo(H.g) + '? (' + Object.keys(L[H.g]).length + ' alumnos)')) return;
+      Object.assign(LISTA, L);
+      for (const g of gs){ const mx = Math.max(...Object.keys(L[g]).map(Number)); if (mx !== NT.alumnos[g]){ NT.alumnos[g] = mx; guardaNotas(); } }
+      aviso('Nombres de ' + gs.map(etqGrupo).join(', ') + ': ' + gs.reduce((s, g) => s + Object.keys(L[g]).length, 0) + ' alumnos'); pintaHerramienta(); }
+    catch (er) { aviso('No puedo leer la lista: ' + er.message, 4500); } };
+}
+
 /* ── EL CORRECTOR: la lista del grupo ── */
 function pintaCorregir(C){
   if (!RUB){ C.innerHTML = `<div class="vacio"><p><b>Aún no están las rúbricas.</b></p><p>Pulsa <b>Actualizar</b> en la Biblioteca: vienen de tus originales (<code>herramientas/rubricas.json</code>).</p></div>`; return; }
@@ -1345,17 +1396,21 @@ function pintaCorregir(C){
   const R = corr(ex.id, H.g), N = nAlumnos(H.g);
   let h = `<div class="caja"><div class="fila"><select id="cEx" style="flex:1">${RUB.examenes.map(e => `<option value="${e.id}"${e.id === ex.id ? ' selected' : ''}>${esc(e.tema)} (${esc(e.curso.replace(' ESO', ''))})</option>`).join('')}</select>
     <select id="cG">${gs.map(g => `<option value="${g}"${g === H.g ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select></div>
-    <div class="fila nota" style="margin-top:8px">Alumnos en ${etqGrupo(H.g)}: <input type="number" id="cN" min="1" max="40" value="${N}"> <span>Modelos: ${ex.modelos.map(m => esc(m.nombre)).join(', ')}</span></div></div>`;
+    <div class="fila nota" style="margin-top:8px">Alumnos en ${etqGrupo(H.g)}: <input type="number" id="cN" min="1" max="40" value="${N}"> </div>
+    <div class="mods">${ex.modelos.map(m => `<span>${m.marca ? `<img src="${m.marca}" alt="">` : ''}<b>${esc(m.nombre)}</b>${m.apodo ? ' · ' + esc(m.apodo) : ''}</span>`).join('')}</div>
+    <div class="fila" style="margin-top:8px">${LISTA[H.g] ? `<span class="nota" style="flex:1">Nombres de ${Object.keys(LISTA).map(etqGrupo).join(', ')}: solo mientras la app esté abierta.</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button><span class="nota">No se guardan: al cerrar la app, se olvidan.</span>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>`;
   const hechos = Object.entries(R.al).filter(([n]) => +n <= N), corregidos = hechos.filter(([, a]) => !a.np && Object.keys(a.x).length);
   h += `<div class="fila" style="margin:6px 0"><button class="btn peq${H.vista !== 'estad' ? ' prim' : ''}" id="cVLista">Lista</button><button class="btn peq${H.vista === 'estad' ? ' prim' : ''}" id="cVEstad">Estadísticas</button>
     <span class="nota" style="margin-left:auto">${corregidos.length} de ${N} corregidos</span></div>`;
   if (H.vista === 'estad') h += estadCorr(ex, R, N);
   else {
-    h += '<div class="rej">';
+    if (LISTA[H.g]) h += `<input type="search" id="cBusca" placeholder="Busca por nombre…" style="width:100%;margin:4px 0" autocomplete="off">`;
+    h += `<div class="rej${LISTA[H.g] ? ' connom' : ''}">`;
     for (let n = 1; n <= N; n++){ const a = R.al[n]; let s = '<small>&nbsp;</small>', cl = '';
       if (a && a.np){ s = '<small>NP</small>'; cl = ' np'; }
       else if (a && Object.keys(a.x).length){ const r = notaExamen(ex, a); s = `<small class="${r.faltan ? '' : tonoNota(r.nota)}">${coma(r.nota)}${r.faltan ? '…' : ''}</small>`; cl = r.faltan ? ' amedias' : ' hecho'; }
-      h += `<button class="num${cl}" data-n="${n}"><b>${n}</b>${s}</button>`; }
+      const nom = (LISTA[H.g] || {})[n];
+      h += `<button class="num${cl}" data-n="${n}"${nom ? ` data-q="${esc(llano(nom))}"` : ''}><b>${n}</b>${nom ? `<i>${esc(corto(nom))}</i>` : ''}${s}</button>`; }
     h += '</div><p class="nota">Toca un número para corregir su examen. «…»: le faltan casillas por marcar.</p>';
   }
   h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="cTabla">Copiar como tabla</button><button class="btn peq peligro" id="cBorra">Borrar esta corrección</button></div>`;
@@ -1366,6 +1421,9 @@ function pintaCorregir(C){
   $('#cVLista').onclick = () => { H.vista = 'lista'; pintaHerramienta(); };
   $('#cVEstad').onclick = () => { H.vista = 'estad'; pintaHerramienta(); };
   C.querySelectorAll('.num[data-n]').forEach(b => b.onclick = () => abreCorrige(+b.dataset.n));
+  montaNombres(C);
+  if ($('#cBusca')){ const bs = $('#cBusca'); bs.oninput = () => { const q = llano(bs.value.trim()); C.querySelectorAll('.num[data-n]').forEach(b => b.hidden = !!q && !(b.dataset.q || '').includes(q)); };
+    bs.onkeydown = e => { if (e.key === 'Enter'){ const v = [...C.querySelectorAll('.num[data-n]')].filter(b => !b.hidden); if (v.length === 1) abreCorrige(+v[0].dataset.n); } }; }
   $('#cTabla').onclick = () => copiaTabla(tablaCorr(ex, R, N), 'correccion-' + ex.id + '-' + H.g + '.tsv');
   $('#cBorra').onclick = () => { if (!hechos.length) return aviso('No hay nada corregido');
     if (!confirm('¿Borrar las ' + hechos.length + ' correcciones de ' + ex.tema + ' en ' + etqGrupo(H.g) + '? No se puede deshacer.')) return;
@@ -1446,9 +1504,10 @@ function pintaCorrige(){
   const m = ex.modelos.find(x => x.modelo === modelo) || ex.modelos[0];
   const ver = a || {m: m.modelo, x: {}, c: {}, e: {}};
   const r = notaExamen(ex, ver);
-  $('#crTit').textContent = 'n.º ' + n + ' · ' + etqGrupo(H.g);
+  const nom = (LISTA[H.g] || {})[n];
+  $('#crTit').textContent = 'n.º ' + n + ' · ' + (nom ? corto(nom) : etqGrupo(H.g));
   $('#crNota').innerHTML = ver.np ? 'NP' : coma(r.nota) + (r.faltan ? ' <small style="opacity:.7">(' + r.faltan + ' sin marcar)</small>' : '');
-  let h = `<div class="fila">${ex.modelos.map(x => `<button class="btn peq${x.modelo === m.modelo ? ' prim' : ''}" data-mod="${x.modelo}">${esc(x.nombre)}</button>`).join('')}
+  let h = `<div class="fila">${ex.modelos.map(x => `<button class="btn peq${x.modelo === m.modelo ? ' prim' : ''}" data-mod="${x.modelo}">${x.marca ? `<img src="${x.marca}" alt="" class="marca">` : ''}${esc(x.apodo || x.nombre)}</button>`).join('')}
     <label class="nota" style="margin-left:auto"><input type="checkbox" id="crNP"${ver.np ? ' checked' : ''}> no presentado</label></div>`;
   if (!ver.np){
     h += `<div class="fila" style="margin-top:8px"><button class="btn peq acento" id="crTodo">Lo que falta, bien ✓</button><button class="btn peq" id="crLimpia">Desmarcar todo</button></div>
@@ -1522,6 +1581,7 @@ function pintaEvaluacion(C){
   let h = `<div class="caja"><div class="fila"><select id="eG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
     <select id="eEv">${[1, 2, 3].map(v => `<option value="${v}"${v === H.ev ? ' selected' : ''}>${v}.ª evaluación</option>`).join('')}</select>
     <span class="nota">Alumnos: <input type="number" id="eN" min="1" max="40" value="${N}"></span></div>
+    <div class="fila" style="margin-top:8px">${LISTA[g] ? `<span class="nota" style="flex:1">Con nombres (solo mientras la app esté abierta).</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div>
     <details style="margin-top:8px"><summary class="nota" style="cursor:pointer">Unidades y pesos: pruebas ${E.p.ex} % · ${esc(E.cu.toLowerCase())} ${E.p.cu} % · seguimiento ${E.p.se} %</summary>
       <div class="chips">${E.u.map((u, i) => `<div class="chip"><span><input type="text" data-un="${i}" value="${esc(u.nombre)}" style="width:44%"> <select data-ux="${i}"><option value="">a mano</option>${(RUB ? RUB.examenes : []).filter(e => e.curso[0] === g[0]).map(e => `<option value="${e.id}"${u.examen === e.id ? ' selected' : ''}>del corrector: ${esc(e.tema)}</option>`).join('')}</select></span><button data-uq="${i}" aria-label="Quitar">✕</button></div>`).join('')}</div>
       <div class="fila"><button class="btn peq" id="eMasU">Añadir unidad</button></div>
@@ -1531,7 +1591,8 @@ function pintaEvaluacion(C){
   const cols = E.u.map((u, i) => ({k: 'u' + i, t: u.nombre})).concat([{k: 'cu', t: E.cu}, {k: 'se', t: 'Seguim.'}]);
   h += `<div class="tablaw"><table class="tabla"><thead><tr><th>n.º</th>${cols.map(c => `<th title="${esc(c.t)}">${esc(c.t.length > 8 ? c.t.slice(0, 6) + '.' : c.t)}</th>`).join('')}<th>Nota</th><th>Itaca</th></tr></thead><tbody>`;
   for (let n = 1; n <= N; n++){ const A = E.al[n] || {};
-    h += `<tr data-n="${n}"><td><b>${n}</b></td>` + E.u.map((u, i) => { const ph = u.examen ? notaDeCorrector(u.examen, g, n) : null;
+    const nom = (LISTA[g] || {})[n];
+    h += `<tr data-n="${n}"><td><b>${n}</b>${nom ? `<br><small class="nota nomc">${esc(corto(nom))}</small>` : ''}</td>` + E.u.map((u, i) => { const ph = u.examen ? notaDeCorrector(u.examen, g, n) : null;
       return `<td><input inputmode="decimal" data-f="u${i}" value="${esc((A.u || {})[i] == null ? '' : String(A.u[i]).replace('.', ','))}" placeholder="${ph == null ? '' : coma(ph)}"${ph != null ? ' class="del"' : ''}></td>`; }).join('')
       + `<td><input inputmode="decimal" data-f="cu" value="${esc(A.cu == null ? '' : String(A.cu).replace('.', ','))}"></td><td><input inputmode="decimal" data-f="se" value="${esc(A.se == null ? '' : String(A.se).replace('.', ','))}"></td>
       <td class="nf"></td><td class="it"></td></tr>`; }
@@ -1572,7 +1633,7 @@ function pintaEvaluacion(C){
     copiaTabla(filas, 'evaluacion-' + g + '-' + H.ev + '.tsv'); };
   $('#eBorra').onclick = () => { if (!confirm('¿Borrar todas las notas escritas a mano de la ' + H.ev + '.ª evaluación de ' + etqGrupo(g) + '? Las del corrector no se tocan.')) return; E.al = {}; otra(); };
   for (let n = 1; n <= N; n++) pintaFila(E, g, n);
-  pintaRec(E, g, N);
+  pintaRec(E, g, N); montaNombres(C);
 }
 function pintaFila(E, g, n){
   const tr = document.querySelector('.tabla tr[data-n="' + n + '"]'); if (!tr) return;
@@ -1586,7 +1647,8 @@ function pintaRec(E, g, N){
   if (!lista.length){ D.innerHTML = '<h2>Recuperación</h2><p class="nota" style="margin:0">Nadie suspende la evaluación (de los que tienen todas las notas).</p>'; return; }
   D.innerHTML = `<h2>Recuperación · ${lista.length} ${lista.length === 1 ? 'alumno' : 'alumnos'}</h2><p class="nota" style="margin-top:0">Solo las unidades por debajo de 5. Recuperada (≥ 5) cuenta 5; si no llega, la más alta de las dos. Si las recupera todas, la evaluación queda como mínimo en 5.</p>`
     + lista.map(({n, r}) => { const A = E.al[n] || {};
-      return `<div class="recu" data-n="${n}"><b>n.º ${n}</b> <span class="mal">${coma(r.nota)}</span> · ` + r.recupera.map(i => `${esc(E.u[i].nombre)} (${coma(r.us[i])}) <input inputmode="decimal" data-r="${i}" value="${esc((A.r || {})[i] == null ? '' : String(A.r[i]).replace('.', ','))}" placeholder="rec.">`).join(' ')
+      const nom = (LISTA[g] || {})[n];
+      return `<div class="recu" data-n="${n}"><b>n.º ${n}</b>${nom ? ' <small class="nota">' + esc(corto(nom)) + '</small>' : ''} <span class="mal">${coma(r.nota)}</span> · ` + r.recupera.map(i => `${esc(E.u[i].nombre)} (${coma(r.us[i])}) <input inputmode="decimal" data-r="${i}" value="${esc((A.r || {})[i] == null ? '' : String(A.r[i]).replace('.', ','))}" placeholder="rec.">`).join(' ')
         + ` <span class="rr">${r.rec ? '→ <b class="' + tonoNota(r.rec.nota) + '">' + coma(r.rec.nota) + '</b>' + (r.rec.completa ? '' : ' <small class="nota">(falta alguna)</small>') : ''}</span></div>`; }).join('');
   D.querySelectorAll('[data-r]').forEach(x => x.onchange = () => { const n = +x.closest('.recu').dataset.n, A = E.al[n] = E.al[n] || {}; A.r = A.r || {}; const v = x.value.trim();
     if (!v) delete A.r[x.dataset.r]; else A.r[x.dataset.r] = v.replace(',', '.'); guardaNotas();
