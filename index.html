@@ -32,6 +32,10 @@
     esquinas que se ajustan a mano, en «modo documento» (blanco el papel,
     negra la tinta, sin la sombra de la mano) y con el nombre tapado si se
     quiere. Para no depender de la fotocopiadora.
+  - NOTAS. Corregir un examen casilla a casilla con la rúbrica de su clave
+    (herramientas/rubricas.json, que sale de los .tex de latex/examenes) y la
+    nota de la evaluación con los pesos de la programació d'aula. Por número
+    de lista, sin nombres, y solo en el móvil: nunca van a GitHub.
   - Las páginas se pintan de una en una al exportar, nunca todas a la vez:
     un examen de 40 páginas a 150 ppp no cabe en la memoria de un móvil.
   Librerías (en lib/, para que funcione sin red): pdf.js 3.11.174 (Apache 2.0)
@@ -134,6 +138,40 @@ code{background:#F1EBDF;padding:1px 5px;border-radius:5px;font-size:14px}
 ol.pasos{padding-left:20px;margin:6px 0}
 ol.pasos li{margin:4px 0}
 .ok{color:var(--ok)} .mal{color:var(--mal)}
+/* notas */
+.rej{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px;margin:8px 0}
+.rej .num{border:1.5px solid var(--linea);background:var(--blanco);border-radius:10px;padding:8px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:1px}
+.rej .num b{font-size:18px}.rej .num small{font-size:13px;font-weight:700;color:var(--suave)}
+.rej .num small.ok{color:var(--ok)}.rej .num small.mal{color:var(--mal)}
+.cass2{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}.cass2 .seg button{width:40px}
+.rej .num.hecho{border-color:var(--tinta)}.rej .num.amedias{border-color:var(--acento);border-style:dashed}.rej .num.np{background:#EFEAE0}
+.pq{padding:12px}.pq h2{font-size:16px}.pq .sol{background:#F4F7F2;border-radius:8px;padding:6px 8px;color:#2C4A3A;margin:8px 0 4px}
+.cas{display:flex;align-items:center;gap:8px;border-top:1px solid var(--linea);padding:6px 0}
+.cas>span:first-child{flex:1;min-width:0;font-size:15px}
+.seg{display:flex;flex:none}.seg button{width:44px;height:38px;border:1.5px solid var(--linea);background:var(--blanco);font-size:17px;margin-left:-1.5px}
+.seg button:first-child{border-radius:10px 0 0 10px;margin-left:0}.seg button:last-child{border-radius:0 10px 10px 0}
+.seg button.si{background:var(--ok);border-color:var(--ok);color:#fff}.seg button.medio{background:#E9A23B;border-color:#E9A23B;color:#fff}.seg button.no{background:var(--mal);border-color:var(--mal);color:#fff}
+.termo{display:inline-block;background:var(--acento);color:#fff;border-radius:5px;font-size:11px;font-weight:800;padding:0 5px;vertical-align:1px}
+.errs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.errs button{border:1.5px dashed var(--mal);background:none;color:var(--mal);border-radius:16px;padding:4px 10px;font-size:13px}
+.errs button.si{background:var(--mal);color:#fff;border-style:solid}
+#crNota{font-size:18px;white-space:nowrap}
+.barra{flex:1;position:relative;height:22px;background:#EFEAE0;border-radius:6px;overflow:hidden;min-width:60px}
+.barra i{position:absolute;inset:0 auto 0 0;background:#9DBFAE}.barra span{position:relative;font-size:13px;font-weight:700;padding-left:6px;line-height:22px}
+details.pr{border-top:1px solid var(--linea);padding:6px 0}details.pr>summary{display:flex;gap:8px;align-items:center;cursor:pointer;list-style:none}
+details.pr>summary>span:first-child{flex:0 0 46%;font-size:14px}details.pr>summary::-webkit-details-marker{display:none}
+details.pr>div{margin:4px 0 0 10px}
+.histo{display:flex;gap:4px;align-items:flex-end;height:96px;margin-top:10px}
+.histo div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-size:12px}
+.histo i{display:block;width:100%;border-radius:4px 4px 0 0}.histo .b-mal{background:#E3A49F}.histo .b-ok{background:#9DBFAE}.histo small{color:var(--suave)}
+.tablaw{overflow-x:auto;margin:10px -4px;background:var(--blanco);border:1px solid var(--linea);border-radius:var(--r)}
+.tabla{border-collapse:collapse;font-size:14px;min-width:100%}
+.tabla th{position:sticky;top:0;background:#F4EFE5;font-size:12px;padding:6px 3px;text-align:center;font-weight:700}
+.tabla td{border-top:1px solid var(--linea);padding:3px;text-align:center}
+.tabla input{width:48px;padding:6px 3px;text-align:center;border:1.5px solid var(--linea);border-radius:7px;font-size:15px}
+.tabla input.del::placeholder{color:#557A68;font-weight:700;opacity:1}.tabla input.mal{border-color:var(--mal)}
+.caja .fila>.barra{margin:3px 0}
+.recu{border-top:1px solid var(--linea);padding:8px 0;font-size:15px;line-height:2.1}
+.recu input{width:52px;padding:4px;text-align:center;border:1.5px solid var(--linea);border-radius:7px}
 </style>
 </head>
 <body>
@@ -169,6 +207,8 @@ ol.pasos li{margin:4px 0}
   <!-- ── HERRAMIENTAS ── -->
   <section id="v-herr" hidden>
     <div class="herrs">
+      <button data-h="corregir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l1.5 1.5L12 8M8 15l1.5 1.5L12 14M14 9h3M14 15h3"/></svg><b>Corregir examen</b><span>Con la rúbrica, casilla a casilla: nota y estadísticas</span></button>
+      <button data-h="evaluacion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h8"/></svg><b>Nota de la evaluación</b><span>80/10/10, para Itaca, y quién recupera qué</span></button>
       <button data-h="tapar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="11" y="6.5" width="8" height="4" fill="currentColor"/><path d="M6 14h12M6 17h8"/></svg><b>Tapar nombres</b><span>Recuadro negro sobre el nombre, para compartir</span></button>
       <button data-h="reducir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg><b>Reducir peso</b><span>Para Aules o el correo</span></button>
       <button data-h="unir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="10" height="13" rx="1.5"/><rect x="11" y="8" width="10" height="13" rx="1.5"/></svg><b>Unir</b><span>Varios PDF en uno</span></button>
@@ -235,6 +275,12 @@ ol.pasos li{margin:4px 0}
       </details>
     </div>
     <div class="caja">
+      <h2>Notas</h2>
+      <p class="nota" id="ajNotas"></p>
+      <p class="nota">Las notas (por número de lista, sin nombres) solo están en este móvil: no van a GitHub. Guarda una copia de vez en cuando en tu OneDrive y, si cambias de móvil, la recuperas aquí.</p>
+      <div class="fila"><button class="btn peq" id="bCopiaNotas">Guardar copia</button><button class="btn peq" id="bRecNotas">Recuperar una copia</button><input type="file" id="fRecNotas" accept="application/json,.json" hidden></div>
+    </div>
+    <div class="caja">
       <h2>Espacio</h2>
       <p class="nota" id="ajEspacio"></p>
       <div class="fila"><button class="btn peq peligro" id="bBorraMios">Vaciar «Mis archivos»</button><button class="btn peq peligro" id="bBorraGh">Borrar lo traído de GitHub</button><button class="btn peq peligro" id="bBorraTodo">Borrar todo</button></div>
@@ -294,6 +340,11 @@ ol.pasos li{margin:4px 0}
   </div>
 </section>
 
+<section class="capa" id="corrige" hidden>
+  <header class="cab"><button data-cierra>‹ Lista</button><h1 id="crTit"></h1><b id="crNota"></b></header>
+  <div class="cuerpo" id="crCuerpo"></div>
+</section>
+
 <section class="capa" id="resultado" hidden>
   <header class="cab"><button data-cierra>‹ Volver</button><h1>Listo</h1></header>
   <div class="cuerpo">
@@ -310,7 +361,7 @@ ol.pasos li{margin:4px 0}
 
 <script>
 'use strict';
-const VERSION = '1.5';
+const VERSION = '1.6';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -356,7 +407,7 @@ function ve(v){
 $$('.pie button').forEach(b => b.onclick = () => ve(b.dataset.v));
 const pila = [];
 const AL_CERRAR = {visor: () => { $('#visorPags').innerHTML = ''; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); },
-  editorPag: () => { if (editorFin) editorFin(); }};
+  editorPag: () => { if (editorFin) editorFin(); }, corrige: () => { if (H && H.tipo === 'corregir') pintaHerramienta(); }};
 function abreCapa(id){ $('#' + id).hidden = false; pila.push(id); history.pushState({capa: id}, ''); }
 function cambiaCapa(id){ const v = pila.pop(); if (v){ $('#' + v).hidden = true; (AL_CERRAR[v] || (() => {}))(); } $('#' + id).hidden = false; pila.push(id); history.replaceState({capa: id}, ''); }
 function cierraCapa(){ if (pila.length) history.back(); }
@@ -551,6 +602,7 @@ async function sincroniza(){
     const vivos = new Set(remotos.map(r => r.path)); let fuera = 0;
     for (const d of locales) if (!vivos.has(d.path)){ await borraDB('docs', d.id); fuera++; }
     try { const b = await api(c, '/contents/herramientas/calendario.json?ref=' + encodeURIComponent(c.rama), true); CAL = JSON.parse(await b.text()); await ponConf('calendario', CAL); } catch (e) {}
+    try { const b = await api(c, '/contents/herramientas/rubricas.json?ref=' + encodeURIComponent(c.rama), true); RUB = JSON.parse(await b.text()); await ponConf('rubricas', RUB); } catch (e) {}
     await ponConf('ultima', Date.now());
     N.textContent = (bajar.length ? bajar.length + (bajar.length === 1 ? ' archivo nuevo o cambiado' : ' archivos nuevos o cambiados') : 'Todo estaba al día')
       + (fuera ? ' · ' + fuera + ' ya no está' + (fuera === 1 ? '' : 'n') + ' en los originales y se ha' + (fuera === 1 ? '' : 'n') + ' quitado' : '') + ' · ' + remotos.length + ' en total.';
@@ -617,7 +669,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', corregir: 'Corregir examen', evaluacion: 'Nota de la evaluación'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -633,6 +685,8 @@ function pintaHerramienta(){
   const C = $('#herrCuerpo'), d = H.docs[0];
   if (H.tipo === 'qr') return pintaQR(C);
   if (H.tipo === 'actas') return pintaActas(C);
+  if (H.tipo === 'corregir') return pintaCorregir(C);
+  if (H.tipo === 'evaluacion') return pintaEvaluacion(C);
   let h = eligeDocs();
   if (H.tipo === 'tapar' && d){
     h += `<div class="caja"><h2>Qué se tapa</h2>
@@ -1152,7 +1206,11 @@ async function pintaAjustes(){
   let t = gh.length + ' de los originales (' + tam(suma(gh)) + ') · ' + loc.length + ' en «Mis archivos» (' + tam(suma(loc)) + ')';
   if (navigator.storage && navigator.storage.estimate){ try { const e = await navigator.storage.estimate(); t += ' · ocupado ' + tam(e.usage || 0) + ' de ' + tam(e.quota || 0) + ' disponibles'; } catch (e) {} }
   $('#ajEspacio').textContent = t;
+  $('#ajNotas').textContent = resumenNotas();
 }
+$('#bCopiaNotas').onclick = copiaNotas;
+$('#bRecNotas').onclick = () => $('#fRecNotas').click();
+$('#fRecNotas').onchange = e => { if (e.target.files[0]) recuperaNotas(e.target.files[0]); e.target.value = ''; };
 $('#bToken').onclick = async () => { const t = $('#ajToken').value.trim(); if (!t) return aviso('Pega el token primero'); await ponConf('token', t); aviso('Token guardado'); pintaAjustes(); };
 $('#bQuitaToken').onclick = async () => { if (!confirm('¿Quitar el token de este móvil? Lo traído se queda.')) return; await ponConf('token', ''); pintaAjustes(); };
 $('#bProbar').onclick = async () => { const c = await conf(); if (!c.token) return aviso('No hay token');
@@ -1161,7 +1219,7 @@ $('#bRepo').onclick = async () => { await ponConf('dueno', $('#ajDueno').value.t
 $('#bBorraGh').onclick = async () => { if (!confirm('¿Borrar del móvil todo lo traído de GitHub? Con «Actualizar» vuelve.')) return; for (const d of DOCS) if (d.origen === 'github') await borraDB('docs', d.id); await recarga(); pintaAjustes(); };
 $('#bBorraMios').onclick = async () => { const mios = DOCS.filter(d => d.origen !== 'github'); if (!mios.length) return aviso('«Mis archivos» ya está vacío');
   if (!confirm('¿Borrar los ' + mios.length + ' archivos de «Mis archivos»?')) return; for (const d of mios) await borraDB('docs', d.id); await recarga(); pintaAjustes(); aviso('Vaciado'); };
-$('#bBorraTodo').onclick = async () => { if (!confirm('¿Borrar todo: lo traído, «Mis archivos» y el token?')) return; for (const d of DOCS) await borraDB('docs', d.id); await ponConf('token', ''); await recarga(); pintaAjustes(); };
+$('#bBorraTodo').onclick = async () => { if (!confirm('¿Borrar todo: lo traído, «Mis archivos» y el token? Las notas se quedan.')) return; for (const d of DOCS) await borraDB('docs', d.id); await ponConf('token', ''); await recarga(); pintaAjustes(); };
 
 /* ── HOY: lo que toca cada día, de herramientas/calendario.json ── */
 let CAL = null, DIA = null, SEMANA = false;
@@ -1232,9 +1290,327 @@ $('#hoySemana').onclick = () => { SEMANA = !SEMANA; pintaHoy(); };
 $('#hoyComparte').onclick = () => comparteVarios(docsDelDia(DIA || hoyISO()));
 $('#hoyLista').addEventListener('click', e => { const b = e.target.closest('.doc[data-id]'); if (b) abreHoja(b.dataset.id); });
 
+/* ── NOTAS: corregir con la rúbrica y la nota de la evaluación ──
+   Por qué así:
+   - Las rúbricas las escribe herramientas/rubricas.py a partir de los .tex de los
+     exámenes (las mismas preguntas, puntos, «Puntuación:», errores con nombre y
+     termómetros que trae la clave). Cada pregunta se parte en casillas, y cada
+     casilla se marca ✓, ½ o ✗: es la rejilla de la clave, en el móvil.
+   - Los alumnos son números de lista. Ni un nombre: las notas viven solo en
+     este móvil (IndexedDB, clave «notas»), nunca van a GitHub. Por eso hay copia
+     de seguridad a mano (Ajustes → Notas).
+   - La nota de la evaluación sigue la programació d'aula: pruebas 80 %, cuaderno
+     (álbum en 1.º) 10 %, seguimiento 10 %. La recuperación, como se decidió en
+     noviembre de 2026: solo quien suspende la evaluación, y solo las unidades con
+     examen < 5; unidad recuperada (≥ 5) = 5, y si no llega, la más alta de las dos;
+     si las recupera todas, la evaluación queda como mínimo en 5. */
+let NT = {alumnos: {}, corr: {}, eval: {}}, RUB = null;
+let ntT;
+const guardaNotas = () => { clearTimeout(ntT); ntT = setTimeout(() => guardaDB('conf', NT, 'notas').catch(() => aviso('No se han podido guardar las notas')), 200); };
+const coma = (x, d = 2) => x == null || isNaN(x) ? '—' : (Math.round(x * 10 ** d) / 10 ** d).toLocaleString('es-ES', {maximumFractionDigits: d});
+const leeNum = s => { s = String(s == null ? '' : s).trim().replace(',', '.'); if (!s) return null; const v = Number(s); return isFinite(v) ? v : null; };
+const examenDe = id => RUB && RUB.examenes.find(e => e.id === id);
+const etqGrupo = g => /^\d[A-Z]$/.test(g) ? g[0] + '.º ' + g[1] : g === 'T4' ? 'Taller 4.º' : g;
+const gruposDe = curso => { const gs = Object.keys((CAL && CAL.grupos) || {}); return (gs.length ? gs : ['1A', '1B', '1D', '2B']).filter(g => !curso || g[0] === curso[0]); };
+const nAlumnos = g => NT.alumnos[g] || 30;
+const tonoNota = v => v == null ? '' : v < 5 ? 'mal' : 'ok';
+
+/* la nota de un alumno en un examen corregido */
+function notaExamen(ex, a){
+  const m = ex.modelos.find(x => x.modelo === a.m) || ex.modelos[0];
+  let total = 0, faltan = 0, marcadas = 0; const porP = {};
+  for (const p of m.preguntas){
+    let s = 0;
+    for (const c of p.casillas){ const v = a.x[c.id]; if (v == null) faltan++; else { marcadas++; s += v * c.puntos; } }
+    s = Math.max(0, s - 0.25 * ((a.c || {})[p.n] || 0)); porP[p.n] = s; total += s;
+  }
+  return {nota: Math.round(total * 100) / 100, porP, faltan, marcadas, modelo: m};
+}
+const claveCorr = (ex, g) => ex + '|' + g;
+const corr = (ex, g) => NT.corr[claveCorr(ex, g)] || (NT.corr[claveCorr(ex, g)] = {al: {}});
+/* la nota que sale del corrector para la calculadora (null si falta o es NP) */
+function notaDeCorrector(exId, g, n){
+  const ex = examenDe(exId), R = NT.corr[claveCorr(exId, g)], a = R && R.al[n];
+  if (!ex || !a || a.np || !Object.keys(a.x || {}).length) return null;
+  const r = notaExamen(ex, a); return r.faltan ? null : r.nota;  /* a medio corregir no cuenta */
+}
+
+/* ── EL CORRECTOR: la lista del grupo ── */
+function pintaCorregir(C){
+  if (!RUB){ C.innerHTML = `<div class="vacio"><p><b>Aún no están las rúbricas.</b></p><p>Pulsa <b>Actualizar</b> en la Biblioteca: vienen de tus originales (<code>herramientas/rubricas.json</code>).</p></div>`; return; }
+  const ult = NT.ultima || {};
+  const ex = examenDe(H.ex || ult.ex) || RUB.examenes[0]; H.ex = ex.id;
+  const gs = gruposDe(ex.curso); H.g = gs.includes(H.g) ? H.g : gs.includes(ult.g) ? ult.g : gs[0];
+  NT.ultima = {ex: H.ex, g: H.g};
+  const R = corr(ex.id, H.g), N = nAlumnos(H.g);
+  let h = `<div class="caja"><div class="fila"><select id="cEx" style="flex:1">${RUB.examenes.map(e => `<option value="${e.id}"${e.id === ex.id ? ' selected' : ''}>${esc(e.tema)} (${esc(e.curso.replace(' ESO', ''))})</option>`).join('')}</select>
+    <select id="cG">${gs.map(g => `<option value="${g}"${g === H.g ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select></div>
+    <div class="fila nota" style="margin-top:8px">Alumnos en ${etqGrupo(H.g)}: <input type="number" id="cN" min="1" max="40" value="${N}"> <span>Modelos: ${ex.modelos.map(m => esc(m.nombre)).join(', ')}</span></div></div>`;
+  const hechos = Object.entries(R.al).filter(([n]) => +n <= N), corregidos = hechos.filter(([, a]) => !a.np && Object.keys(a.x).length);
+  h += `<div class="fila" style="margin:6px 0"><button class="btn peq${H.vista !== 'estad' ? ' prim' : ''}" id="cVLista">Lista</button><button class="btn peq${H.vista === 'estad' ? ' prim' : ''}" id="cVEstad">Estadísticas</button>
+    <span class="nota" style="margin-left:auto">${corregidos.length} de ${N} corregidos</span></div>`;
+  if (H.vista === 'estad') h += estadCorr(ex, R, N);
+  else {
+    h += '<div class="rej">';
+    for (let n = 1; n <= N; n++){ const a = R.al[n]; let s = '<small>&nbsp;</small>', cl = '';
+      if (a && a.np){ s = '<small>NP</small>'; cl = ' np'; }
+      else if (a && Object.keys(a.x).length){ const r = notaExamen(ex, a); s = `<small class="${r.faltan ? '' : tonoNota(r.nota)}">${coma(r.nota)}${r.faltan ? '…' : ''}</small>`; cl = r.faltan ? ' amedias' : ' hecho'; }
+      h += `<button class="num${cl}" data-n="${n}"><b>${n}</b>${s}</button>`; }
+    h += '</div><p class="nota">Toca un número para corregir su examen. «…»: le faltan casillas por marcar.</p>';
+  }
+  h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="cTabla">Copiar como tabla</button><button class="btn peq peligro" id="cBorra">Borrar esta corrección</button></div>`;
+  C.innerHTML = h;
+  $('#cEx').onchange = e => { H.ex = e.target.value; H.g = null; pintaHerramienta(); };
+  $('#cG').onchange = e => { H.g = e.target.value; pintaHerramienta(); };
+  $('#cN').onchange = e => { const v = Math.max(1, Math.min(40, Math.round(+e.target.value || 30))); NT.alumnos[H.g] = v; guardaNotas(); pintaHerramienta(); };
+  $('#cVLista').onclick = () => { H.vista = 'lista'; pintaHerramienta(); };
+  $('#cVEstad').onclick = () => { H.vista = 'estad'; pintaHerramienta(); };
+  C.querySelectorAll('.num[data-n]').forEach(b => b.onclick = () => abreCorrige(+b.dataset.n));
+  $('#cTabla').onclick = () => copiaTabla(tablaCorr(ex, R, N), 'correccion-' + ex.id + '-' + H.g + '.tsv');
+  $('#cBorra').onclick = () => { if (!hechos.length) return aviso('No hay nada corregido');
+    if (!confirm('¿Borrar las ' + hechos.length + ' correcciones de ' + ex.tema + ' en ' + etqGrupo(H.g) + '? No se puede deshacer.')) return;
+    delete NT.corr[claveCorr(ex.id, H.g)]; guardaNotas(); pintaHerramienta(); };
+}
+async function copiaTabla(filas, nombre){
+  const tsv = filas.map(f => f.map(x => String(x == null ? '' : x).replace(/[\t\n]/g, ' ')).join('\t')).join('\n');
+  try { await navigator.clipboard.writeText(tsv); aviso('Copiado: pégalo en una hoja de cálculo'); }
+  catch (e) { descarga(new Blob([tsv], {type: 'text/tab-separated-values'}), nombre); }
+}
+function tablaCorr(ex, R, N){
+  const m0 = ex.modelos[0], filas = [['n.º', 'modelo'].concat(m0.preguntas.map(p => 'P' + p.n + ' (' + coma(p.puntos) + ')'), ['nota', 'sin marcar', 'errores con nombre'])];
+  for (let n = 1; n <= N; n++){ const a = R.al[n]; if (!a) continue;
+    if (a.np){ filas.push([n, 'NP']); continue; }
+    const r = notaExamen(ex, a), errs = [];
+    for (const p of r.modelo.preguntas) for (const i of (a.e || {})[p.n] || []) if (p.errores[i]) errs.push(p.n + ': ' + p.errores[i].nombre);
+    filas.push([n, r.modelo.nombre].concat(r.modelo.preguntas.map(p => coma(r.porP[p.n])), [coma(r.nota), r.faltan || '', errs.join('; ')])); }
+  return filas;
+}
+
+/* las estadísticas: lo que el grupo sabe y lo que no */
+const barra = (f, t) => `<div class="barra"><i style="width:${Math.round(100 * Math.max(0, Math.min(1, f)))}%"></i><span>${t}</span></div>`;
+function estadCorr(ex, R, N){
+  const als = [];
+  for (let n = 1; n <= N; n++){ const a = R.al[n]; if (a && !a.np && Object.keys(a.x).length) als.push({n, a, r: notaExamen(ex, a)}); }
+  const np = Object.entries(R.al).filter(([n, a]) => +n <= N && a.np).length;
+  if (!als.length) return '<div class="vacio">Aún no hay exámenes corregidos.</div>';
+  const notas = als.map(x => x.r.nota).sort((a, b) => a - b), media = notas.reduce((s, v) => s + v, 0) / notas.length;
+  const mediana = notas.length % 2 ? notas[(notas.length - 1) / 2] : (notas[notas.length / 2 - 1] + notas[notas.length / 2]) / 2;
+  const apr = notas.filter(v => v >= 5).length, a_medias = als.filter(x => x.r.faltan).length;
+  let h = `<div class="caja"><h2>${als.length} corregidos${np ? ' · ' + np + ' NP' : ''}</h2>
+    <p class="res" style="margin:0">Media <b>${coma(media)}</b> · mediana <b>${coma(mediana)}</b> · aprobados <b>${apr}</b> de ${als.length} (${Math.round(100 * apr / als.length)} %)</p>
+    ${a_medias ? `<p class="nota mal">${a_medias} con casillas sin marcar: cuentan como 0.</p>` : ''}`;
+  const bandas = Array(10).fill(0); for (const v of notas) bandas[Math.min(9, Math.floor(v))]++;
+  const mx = Math.max(...bandas);
+  h += '<div class="histo">' + bandas.map((k, i) => `<div><i style="height:${mx ? Math.round(56 * k / mx) : 0}px" class="${i < 5 ? 'b-mal' : 'b-ok'}"></i><b>${k || ''}</b><small>${i}</small></div>`).join('') + '</div>';
+  const porMod = {}; for (const x of als){ (porMod[x.r.modelo.nombre] = porMod[x.r.modelo.nombre] || []).push(x.r.nota); }
+  if (Object.keys(porMod).length > 1) h += '<p class="nota">' + Object.entries(porMod).map(([k, v]) => esc(k) + ': ' + v.length + ', media ' + coma(v.reduce((s, x) => s + x, 0) / v.length)).join(' · ') + '</p>';
+  h += '</div>';
+  /* por pregunta y casilla: cada modelo con su estructura; A y B se juntan si son iguales */
+  const firma = m => m.preguntas.map(p => p.casillas.length).join(',');
+  const grupos = [];
+  for (const m of ex.modelos){ const del = als.filter(x => x.r.modelo === m); if (!del.length) continue;
+    const g = grupos.find(G => firma(G.m) === firma(m) && G.m.preguntas.length === m.preguntas.length);
+    if (g){ g.nombres.push(m.nombre); g.als = g.als.concat(del); g.mods.push(m); } else grupos.push({m, mods: [m], nombres: [m.nombre], als: del}); }
+  for (const G of grupos){
+    h += `<div class="caja"><h2>Por pregunta · ${esc(G.nombres.join(' y '))} (${G.als.length})</h2>`;
+    const crit = {}, errs = {}, termo = [];
+    G.m.preguntas.forEach((p, ip) => {
+      const pts = G.als.map(x => x.r.porP[x.r.modelo.preguntas[ip].n]), f = pts.reduce((s, v) => s + v, 0) / (p.puntos * G.als.length);
+      for (const c of p.criterios){ crit[c] = crit[c] || [0, 0]; crit[c][0] += pts.reduce((s, v) => s + v, 0); crit[c][1] += p.puntos * G.als.length; }
+      let cas = '';
+      p.casillas.forEach((c, ic) => {
+        let s = 0, k = 0; for (const x of G.als){ const cc = x.r.modelo.preguntas[ip].casillas[ic], v = x.a.x[cc.id]; if (v != null){ s += v; k++; } }
+        const fc = k ? s / k : 0;
+        cas += `<div class="fila" style="gap:6px;flex-wrap:nowrap"><span style="flex:0 0 46%;font-size:14px">${esc(c.texto)}${c.termometro ? ' <span class="termo">T</span>' : ''}</span>${barra(fc, Math.round(100 * fc) + ' %')}</div>`;
+        if (c.termometro) termo.push({t: p.n + ' ' + c.texto, f: fc});
+      });
+      G.als.forEach(x => { const pm = x.r.modelo.preguntas[ip]; for (const i of (x.a.e || {})[pm.n] || []){ const nom = pm.errores[i] && pm.errores[i].nombre; if (nom){ const k2 = nom; errs[k2] = errs[k2] || {n: 0, donde: new Set()}; errs[k2].n++; errs[k2].donde.add(p.n); } } });
+      h += `<details class="pr"><summary><span><b>${p.n}</b> ${esc(p.titulo)}</span>${barra(f, Math.round(100 * f) + ' %')}</summary>${cas}</details>`;
+    });
+    if (termo.length) h += '<h2 style="margin-top:14px">Termómetros</h2>' + termo.map(t => `<div class="fila" style="gap:6px;flex-wrap:nowrap"><span style="flex:0 0 46%;font-size:14px">${esc(t.t)}</span>${barra(t.f, Math.round(100 * t.f) + ' %')}</div>`).join('');
+    h += '<h2 style="margin-top:14px">Por criterio de evaluación</h2>' + Object.entries(crit).sort((a, b) => ordena(a[0], b[0])).map(([c, [s, t]]) => `<div class="fila" style="gap:6px;flex-wrap:nowrap"><span style="flex:0 0 46%;font-size:14px">${esc(c)}</span>${barra(s / t, Math.round(100 * s / t) + ' %')}</div>`).join('');
+    const le = Object.entries(errs).sort((a, b) => b[1].n - a[1].n);
+    h += '<h2 style="margin-top:14px">Errores con nombre</h2>' + (le.length ? le.map(([k, v]) => `<div class="fila" style="justify-content:space-between"><span style="font-size:14px">${esc(k)} <small class="nota">(${[...v.donde].join(', ')})</small></span><b>${v.n}</b></div>`).join('') : '<p class="nota">No has marcado ninguno.</p>');
+    h += '</div>';
+  }
+  return h;
+}
+
+/* ── EL CORRECTOR: el examen de un alumno ── */
+let CR = null;
+function abreCorrige(n){ CR = {n}; pintaCorrige(); abreCapa('corrige'); }
+function pintaCorrige(){
+  const ex = examenDe(H.ex), R = corr(H.ex, H.g), N = nAlumnos(H.g), n = CR.n;
+  let a = R.al[n];
+  const modelo = a ? a.m : (R.ultModelo || ex.modelos[0].modelo);
+  const m = ex.modelos.find(x => x.modelo === modelo) || ex.modelos[0];
+  const ver = a || {m: m.modelo, x: {}, c: {}, e: {}};
+  const r = notaExamen(ex, ver);
+  $('#crTit').textContent = 'n.º ' + n + ' · ' + etqGrupo(H.g);
+  $('#crNota').innerHTML = ver.np ? 'NP' : coma(r.nota) + (r.faltan ? ' <small style="opacity:.7">(' + r.faltan + ' sin marcar)</small>' : '');
+  let h = `<div class="fila">${ex.modelos.map(x => `<button class="btn peq${x.modelo === m.modelo ? ' prim' : ''}" data-mod="${x.modelo}">${esc(x.nombre)}</button>`).join('')}
+    <label class="nota" style="margin-left:auto"><input type="checkbox" id="crNP"${ver.np ? ' checked' : ''}> no presentado</label></div>`;
+  if (!ver.np){
+    h += `<div class="fila" style="margin-top:8px"><button class="btn peq acento" id="crTodo">Lo que falta, bien ✓</button><button class="btn peq" id="crLimpia">Desmarcar todo</button></div>
+      <details class="nota" style="margin:8px 0"><summary style="cursor:pointer">Reglas de corrección</summary>${esc(m.reglas)}</details>`;
+    for (const p of m.preguntas){
+      const menos = (ver.c || {})[p.n] || 0, errs = (ver.e || {})[p.n] || [];
+      h += `<div class="caja pq"><div class="fila" style="justify-content:space-between;flex-wrap:nowrap"><h2 style="margin:0"><b>${p.n}</b> ${esc(p.titulo)}</h2><b class="pqn">${coma(r.porP[p.n])} / ${coma(p.puntos)}</b></div>
+        <p class="nota sol">${esc(p.solucion)}</p><p class="nota" style="margin-top:0"><i>${esc(p.puntuacion)}</i></p>`;
+      const corto = p.casillas.every(c => c.texto.length <= 3);
+      h += `<div class="${corto ? 'cass2' : ''}">`;
+      for (const c of p.casillas){ const v = ver.x[c.id];
+        h += `<div class="cas"><span>${esc(c.texto)}${c.termometro ? ' <span class="termo">T</span>' : ''}${corto ? '' : ' <small class="nota">' + coma(c.puntos, 3) + '</small>'}</span>
+          <span class="seg" data-c="${esc(c.id)}"><button data-v="1"${v === 1 ? ' class="si"' : ''}>✓</button><button data-v="0.5"${v === 0.5 ? ' class="medio"' : ''}>½</button><button data-v="0"${v === 0 ? ' class="no"' : ''}>✗</button></span></div>`; }
+      h += '</div>';
+      h += `<div class="fila" style="margin-top:6px"><button class="btn peq" data-menos="${p.n}">−0,25 cálculo${menos ? ' (' + menos + ')' : ''}</button>${menos ? `<button class="btn peq" data-quitamenos="${p.n}">↺</button>` : ''}</div>`;
+      if (p.errores.length) h += '<div class="errs">' + p.errores.map((e, i) => `<button class="${errs.includes(i) ? 'si' : ''}" data-err="${p.n}:${i}" title="${esc(e.detalle)}">${esc(e.nombre)}</button>`).join('') + '</div>';
+      h += '</div>';
+    }
+  }
+  h += `<div class="fila" style="justify-content:space-between;margin:14px 0 4px"><button class="btn" id="crAnt"${n <= 1 ? ' disabled' : ''}>‹ n.º ${n - 1}</button><button class="btn prim" id="crSig"${n >= N ? ' disabled' : ''}>n.º ${n + 1} ›</button></div>`;
+  const B = $('#crCuerpo'), top = B.parentElement.scrollTop; B.innerHTML = h;
+  const toca = () => { if (!R.al[n]) R.al[n] = {m: m.modelo, x: {}, c: {}, e: {}}; a = R.al[n]; a.t = Date.now(); R.ultModelo = a.m; return a; };
+  const repinta = () => { guardaNotas(); pintaCorrige(); B.parentElement.scrollTop = top; };
+  B.querySelectorAll('[data-mod]').forEach(b => b.onclick = () => { toca().m = b.dataset.mod; R.ultModelo = b.dataset.mod; repinta(); });
+  $('#crNP').onchange = e => { toca().np = e.target.checked; repinta(); };
+  if (!ver.np){
+    $('#crTodo').onclick = () => { const A = toca(); for (const p of m.preguntas) for (const c of p.casillas) if (A.x[c.id] == null) A.x[c.id] = 1; repinta(); };
+    $('#crLimpia').onclick = () => { if (!confirm('¿Desmarcar todas las casillas de este examen?')) return; const A = toca(); A.x = {}; A.c = {}; A.e = {}; repinta(); };
+    B.querySelectorAll('.seg button').forEach(b => b.onclick = () => { const A = toca(), id = b.parentElement.dataset.c, v = +b.dataset.v; A.x[id] = A.x[id] === v ? undefined : v; if (A.x[id] === undefined) delete A.x[id]; repinta(); });
+    B.querySelectorAll('[data-menos]').forEach(b => b.onclick = () => { const A = toca(); A.c = A.c || {}; A.c[b.dataset.menos] = (A.c[b.dataset.menos] || 0) + 1; repinta(); });
+    B.querySelectorAll('[data-quitamenos]').forEach(b => b.onclick = () => { const A = toca(); delete A.c[b.dataset.quitamenos]; repinta(); });
+    B.querySelectorAll('[data-err]').forEach(b => b.onclick = () => { const A = toca(), [pn, i] = b.dataset.err.split(':'); A.e = A.e || {}; const l = A.e[pn] = A.e[pn] || []; const k = l.indexOf(+i); if (k < 0) l.push(+i); else l.splice(k, 1); repinta(); });
+  }
+  $('#crAnt').onclick = () => { CR.n = n - 1; pintaCorrige(); B.parentElement.scrollTop = 0; };
+  $('#crSig').onclick = () => { CR.n = n + 1; pintaCorrige(); B.parentElement.scrollTop = 0; };
+}
+
+/* ── LA NOTA DE LA EVALUACIÓN ── */
+const UNIDADES0 = {'1|1': [{nombre: 'Divisibilidad', examen: null}, {nombre: 'Enteros', examen: 'enteros-1eso'}, {nombre: 'Potencias', examen: 'potencias-1eso'}],
+  '2|1': [{nombre: 'Enteros', examen: 'enteros-2eso'}, {nombre: 'Racionales', examen: null}]};
+const REDONDEOS = {aprobado: 'Redondear, pero por debajo de 5 hacia abajo (4,9 → 4)', normal: 'Redondear (4,5 → 5)', truncar: 'Quitar los decimales (6,9 → 6)'};
+function evalDe(g, ev){
+  const k = g + '|' + ev;
+  if (!NT.eval[k]) NT.eval[k] = {u: JSON.parse(JSON.stringify(UNIDADES0[g[0] + '|' + ev] || [])), p: {ex: 80, cu: 10, se: 10}, cu: g[0] === '1' ? 'Álbum' : 'Libreta', red: 'aprobado', al: {}};
+  return NT.eval[k];
+}
+const itaca = (v, modo) => v == null ? null : Math.max(1, Math.min(10, modo === 'truncar' ? Math.floor(v + 1e-9) : modo === 'normal' ? Math.floor(v + 0.5 + 1e-9) : v < 5 ? Math.floor(v + 1e-9) : Math.floor(v + 0.5 + 1e-9)));
+/* la nota de un alumno: la de noviembre y, si recupera, la recalculada */
+function notaEval(E, g, n){
+  const A = E.al[n] || {}, us = E.u.map((u, i) => { const man = leeNum((A.u || {})[i]); return man != null ? man : u.examen ? notaDeCorrector(u.examen, g, n) : null; });
+  const cu = leeNum(A.cu), se = leeNum(A.se), falta = [];
+  E.u.forEach((u, i) => { if (us[i] == null) falta.push(u.nombre); }); if (cu == null) falta.push(E.cu); if (se == null) falta.push('seguimiento');
+  const calc = xs => { const m = xs.reduce((s, v) => s + v, 0) / (xs.length || 1); return (E.p.ex * m + E.p.cu * cu + E.p.se * se) / (E.p.ex + E.p.cu + E.p.se); };
+  if (falta.length || !E.u.length) return {us, falta, nota: null};
+  const nota = calc(us), r = {us, falta, nota, recupera: [], rec: null};
+  if (nota < 5){
+    r.recupera = E.u.map((u, i) => i).filter(i => us[i] < 5);
+    const rs = r.recupera.map(i => leeNum((A.r || {})[i]));
+    if (rs.some(v => v != null)){
+      const ef = us.slice(); r.recupera.forEach((i, k) => { const v = rs[k]; if (v != null) ef[i] = v >= 5 ? 5 : Math.max(us[i], v); });
+      let nr = calc(ef); const todas = rs.every(v => v != null && v >= 5); if (todas) nr = Math.max(nr, 5);
+      r.rec = {nota: nr, todas, completa: rs.every(v => v != null)};
+    }
+  }
+  return r;
+}
+function pintaEvaluacion(C){
+  const gs = gruposDe(''); H.g = gs.includes(H.g) ? H.g : gs.includes((NT.ultimaEv || {}).g) ? NT.ultimaEv.g : gs[0]; H.ev = H.ev || (NT.ultimaEv || {}).ev || 1;
+  NT.ultimaEv = {g: H.g, ev: H.ev};
+  const g = H.g, E = evalDe(g, H.ev), N = nAlumnos(g);
+  let h = `<div class="caja"><div class="fila"><select id="eG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
+    <select id="eEv">${[1, 2, 3].map(v => `<option value="${v}"${v === H.ev ? ' selected' : ''}>${v}.ª evaluación</option>`).join('')}</select>
+    <span class="nota">Alumnos: <input type="number" id="eN" min="1" max="40" value="${N}"></span></div>
+    <details style="margin-top:8px"><summary class="nota" style="cursor:pointer">Unidades y pesos: pruebas ${E.p.ex} % · ${esc(E.cu.toLowerCase())} ${E.p.cu} % · seguimiento ${E.p.se} %</summary>
+      <div class="chips">${E.u.map((u, i) => `<div class="chip"><span><input type="text" data-un="${i}" value="${esc(u.nombre)}" style="width:44%"> <select data-ux="${i}"><option value="">a mano</option>${(RUB ? RUB.examenes : []).filter(e => e.curso[0] === g[0]).map(e => `<option value="${e.id}"${u.examen === e.id ? ' selected' : ''}>del corrector: ${esc(e.tema)}</option>`).join('')}</select></span><button data-uq="${i}" aria-label="Quitar">✕</button></div>`).join('')}</div>
+      <div class="fila"><button class="btn peq" id="eMasU">Añadir unidad</button></div>
+      <div class="fila nota" style="margin-top:8px">Pruebas <input type="number" id="ePex" value="${E.p.ex}"> % · <input type="text" id="eCuN" value="${esc(E.cu)}" style="width:80px"> <input type="number" id="ePcu" value="${E.p.cu}"> % · seguimiento <input type="number" id="ePse" value="${E.p.se}"> %</div>
+      <div class="fila nota" style="margin-top:8px">Para Itaca: <select id="eRed">${Object.entries(REDONDEOS).map(([k, t]) => `<option value="${k}"${E.red === k ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+    </details></div>`;
+  const cols = E.u.map((u, i) => ({k: 'u' + i, t: u.nombre})).concat([{k: 'cu', t: E.cu}, {k: 'se', t: 'Seguim.'}]);
+  h += `<div class="tablaw"><table class="tabla"><thead><tr><th>n.º</th>${cols.map(c => `<th title="${esc(c.t)}">${esc(c.t.length > 8 ? c.t.slice(0, 6) + '.' : c.t)}</th>`).join('')}<th>Nota</th><th>Itaca</th></tr></thead><tbody>`;
+  for (let n = 1; n <= N; n++){ const A = E.al[n] || {};
+    h += `<tr data-n="${n}"><td><b>${n}</b></td>` + E.u.map((u, i) => { const ph = u.examen ? notaDeCorrector(u.examen, g, n) : null;
+      return `<td><input inputmode="decimal" data-f="u${i}" value="${esc((A.u || {})[i] == null ? '' : String(A.u[i]).replace('.', ','))}" placeholder="${ph == null ? '' : coma(ph)}"${ph != null ? ' class="del"' : ''}></td>`; }).join('')
+      + `<td><input inputmode="decimal" data-f="cu" value="${esc(A.cu == null ? '' : String(A.cu).replace('.', ','))}"></td><td><input inputmode="decimal" data-f="se" value="${esc(A.se == null ? '' : String(A.se).replace('.', ','))}"></td>
+      <td class="nf"></td><td class="it"></td></tr>`; }
+  h += `</tbody></table></div><p class="nota">En verde, la nota que viene del corrector (solo los exámenes corregidos del todo): si escribes encima, manda la tuya. Una casilla vacía es que falta.</p>
+    <div class="caja"><h2>Pegar una columna</h2><p class="nota" style="margin-top:0">Desde tu hoja: una nota por renglón empezando por el n.º 1, o «n.º nota» en cada renglón.</p>
+      <div class="fila"><select id="ePegaCol">${cols.map(c => `<option value="${c.k}">${esc(c.t)}</option>`).join('')}</select><button class="btn peq" id="ePega">Pegar</button></div>
+      <textarea id="ePegaT" rows="3" style="width:100%;margin-top:8px;border:1.5px solid var(--linea);border-radius:10px;padding:8px;font:14px ui-monospace,monospace"></textarea></div>
+    <div class="caja" id="eRec"></div>
+    <div class="fila"><button class="btn peq" id="eTabla">Copiar como tabla</button><button class="btn peq peligro" id="eBorra">Borrar las notas de esta evaluación</button></div>`;
+  C.innerHTML = h;
+  const otra = () => { guardaNotas(); pintaHerramienta(); };
+  $('#eG').onchange = e => { H.g = e.target.value; otra(); };
+  $('#eEv').onchange = e => { H.ev = +e.target.value; otra(); };
+  $('#eN').onchange = e => { NT.alumnos[g] = Math.max(1, Math.min(40, Math.round(+e.target.value || 30))); otra(); };
+  C.querySelectorAll('[data-un]').forEach(x => x.onchange = () => { E.u[+x.dataset.un].nombre = x.value.trim() || 'Unidad'; otra(); });
+  C.querySelectorAll('[data-ux]').forEach(x => x.onchange = () => { E.u[+x.dataset.ux].examen = x.value || null; otra(); });
+  C.querySelectorAll('[data-uq]').forEach(x => x.onclick = () => { const i = +x.dataset.uq; if (!confirm('¿Quitar la unidad «' + E.u[i].nombre + '» y sus notas?')) return;
+    E.u.splice(i, 1); for (const A of Object.values(E.al)){ for (const key of ['u', 'r']) if (A[key]){ const o = {}; for (const [j, v] of Object.entries(A[key])) if (+j < i) o[j] = v; else if (+j > i) o[+j - 1] = v; A[key] = o; } } otra(); });
+  $('#eMasU').onclick = () => { E.u.push({nombre: 'Unidad ' + (E.u.length + 1), examen: null}); otra(); };
+  const peso = (id, k) => $(id).onchange = e => { E.p[k] = Math.max(0, +e.target.value || 0); otra(); };
+  peso('#ePex', 'ex'); peso('#ePcu', 'cu'); peso('#ePse', 'se');
+  $('#eCuN').onchange = e => { E.cu = e.target.value.trim() || 'Cuaderno'; otra(); };
+  $('#eRed').onchange = e => { E.red = e.target.value; otra(); };
+  C.querySelectorAll('.tabla input').forEach(x => x.oninput = () => { const n = +x.closest('tr').dataset.n, f = x.dataset.f, A = E.al[n] = E.al[n] || {}, v = x.value.trim();
+    const val = v === '' ? null : v.replace(',', '.');
+    if (f[0] === 'u'){ A.u = A.u || {}; if (val == null) delete A.u[f.slice(1)]; else A.u[f.slice(1)] = val; } else if (val == null) delete A[f]; else A[f] = val;
+    x.classList.toggle('mal', val != null && (leeNum(val) == null || leeNum(val) < 0 || leeNum(val) > 10));
+    guardaNotas(); pintaFila(E, g, n); pintaRec(E, g, N); });
+  $('#ePega').onclick = () => { const col = $('#ePegaCol').value, ls = $('#ePegaT').value.split(/\r?\n/).map(s => s.trim()).filter(Boolean); let k = 0;
+    ls.forEach((l, i) => { const p = l.split(/[\t ;]+/); let n = i + 1, v = p[0]; if (p.length >= 2 && /^\d+$/.test(p[0])){ n = +p[0]; v = p[1]; }
+      if (n < 1 || n > N || leeNum(v) == null) return; const A = E.al[n] = E.al[n] || {}; v = String(leeNum(v));
+      if (col[0] === 'u'){ A.u = A.u || {}; A.u[col.slice(1)] = v; } else A[col] = v; k++; });
+    if (!k) return aviso('No he entendido ninguna nota'); aviso(k + ' notas pegadas'); otra(); };
+  $('#eTabla').onclick = () => { const filas = [['n.º'].concat(cols.map(c => c.t), ['nota', 'Itaca', 'recupera', 'recuperación', 'nota recuperada'])];
+    for (let n = 1; n <= N; n++){ const r = notaEval(E, g, n), A = E.al[n] || {};
+      filas.push([n].concat(r.us.map(v => coma(v)), [coma(leeNum(A.cu)), coma(leeNum(A.se)), r.nota == null ? 'falta: ' + r.falta.join(', ') : coma(r.nota), r.nota == null ? '' : itaca(r.nota, E.red),
+        (r.recupera || []).map(i => E.u[i].nombre).join(', '), (r.recupera || []).map(i => E.u[i].nombre + ' ' + coma(leeNum((A.r || {})[i]))).join('; '), r.rec ? coma(r.rec.nota) : ''])); }
+    copiaTabla(filas, 'evaluacion-' + g + '-' + H.ev + '.tsv'); };
+  $('#eBorra').onclick = () => { if (!confirm('¿Borrar todas las notas escritas a mano de la ' + H.ev + '.ª evaluación de ' + etqGrupo(g) + '? Las del corrector no se tocan.')) return; E.al = {}; otra(); };
+  for (let n = 1; n <= N; n++) pintaFila(E, g, n);
+  pintaRec(E, g, N);
+}
+function pintaFila(E, g, n){
+  const tr = document.querySelector('.tabla tr[data-n="' + n + '"]'); if (!tr) return;
+  const r = notaEval(E, g, n);
+  tr.querySelector('.nf').innerHTML = r.nota == null ? (r.falta.length === E.u.length + 2 ? '' : '<small class="nota">falta</small>') : `<b class="${tonoNota(r.nota)}">${coma(r.nota)}</b>`;
+  tr.querySelector('.it').innerHTML = r.nota == null ? '' : `<b class="${tonoNota(itaca(r.nota, E.red))}">${itaca(r.nota, E.red)}</b>`;
+}
+function pintaRec(E, g, N){
+  const D = $('#eRec'); if (!D) return;
+  const lista = []; for (let n = 1; n <= N; n++){ const r = notaEval(E, g, n); if (r.nota != null && r.nota < 5) lista.push({n, r}); }
+  if (!lista.length){ D.innerHTML = '<h2>Recuperación</h2><p class="nota" style="margin:0">Nadie suspende la evaluación (de los que tienen todas las notas).</p>'; return; }
+  D.innerHTML = `<h2>Recuperación · ${lista.length} ${lista.length === 1 ? 'alumno' : 'alumnos'}</h2><p class="nota" style="margin-top:0">Solo las unidades por debajo de 5. Recuperada (≥ 5) cuenta 5; si no llega, la más alta de las dos. Si las recupera todas, la evaluación queda como mínimo en 5.</p>`
+    + lista.map(({n, r}) => { const A = E.al[n] || {};
+      return `<div class="recu" data-n="${n}"><b>n.º ${n}</b> <span class="mal">${coma(r.nota)}</span> · ` + r.recupera.map(i => `${esc(E.u[i].nombre)} (${coma(r.us[i])}) <input inputmode="decimal" data-r="${i}" value="${esc((A.r || {})[i] == null ? '' : String(A.r[i]).replace('.', ','))}" placeholder="rec.">`).join(' ')
+        + ` <span class="rr">${r.rec ? '→ <b class="' + tonoNota(r.rec.nota) + '">' + coma(r.rec.nota) + '</b>' + (r.rec.completa ? '' : ' <small class="nota">(falta alguna)</small>') : ''}</span></div>`; }).join('');
+  D.querySelectorAll('[data-r]').forEach(x => x.onchange = () => { const n = +x.closest('.recu').dataset.n, A = E.al[n] = E.al[n] || {}; A.r = A.r || {}; const v = x.value.trim();
+    if (!v) delete A.r[x.dataset.r]; else A.r[x.dataset.r] = v.replace(',', '.'); guardaNotas();
+    const r = notaEval(E, g, n); x.closest('.recu').querySelector('.rr').innerHTML = r.rec ? '→ <b class="' + tonoNota(r.rec.nota) + '">' + coma(r.rec.nota) + '</b>' + (r.rec.completa ? '' : ' <small class="nota">(falta alguna)</small>') : ''; });
+}
+
+/* ── copia de seguridad de las notas (Ajustes) ── */
+function resumenNotas(){ const c = Object.values(NT.corr).reduce((s, R) => s + Object.keys(R.al).length, 0), e = Object.values(NT.eval).reduce((s, E) => s + Object.keys(E.al).length, 0);
+  return c + ' exámenes corregidos · ' + e + ' filas de evaluación'; }
+async function copiaNotas(){ const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT})], {type: 'application/json'}), nombre = 'notas-' + hoyISO() + '.json';
+  const f = new File([b], nombre, {type: 'application/json'});
+  if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  descarga(b, nombre); }
+async function recuperaNotas(file){
+  try { const o = JSON.parse(await file.text()); if (o.app !== 'utilidades-notas' || !o.notas) throw new Error('no es una copia de notas');
+    if (!confirm('¿Cambiar las notas de este móvil (' + resumenNotas() + ') por las de la copia del ' + new Date(o.fecha).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '?')) return;
+    NT = Object.assign({alumnos: {}, corr: {}, eval: {}}, o.notas); await guardaDB('conf', NT, 'notas'); aviso('Notas recuperadas'); pintaAjustes(); }
+  catch (e) { aviso('No se puede leer: ' + e.message, 4000); }
+}
+
 /* ── ARRANQUE ── */
 (async () => {
   await recarga(); pintaLista();
+  NT = Object.assign({alumnos: {}, corr: {}, eval: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null;
   const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
