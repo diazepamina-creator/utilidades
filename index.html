@@ -17,7 +17,11 @@
     ve el alumno. La app los trae con un token de GitHub de SOLO LECTURA que
     se guarda en el móvil (IndexedDB) y en ningún otro sitio. «Actualizar»
     baja solo lo que ha cambiado (se compara el sha de cada archivo).
-    Opcional: latex/examenes (solo sus carpetas pdf/), que nunca van a Aules.
+    QUÉ se trae lo dice un catálogo que vive en los originales,
+    herramientas/biblioteca.json (carpetas, filtros y grupos), y la app lo lee
+    en cada Actualizar: el material nuevo se añade ahí, sin tocar la app.
+    Si no lo encuentra, trae latex/aules. Los exámenes y las olimpiadas son
+    opcionales (casillas en Ajustes).
   - COMPARTIR. El menú de compartir de Android (navigator.share con archivos)
     da Bluetooth, Nearby, Drive y correo: es como ya se manda a la pizarra.
   - HERRAMIENTAS DE PDF. Tapar nombres, reducir peso, unir, sacar, quitar y
@@ -78,6 +82,7 @@ details.hoy>summary{color:var(--acento)}
 .doc .t b{display:block;font-weight:600;overflow-wrap:anywhere}
 .doc .t small{color:var(--suave);font-size:13px}
 .doc .est{color:var(--acento);font-size:18px}
+.sub{padding:9px 14px 5px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--suave);border-top:1px solid var(--linea);background:#FBF8F1}
 .vacio{text-align:center;padding:30px 10px;color:var(--suave)}
 .herrs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .herrs button{border:1px solid var(--linea);background:var(--blanco);border-radius:var(--r);padding:16px 12px;text-align:left;box-shadow:var(--sombra);display:flex;flex-direction:column;gap:4px;min-height:104px}
@@ -204,9 +209,9 @@ ol.pasos li{margin:4px 0}
     <div class="caja">
       <h2>Qué se trae</h2>
       <div class="opc">
-        <label><input type="checkbox" checked disabled><span>Material de Aules<small><code>latex/aules</code>: fichas, álbumes, soluciones, cabeceras en PDF</small></span></label>
-        <label><input type="checkbox" id="ajExamenes"><span>Exámenes y claves<small><code>latex/examenes/*/pdf</code>. Solo en tu móvil; nunca van a Aules.</small></span></label>
+        <label><input type="checkbox" checked disabled><span>Tu material<small>Aules, fichas y claves de cada app, el carril, el taller y los cuadernillos. Lo decide <code>herramientas/biblioteca.json</code> en tus originales.</small></span></label>
       </div>
+      <div class="opc" id="ajOpc"></div>
       <details><summary class="nota" style="cursor:pointer">Repositorio (avanzado)</summary>
         <div class="fila" style="margin-top:8px"><input type="text" id="ajDueno" style="width:46%"><input type="text" id="ajRepo" style="width:30%"><input type="text" id="ajRama" style="width:18%"></div>
         <button class="btn peq" id="bRepo" style="margin-top:8px">Guardar</button>
@@ -278,7 +283,7 @@ ol.pasos li{margin:4px 0}
 
 <script>
 'use strict';
-const VERSION = '1.0';
+const VERSION = '1.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -305,7 +310,7 @@ const leeDB = async (n, k) => req((await almacen(n)).get(k));
 const guardaDB = async (n, v, k) => req((await almacen(n, 'readwrite')).put(v, k));
 const borraDB = async (n, k) => req((await almacen(n, 'readwrite')).delete(k));
 const todosDB = async n => req((await almacen(n)).getAll());
-const CONF0 = {token: '', dueno: 'diazepamina-creator', repo: 'originales', rama: 'main', examenes: false, ultima: 0};
+const CONF0 = {token: '', dueno: 'diazepamina-creator', repo: 'originales', rama: 'main', opc: {}, catalogo: null, ultima: 0};
 async function conf(){ const c = Object.assign({}, CONF0); for (const k in CONF0){ const v = await leeDB('conf', k); if (v !== undefined) c[k] = v; } return c; }
 const ponConf = (k, v) => guardaDB('conf', v, k);
 
@@ -334,21 +339,30 @@ $('#hoja').addEventListener('click', e => { if (e.target.id === 'hoja') cierraCa
 /* ── LA BIBLIOTECA ── */
 let DOCS = [];
 async function recarga(){ DOCS = await todosDB('docs'); }
-/* el nombre del grupo, a partir de la carpeta de latex/aules (1ESO-3-potencias → 1.º ESO · Potencias) */
-function etiqueta(raiz, rel){
+/* el nombre del grupo. Para latex/aules, a partir de su carpeta (1ESO-3-potencias → 1.º ESO · Potencias);
+   para los exámenes, por la app; para lo demás, el grupo del catálogo ({sub}: la primera subcarpeta) */
+function etiqueta(fuente, rel, nombres){
   const seg = rel.split('/'), car = seg.length > 1 ? seg[0] : '';
-  if (raiz.endsWith('examenes')) return 'Exámenes · ' + ({palestra: 'enteros', clonadora: 'potencias', 'plantilla-miut': 'divisibilidad'}[car] || car);
+  if (fuente.grupo !== 'aules' && fuente.grupo !== 'examenes') return fuente.grupo.replace('{sub}', (nombres || {})[car] || car);
+  if (fuente.grupo === 'examenes') return 'Exámenes · ' + ({palestra: 'enteros', clonadora: 'potencias', 'plantilla-miut': 'divisibilidad'}[car] || car);
   const m = car.match(/^(\d)ESO(?:-(\d+)-(.+))?$/);
-  if (m) return m[1] + '.º ESO · ' + (m[3] ? m[3].charAt(0).toUpperCase() + m[3].slice(1).replace(/-/g, ' ') : 'temas anteriores');
-  if (car === 'R4') return 'Taller de refuerzo · 4.º ESO';
-  if (car === 'mas-adelante') return 'Más adelante';
-  return car || 'Aules';
+  if (m) return 'Aules ' + m[1] + '.º ESO · ' + (m[3] ? m[3].charAt(0).toUpperCase() + m[3].slice(1).replace(/-/g, ' ') : 'temas anteriores');
+  if (car === 'R4') return 'Taller 4.º · Aules';
+  if (car === 'mas-adelante') return 'Aules · más adelante';
+  return 'Aules' + (car ? ' · ' + car : '');
 }
 /* el orden de los grupos: primero los cursos, luego el taller, los exámenes y lo tuyo */
-const pesoGrupo = g => /^\d\.º/.test(g) ? 1 : /^Taller/.test(g) ? 2 : /^Exámenes/.test(g) ? 3 : g === 'Mis archivos' ? 5 : 4;
+/* la biblioteca va en dos niveles: la sección (lo de antes del primer « · ») y, dentro, el apartado */
+const seccion = g => g.split(' · ')[0], apartado = g => g.split(' · ').slice(1).join(' · ');
+const pesoGrupo = g => { const t = seccion(g); return /^Aules 1/.test(t) ? 1 : /^Aules 2/.test(t) ? 2 : /^Aules/.test(t) ? 3 : /^Taller/.test(t) ? 4 : /^Carril/.test(t) ? 5
+  : /^Cuadernillos/.test(t) ? 7 : /^Exámenes/.test(t) ? 8 : /^Olimpiadas/.test(t) ? 9 : t === 'Mis archivos' ? 10 : 6; };
+const ORDEN_AP = ['fichas 1.º', 'fichas 2.º', 'fichas', 'ficha previa', 'repaso', 'para los que acaban', 'soluciones', 'álbum', 'del profesor', 'claves y rúbrica', 'Aules'];
+const pesoAp = a => { const i = ORDEN_AP.indexOf(a); return i < 0 ? 50 : i; };
+/* los nombres de archivo técnicos (ficha-01-fuerza-1eso) se leen mejor con espacios */
+const bonito = n => /^[a-z0-9]+(-[a-z0-9]+)+$/.test(n) ? (n.charAt(0).toUpperCase() + n.slice(1)).replace(/-/g, ' ') : n;
 function filaDoc(d){
   const origen = d.origen === 'github' ? 'originales' : 'en el móvil';
-  return `<button class="doc" data-id="${esc(d.id)}"><span class="ico">PDF</span><span class="t"><b>${esc(d.nombre)}</b><small>${tam(d.tam)} · ${origen}</small></span>${d.hoy ? '<span class="est">★</span>' : ''}</button>`;
+  return `<button class="doc" data-id="${esc(d.id)}"><span class="ico">PDF</span><span class="t"><b>${esc(bonito(d.nombre))}</b><small>${tam(d.tam)} · ${origen}</small></span>${d.hoy ? '<span class="est">★</span>' : ''}</button>`;
 }
 function pintaLista(){
   const q = llano($('#busca').value.trim());
@@ -358,14 +372,18 @@ function pintaLista(){
     $('#irAjustes').onclick = e => { e.preventDefault(); ve('ajustes'); }; return; }
   if (!vis.length){ L.innerHTML = '<div class="vacio">Nada con ese nombre.</div>'; return; }
   const grupos = new Map();
-  for (const d of vis){ if (!grupos.has(d.carpeta)) grupos.set(d.carpeta, []); grupos.get(d.carpeta).push(d); }
+  for (const d of vis){ const t = seccion(d.carpeta); if (!grupos.has(t)) grupos.set(t, []); grupos.get(t).push(d); }
   const nombres = [...grupos.keys()].sort((a, b) => pesoGrupo(a) - pesoGrupo(b) || ordena(a, b));
   const abierto = q || nombres.length === 1;
   let h = '';
   const hoy = vis.filter(d => d.hoy).sort((a, b) => ordena(a.nombre, b.nombre));
   if (hoy.length) h += `<details class="grupo hoy" open><summary>★ Para hoy <span class="n">${hoy.length}</span></summary>${hoy.map(filaDoc).join('')}</details>`;
-  for (const g of nombres){ const ds = grupos.get(g).sort((a, b) => ordena(a.nombre, b.nombre));
-    h += `<details class="grupo"${abierto || g === 'Mis archivos' ? ' open' : ''}><summary>${esc(g)} <span class="n">${ds.length}</span></summary>${ds.map(filaDoc).join('')}</details>`; }
+  for (const g of nombres){ const ds = grupos.get(g), aps = new Map();
+    for (const d of ds){ const a = apartado(d.carpeta); if (!aps.has(a)) aps.set(a, []); aps.get(a).push(d); }
+    const orden = [...aps.keys()].sort((a, b) => pesoAp(a) - pesoAp(b) || ordena(a, b));
+    const dentro = orden.map(a => (a && aps.size > 1 ? `<div class="sub">${esc(a)}</div>` : '') + aps.get(a).sort((x, y) => ordena(x.nombre, y.nombre)).map(filaDoc).join('')).join('');
+    const titulo = aps.size === 1 && orden[0] ? g + ' · ' + orden[0] : g;
+    h += `<details class="grupo"${abierto || g === 'Mis archivos' ? ' open' : ''}><summary>${esc(titulo)} <span class="n">${ds.length}</span></summary>${dentro}</details>`; }
   L.innerHTML = h;
 }
 $('#busca').addEventListener('input', pintaLista);
@@ -375,7 +393,7 @@ $('#lista').addEventListener('click', e => { const b = e.target.closest('.doc');
 let hojaDoc = null;
 function abreHoja(id){
   hojaDoc = DOCS.find(d => d.id === id); if (!hojaDoc) return;
-  $('#hojaNombre').textContent = hojaDoc.nombre;
+  $('#hojaNombre').textContent = bonito(hojaDoc.nombre);
   $('#hojaMeta').textContent = hojaDoc.carpeta + ' · ' + tam(hojaDoc.tam);
   $('#hojaHoy').textContent = hojaDoc.hoy ? 'Quitar de «para hoy»' : 'Añadir a «para hoy»';
   $('#hojaBorrar').hidden = hojaDoc.origen === 'github';
@@ -424,18 +442,24 @@ function api(c, ruta, crudo){
     Authorization: 'Bearer ' + c.token, Accept: crudo ? 'application/vnd.github.raw+json' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}})
     .then(r => { if (!r.ok) throw new Error(r.status === 401 ? 'el token no vale o ha caducado' : r.status === 404 ? 'no encuentro el repositorio o la carpeta (¿el token puede leer «' + c.repo + '»?)' : 'GitHub responde ' + r.status); return crudo ? r.blob() : r.json(); });
 }
-/* la lista de PDF de una carpeta: el árbol de esa carpeta, de una vez (no el del repositorio
+/* los PDF de una carpeta: el árbol de esa carpeta, de una vez (no el del repositorio
    entero, que en originales es enorme y GitHub lo cortaría) */
 async function listaCarpeta(c, carpeta){
-  const i = carpeta.lastIndexOf('/'), padre = carpeta.slice(0, i), nombre = carpeta.slice(i + 1);
+  const i = carpeta.lastIndexOf('/'), padre = i < 0 ? '' : carpeta.slice(0, i), nombre = carpeta.slice(i + 1);
   const dentro = await api(c, '/contents/' + parte(padre) + '?ref=' + encodeURIComponent(c.rama));
   const e = dentro.find(x => x.name === nombre && x.type === 'dir');
   if (!e) throw new Error('no hay carpeta ' + carpeta);
   const arbol = await api(c, '/git/trees/' + e.sha + '?recursive=1');
-  const examen = carpeta.endsWith('examenes');
-  return arbol.tree.filter(b => b.type === 'blob' && /\.pdf$/i.test(b.path) && (!examen || /(^|\/)pdf\//.test(b.path)))
-    .map(b => ({path: carpeta + '/' + b.path, rel: b.path, raiz: carpeta, sha: b.sha, size: b.size}));
+  return arbol.tree.filter(b => b.type === 'blob' && /\.pdf$/i.test(b.path)).map(b => ({rel: b.path, sha: b.sha, size: b.size}));
 }
+/* el catálogo de los originales; sin él, latex/aules */
+const CATALOGO0 = {nombres: {}, fuentes: [{carpeta: 'latex/aules', filtro: '.', grupo: 'aules'}]};
+async function leeCatalogo(c){
+  try { const b = await api(c, '/contents/herramientas/biblioteca.json?ref=' + encodeURIComponent(c.rama), true); const k = JSON.parse(await b.text()); if (k && k.fuentes) return k; }
+  catch (e) { if (/token/.test(e.message)) throw e; }
+  return CATALOGO0;
+}
+const activa = (f, c) => !f.opcional || (f.opcional in (c.opc || {}) ? c.opc[f.opcional] : !!f.defecto);
 let sincronizando = false;
 async function sincroniza(){
   if (sincronizando) return;
@@ -445,19 +469,25 @@ async function sincroniza(){
   const P = $('#syncProg'), N = $('#syncNota'); P.hidden = false; P.firstElementChild.style.width = '4%'; N.textContent = 'Mirando qué hay en tus originales…';
   try {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-    const carpetas = ['latex/aules'].concat(c.examenes ? ['latex/examenes'] : []);
-    let remotos = [];
-    for (const k of carpetas) remotos = remotos.concat(await listaCarpeta(c, k));
+    const cat = await leeCatalogo(c); await ponConf('catalogo', cat);
+    const fuentes = cat.fuentes.filter(f => activa(f, c)), arboles = new Map(), remotos = [], vistos = new Set();
+    for (const f of fuentes){
+      if (!arboles.has(f.carpeta)){ N.textContent = 'Mirando ' + f.carpeta + '…'; arboles.set(f.carpeta, await listaCarpeta(c, f.carpeta).catch(() => [])); }
+      const re = new RegExp(f.filtro || '.');
+      for (const b of arboles.get(f.carpeta)){ const path = f.carpeta + '/' + b.rel; if (vistos.has(path) || !re.test(b.rel)) continue;
+        vistos.add(path); remotos.push({path, rel: b.rel, sha: b.sha, size: b.size, grupo: etiqueta(f, b.rel, cat.nombres)}); }
+    }
     const locales = (await todosDB('docs')).filter(d => d.origen === 'github');
     const viejo = new Map(locales.map(d => [d.path, d]));
     const bajar = remotos.filter(r => !viejo.has(r.path) || viejo.get(r.path).sha !== r.sha);
+    for (const r of remotos){ const v = viejo.get(r.path); if (v && v.sha === r.sha && v.carpeta !== r.grupo){ v.carpeta = r.grupo; await guardaDB('docs', v); } }
     let hechos = 0;
     for (const r of bajar){
       N.textContent = 'Bajando ' + (hechos + 1) + ' de ' + bajar.length + ': ' + r.rel.split('/').pop();
       const blob = await api(c, '/contents/' + parte(r.path) + '?ref=' + encodeURIComponent(c.rama), true);
       const ant = viejo.get(r.path);
       await guardaDB('docs', {id: 'gh:' + r.path, origen: 'github', path: r.path, sha: r.sha, nombre: r.rel.split('/').pop().replace(/\.pdf$/i, ''),
-        carpeta: etiqueta(r.raiz, r.rel), tam: blob.size, fecha: Date.now(), hoy: ant ? ant.hoy : false, blob: new Blob([blob], {type: 'application/pdf'})});
+        carpeta: r.grupo, tam: blob.size, fecha: Date.now(), hoy: ant ? ant.hoy : false, blob: new Blob([blob], {type: 'application/pdf'})});
       hechos++; P.firstElementChild.style.width = (4 + 96 * hechos / bajar.length) + '%';
     }
     const vivos = new Set(remotos.map(r => r.path)); let fuera = 0;
@@ -845,7 +875,10 @@ async function pintaAjustes(){
   const c = await conf();
   $('#ajToken').value = ''; $('#ajToken').placeholder = c.token ? 'Token guardado (…' + c.token.slice(-4) + '). Pega otro para cambiarlo' : 'Token de GitHub (github_pat_…)';
   $('#ajEstado').innerHTML = c.token ? 'Conectado a <code>' + esc(c.dueno + '/' + c.repo) + '</code>' + (c.ultima ? ' · última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) : '') : 'Sin token: la biblioteca solo tiene lo que añadas del móvil.';
-  $('#ajExamenes').checked = !!c.examenes; $('#ajDueno').value = c.dueno; $('#ajRepo').value = c.repo; $('#ajRama').value = c.rama;
+  const cat = c.catalogo || {fuentes: [{opcional: 'examenes', texto: 'Exámenes y claves', detalle: 'latex/examenes/*/pdf. Solo en tu móvil; nunca van a Aules.', defecto: false}]};
+  $('#ajOpc').innerHTML = cat.fuentes.filter(f => f.opcional).map(f => `<label><input type="checkbox" data-opc="${esc(f.opcional)}"${activa(f, c) ? ' checked' : ''}><span>${esc(f.texto || f.opcional)}<small>${esc(f.detalle || '')}</small></span></label>`).join('');
+  $$('#ajOpc [data-opc]').forEach(x => x.onchange = async () => { const k = await conf(); const o = Object.assign({}, k.opc); o[x.dataset.opc] = x.checked; await ponConf('opc', o); aviso(x.checked ? 'Se traerá en la próxima actualización' : 'Se quitará en la próxima actualización'); });
+  $('#ajDueno').value = c.dueno; $('#ajRepo').value = c.repo; $('#ajRama').value = c.rama;
   const gh = DOCS.filter(d => d.origen === 'github'), loc = DOCS.filter(d => d.origen !== 'github'), suma = l => l.reduce((s, d) => s + (d.tam || 0), 0);
   let t = gh.length + ' de los originales (' + tam(suma(gh)) + ') · ' + loc.length + ' en «Mis archivos» (' + tam(suma(loc)) + ')';
   if (navigator.storage && navigator.storage.estimate){ try { const e = await navigator.storage.estimate(); t += ' · ocupado ' + tam(e.usage || 0) + ' de ' + tam(e.quota || 0) + ' disponibles'; } catch (e) {} }
@@ -855,7 +888,6 @@ $('#bToken').onclick = async () => { const t = $('#ajToken').value.trim(); if (!
 $('#bQuitaToken').onclick = async () => { if (!confirm('¿Quitar el token de este móvil? Lo traído se queda.')) return; await ponConf('token', ''); pintaAjustes(); };
 $('#bProbar').onclick = async () => { const c = await conf(); if (!c.token) return aviso('No hay token');
   try { const r = await api(c, ''); aviso('Conexión correcta con ' + r.full_name + (r.private ? ' (privado)' : '')); } catch (e) { aviso('No conecta: ' + e.message, 4500); } };
-$('#ajExamenes').onchange = async () => { await ponConf('examenes', $('#ajExamenes').checked); aviso($('#ajExamenes').checked ? 'Se traerán en la próxima actualización' : 'Se quitarán en la próxima actualización'); };
 $('#bRepo').onclick = async () => { await ponConf('dueno', $('#ajDueno').value.trim() || CONF0.dueno); await ponConf('repo', $('#ajRepo').value.trim() || CONF0.repo); await ponConf('rama', $('#ajRama').value.trim() || CONF0.rama); aviso('Guardado'); pintaAjustes(); };
 $('#bBorraGh').onclick = async () => { if (!confirm('¿Borrar del móvil todo lo traído de GitHub? Con «Actualizar» vuelve.')) return; for (const d of DOCS) if (d.origen === 'github') await borraDB('docs', d.id); await recarga(); pintaAjustes(); };
 $('#bBorraTodo').onclick = async () => { if (!confirm('¿Borrar todo: lo traído, «Mis archivos» y el token?')) return; for (const d of DOCS) await borraDB('docs', d.id); await ponConf('token', ''); await recarga(); pintaAjustes(); };
