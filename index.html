@@ -381,7 +381,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.11';
+const VERSION = '1.11.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1142,7 +1142,10 @@ function pintaEditor(){
   barra.innerHTML = `<span class="seg"><button data-modo="rect"${ESC.modo === 'rect' ? ' class="si"' : ''} style="width:auto;padding:0 12px">Rectángulo</button><button data-modo="esq"${ESC.modo === 'esq' ? ' class="si"' : ''} style="width:auto;padding:0 12px">Esquinas</button></span>`
     + (ESC.modo === 'rect' ? `<span class="fila" style="gap:6px">${[['toda', 'Toda'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['izq', 'Izq.'], ['der', 'Der.']].map(([k, t]) => `<button class="btn peq" data-pre="${k}">${t}</button>`).join('')}</span>` : '');
   E.append(barra);
-  barra.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { ESC.modo = b.dataset.modo; ponConf('escModo', ESC.modo); pintaEscaner(); });
+  barra.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { const nuevo = b.dataset.modo; if (nuevo === ESC.modo) return;
+    /* se pasa la selección de un modo al otro: primero el rectángulo, luego se afina alguna esquina */
+    for (const g of ESC.fotos){ if (nuevo === 'esq' && g.rect){ const [a, c, d, e] = g.rect; g.esq = [[a, c], [d, c], [d, e], [a, e]]; } else if (nuevo === 'rect') g.rect = rectDe(g.esq); }
+    ESC.modo = nuevo; ponConf('escModo', ESC.modo); pintaEscaner(); });
   barra.querySelectorAll('[data-pre]').forEach(b => b.onclick = () => { const [a, c, d, e] = f.pag, mx = (a + d) / 2, my = (c + e) / 2;
     f.rect = {toda: [a, c, d, e], arriba: [a, c, d, my], abajo: [a, my, d, e], izq: [a, c, mx, e], der: [mx, c, d, e]}[b.dataset.pre].slice(); dibuja(); });
   const box = document.createElement('div'); box.className = 'editor'; const cv = document.createElement('canvas'); box.append(cv); E.append(box);
