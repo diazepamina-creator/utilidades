@@ -312,7 +312,9 @@ details.pr>div{margin:4px 0 0 10px}
       <h2>Notas</h2>
       <p class="nota" id="ajNotas"></p>
       <p class="nota">Las notas (por número de lista, sin nombres) solo están en este móvil: no van a GitHub. Guarda una copia de vez en cuando en tu OneDrive y, si cambias de móvil, la recuperas aquí.</p>
-      <div class="fila"><button class="btn peq" id="bCopiaNotas">Guardar copia</button><button class="btn peq" id="bRecNotas">Recuperar una copia</button><input type="file" id="fRecNotas" accept="application/json,.json" hidden></div>
+      <label class="nota" style="display:block">Nombre de la copia</label>
+      <div class="fila"><input type="text" id="ajNomCopia" style="flex:1" autocomplete="off"></div>
+      <div class="fila" style="margin-top:8px"><button class="btn peq acento" id="bCompNotas">Compartir (OneDrive)</button><button class="btn peq" id="bCopiaNotas">Descargar</button><button class="btn peq" id="bRecNotas">Recuperar una copia</button><input type="file" id="fRecNotas" accept="application/json,.json" hidden></div>
     </div>
     <div class="caja">
       <h2>Espacio</h2>
@@ -395,7 +397,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.13.4';
+const VERSION = '1.13.5';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1393,9 +1395,11 @@ async function pintaAjustes(){
   let t = gh.length + ' de los originales (' + tam(suma(gh)) + ') · ' + loc.length + ' en «Mis archivos» (' + tam(suma(loc)) + ')';
   if (navigator.storage && navigator.storage.estimate){ try { const e = await navigator.storage.estimate(); t += ' · ocupado ' + tam(e.usage || 0) + ' de ' + tam(e.quota || 0) + ' disponibles'; } catch (e) {} }
   $('#ajEspacio').textContent = t;
+  $('#ajNomCopia').value = nombreCopia();
   $('#ajNotas').textContent = resumenNotas() + ' · ' + (NT.ultimaCopia ? 'última copia: ' + new Date(NT.ultimaCopia).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) : 'sin ninguna copia todavía');
 }
-$('#bCopiaNotas').onclick = copiaNotas;
+$('#bCompNotas').onclick = () => copiaNotas('compartir', $('#ajNomCopia').value);
+$('#bCopiaNotas').onclick = () => copiaNotas('descargar', $('#ajNomCopia').value);
 $('#bRecNotas').onclick = () => $('#fRecNotas').click();
 $('#fRecNotas').onchange = e => { if (e.target.files[0]) recuperaNotas(e.target.files[0]); e.target.value = ''; };
 $('#bToken').onclick = async () => { const t = $('#ajToken').value.trim(); if (!t) return aviso('Pega el token primero'); await ponConf('token', t); aviso('Token guardado'); pintaAjustes(); };
@@ -2407,12 +2411,17 @@ function faltaCopia(){ if (!NT.cambio || (NT.ultimaCopia || 0) >= NT.cambio) ret
 function avisoCopia(){ const d = faltaCopia(), A = $('#hoyCopia'); if (!A) return;
   A.innerHTML = d == null ? '' : `<div class="caja copia"><b>Notas sin copia</b><p class="nota" style="margin:4px 0 8px">${d === Infinity ? 'Aún no has guardado ninguna copia.' : 'La última copia es de hace ' + Math.floor(d) + ' días y desde entonces has corregido más.'} Solo están en este ${/iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent)) ? 'iPad' : 'móvil'}.</p>
     <div class="fila"><button class="btn acento peq" id="hoyCopiaYa">Guardar copia en OneDrive</button><span class="nota">Elige OneDrive en el menú de compartir.</span></div></div>`;
-  if ($('#hoyCopiaYa')) $('#hoyCopiaYa').onclick = copiaNotas; }
+  if ($('#hoyCopiaYa')) $('#hoyCopiaYa').onclick = () => copiaNotas('compartir'); }
 const hechaCopia = async () => { NT.ultimaCopia = Date.now(); await guardaDB('conf', NT, 'notas'); avisoCopia(); if (!$('#v-ajustes').hidden) pintaAjustes(); };
-async function copiaNotas(){ const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT})], {type: 'application/json'}), nombre = 'notas-' + hoyISO() + '.json';
-  const f = new File([b], nombre, {type: 'application/json'});
-  if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); await hechaCopia(); aviso('Copia hecha'); return; } catch (e) { if (e.name === 'AbortError') return; } }
-  descarga(b, nombre); await hechaCopia(); aviso('Copia descargada: muévela a tu OneDrive'); }
+/* el nombre lleva fecha y hora: OneDrive no deja subir un archivo con el nombre de otro que ya está */
+const nombreCopia = () => { const d = new Date(); return 'notas-' + hoyISO() + '-' + String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0') + '.json'; };
+async function copiaNotas(modo = 'compartir', nombre){
+  nombre = (nombre || nombreCopia()).trim().replace(/[\\/:*?"<>|]/g, '-'); if (!/\.json$/i.test(nombre)) nombre += '.json';
+  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
+  if (modo === 'compartir'){
+    if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    aviso('Este móvil no deja compartir desde aquí: la descargo', 3000); }
+  descarga(b, nombre); await hechaCopia(); aviso('Copia «' + nombre + '» descargada: súbela a tu OneDrive', 4000); }
 async function recuperaNotas(file){
   try { const o = JSON.parse(await file.text()); if (o.app !== 'utilidades-notas' || !o.notas) throw new Error('no es una copia de notas');
     if (!confirm('¿Cambiar las notas de este móvil (' + resumenNotas() + ') por las de la copia del ' + new Date(o.fecha).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '?')) return;
