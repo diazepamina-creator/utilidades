@@ -379,7 +379,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.9';
+const VERSION = '1.9.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1940,6 +1940,8 @@ function pintaListaEd(C){
     h += `<div class="caja copia"><b>Al guardar</b><p class="nota" style="margin:4px 0 0">${Object.entries(mapas).map(([g, mp]) => { const fu = Object.entries(mp).filter(([, v]) => v == null).map(([n]) => n), mov = Object.entries(mp).filter(([n, v]) => v != null && v !== +n);
       return `${etqGrupo(g)}: se quita${fu.length > 1 ? 'n' : ''} el n.º ${fu.join(', ')}${mov.length ? '; del ' + mov[0][0] + ' al ' + mov[mov.length - 1][0] + ' bajan' : ''}.`; }).join(' ')}</p>
       ${LE.correr && afect.length ? `<p class="nota" style="margin:6px 0 0">Tus notas de ${afect.map(etqGrupo).join(', ')} en esta app se mueven con los números. Lo que tengas con el número viejo fuera de aquí (el cuaderno de aula, exámenes en papel, Itaca) no cambia.</p>` : ''}
+      <label class="nota" style="display:block;margin-top:10px">Nombre del archivo nuevo</label>
+      <div class="fila"><input type="text" id="leNom" value="${esc(LE.nuevo || LE.nombre.replace(/(\.csv)?$/i, '') .replace(/-\d{4}-\d{2}-\d{2}$/, '') + '-' + hoyISO() + '.csv')}" style="flex:1" autocomplete="off"></div>
       <div class="fila" style="margin-top:10px"><button class="btn acento" id="leGuarda"${grupos.includes('¿?') ? ' disabled' : ''}>Guardar la lista nueva en OneDrive</button></div></div>`;
   }
   h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="leCierra">Cerrar sin guardar</button></div>`;
@@ -1949,19 +1951,21 @@ function pintaListaEd(C){
   C.querySelectorAll('[data-lefila]').forEach(b => b.onclick = () => { const i = +b.dataset.lefila; if (LE.quitar.has(i)) LE.quitar.delete(i); else LE.quitar.add(i);
     const det = b.closest('details'); pintaHerramienta(); const abierto = [...C.querySelectorAll('details.grupo')].find(x => x.querySelector(`[data-lefila="${i}"]`)); if (abierto) abierto.open = true; });
   $('#leCierra').onclick = () => { LE = null; pintaHerramienta(); };
+  if ($('#leNom')) $('#leNom').oninput = e => { LE.nuevo = e.target.value; };
   if ($('#leGuarda')) $('#leGuarda').onclick = async () => {
     const borra = notasDeQuitados(mapas);
     if (borra.length && !confirm('En esta app hay notas de ' + borra.join(', ') + '. Al quitarlos se borran. ¿Seguimos?')) return;
     const texto = textoNuevo(mapas), bytes = LE.enc === 'windows-1252' ? enWindows(texto) : new TextEncoder().encode(texto);
-    const blob = new Blob([bytes], {type: 'text/csv'}), file = new File([blob], LE.nombre, {type: 'text/csv'});
+    let nom = ($('#leNom').value || '').trim().replace(/[\\/:*?"<>|]/g, '-') || 'lista.csv'; if (!/\.csv$/i.test(nom)) nom += '.csv';
+    const blob = new Blob([bytes], {type: 'text/csv'}), file = new File([blob], nom, {type: 'text/csv'});
     try {
-      if (navigator.canShare && navigator.canShare({files: [file]})) await navigator.share({files: [file], title: LE.nombre}); else descarga(blob, LE.nombre);
-    } catch (e) { if (e.name === 'AbortError') return aviso('No se ha guardado nada'); descarga(blob, LE.nombre); }
+      if (navigator.canShare && navigator.canShare({files: [file]})) await navigator.share({files: [file], title: nom}); else descarga(blob, nom);
+    } catch (e) { if (e.name === 'AbortError') return aviso('No se ha guardado nada'); descarga(blob, nom); }
     if (LE.correr) mueveNotas(mapas);
     /* si los nombres estaban cargados para corregir, se cambian por los nuevos */
     for (const g of Object.keys(mapas)) if (LISTA[g]){ const L = {}; for (const d of LE.A.datos.filter(x => x.g === g)){ const v = mapas[g][d.n]; if (v != null) L[v] = d.nombre; } LISTA[g] = L; }
     const sel = LE.nombre; LE = null; pintaHerramienta();
-    aviso('Hecho. En OneDrive, que sustituya a la vieja «' + sel + '»', 5000);
+    aviso('Guardada como «' + nom + '». Cuando la veas en OneDrive, borra la vieja «' + sel + '»', 6000);
   };
 }
 
