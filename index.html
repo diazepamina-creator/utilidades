@@ -37,7 +37,9 @@
     nota de la evaluación con los pesos de la programació d'aula. Las fichas,
     con la rúbrica de las dos vueltas (herramientas/fichas.json); las del taller,
     con 0-1-2. TAREA DE AULES: los campos del formulario, listos para copiar;
-    las sesiones, de una copia del cuaderno de aula que no se guarda. Por número
+    las sesiones, de una copia del cuaderno de aula que no se guarda. LISTA DE
+    NOMBRES: quitar a quien no viene y correr los números, y devolver el CSV al
+    OneDrive en su mismo formato; las notas de la app se mueven con los números. Por número
     de lista, sin nombres, y solo en el móvil: nunca van a GitHub.
   - Las páginas se pintan de una en una al exportar, nunca todas a la vez:
     un examen de 40 páginas a 150 ppp no cabe en la memoria de un móvil.
@@ -224,6 +226,7 @@ details.pr>div{margin:4px 0 0 10px}
       <button data-h="corregir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l1.5 1.5L12 8M8 15l1.5 1.5L12 14M14 9h3M14 15h3"/></svg><b>Corregir examen</b><span>Con la rúbrica, casilla a casilla: nota y estadísticas</span></button>
       <button data-h="fichas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="10" cy="12" r="1.6"/><path d="M13 12h3M9 16.5l1.3 1.3 2.4-2.6M14 17h2"/></svg><b>Corregir fichas</b><span>La rúbrica de las dos vueltas; en el taller, 0-1-2</span></button>
       <button data-h="evaluacion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h8"/></svg><b>Nota de la evaluación</b><span>80/10/10, para Itaca, y quién recupera qué</span></button>
+      <button data-h="lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h1M4 12h1M4 18h1"/><path d="M15 9l3 6" opacity=".6"/></svg><b>Lista de nombres</b><span>Quitar a quien no viene y correr los números</span></button>
       <button data-h="tapar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="11" y="6.5" width="8" height="4" fill="currentColor"/><path d="M6 14h12M6 17h8"/></svg><b>Tapar nombres</b><span>Recuadro negro sobre el nombre, para compartir</span></button>
       <button data-h="reducir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg><b>Reducir peso</b><span>Para Aules o el correo</span></button>
       <button data-h="unir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="10" height="13" rx="1.5"/><rect x="11" y="8" width="10" height="13" rx="1.5"/></svg><b>Unir</b><span>Varios PDF en uno</span></button>
@@ -376,7 +379,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.8.1';
+const VERSION = '1.9';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -422,7 +425,7 @@ function ve(v){
 $$('.pie button').forEach(b => b.onclick = () => ve(b.dataset.v));
 const pila = [];
 const AL_CERRAR = {visor: () => { $('#visorPags').innerHTML = ''; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); },
-  editorPag: () => { if (editorFin) editorFin(); }, corrige: () => { if (H && (H.tipo === 'corregir' || H.tipo === 'fichas')) pintaHerramienta(); }};
+  editorPag: () => { if (editorFin) editorFin(); }, herramienta: () => { LE = null; CUAD = null; }, corrige: () => { if (H && (H.tipo === 'corregir' || H.tipo === 'fichas')) pintaHerramienta(); }};
 function abreCapa(id){ $('#' + id).hidden = false; pila.push(id); history.pushState({capa: id}, ''); }
 function cambiaCapa(id){ const v = pila.pop(); if (v){ $('#' + v).hidden = true; (AL_CERRAR[v] || (() => {}))(); } $('#' + id).hidden = false; pila.push(id); history.replaceState({capa: id}, ''); }
 function cierraCapa(){ if (pila.length) history.back(); }
@@ -685,7 +688,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', aules: 'Tarea de Aules', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', aules: 'Tarea de Aules', lista: 'Lista de nombres', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -702,6 +705,7 @@ function pintaHerramienta(){
   if (H.tipo === 'qr') return pintaQR(C);
   if (H.tipo === 'actas') return pintaActas(C);
   if (H.tipo === 'aules') return pintaAules(C);
+  if (H.tipo === 'lista') return pintaListaEd(C);
   if (H.tipo === 'corregir') return pintaCorregir(C);
   if (H.tipo === 'fichas') return pintaFichas(C);
   if (H.tipo === 'evaluacion') return pintaEvaluacion(C);
@@ -1366,38 +1370,55 @@ const corto = nom => { if (nom.includes(',')){ const [ape, n] = nom.split(','); 
   const w = nom.trim().split(/\s+/); return w[0] + (w[1] ? ' ' + w[1][0] + '.' : ''); };
 const normGrupo = s => { s = String(s || '').trim(); if (/taller/i.test(s)) return 'T4';
   const m = /^\D*([1-4])\s*(?:r|n|t|º|o|°|\.º|er|ero|ndo|do)?\s*(?:d'|de\s+)?(?:ESO)?\s*[-·.]?\s*([A-H])$/i.exec(s); return m ? m[1] + m[2].toUpperCase() : null; };
-function leeLista(txt, gActual){
-  const ls = txt.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
-  const sep = [';', '\t', ','].map(c => [c, ls.slice(0, 6).reduce((s, l) => s + l.split(c).length - 1, 0)]).sort((a, b) => b[1] - a[1])[0][0];
-  const filas = ls.map(l => l.split(sep).map(x => x.trim().replace(/^"(.*)"$/, '$1').trim()));
-  const ncol = Math.max(...filas.map(f => f.length)), esN = x => /^\d{1,2}$/.test(x || '') && +x >= 1 && +x <= 60;
-  let cn = -1, mejor = 0; for (let j = 0; j < ncol; j++){ const k = filas.filter(f => esN(f[j])).length; if (k > mejor){ mejor = k; cn = j; } }
+/* un renglón de CSV en trozos, respetando las comillas; cada trozo, tal como venía (para reescribirlo igual) */
+function trozosCSV(l, sep){ const out = []; let cur = '', q = false;
+  for (let i = 0; i < l.length; i++){ const c = l[i]; if (c === '"'){ q = !q; cur += c; } else if (c === sep && !q){ out.push(cur); cur = ''; } else cur += c; }
+  out.push(cur); return out; }
+const valorCSV = r => { r = r.trim(); return (/^".*"$/.test(r) ? r.slice(1, -1).replace(/""/g, '"') : r).trim(); };
+/* el análisis del archivo: qué columna es el número, de qué grupo es cada renglón y su nombre.
+   Lo usan la carga de nombres (corrector, fichas, evaluación) y la herramienta que arregla la lista */
+function analizaLista(txt, gActual){
+  const bom = txt.charCodeAt(0) === 0xFEFF; txt = txt.replace(/^﻿/, '');
+  const eol = /\r\n/.test(txt) ? '\r\n' : '\n', lineas = txt.split(/\r?\n/);
+  const ls = lineas.filter(l => l.trim());
+  const sep = [';', '\t', ','].map(c => [c, ls.slice(0, 6).reduce((s, l) => s + trozosCSV(l, c).length - 1, 0)]).sort((a, b) => b[1] - a[1])[0][0];
+  const filas = lineas.map(l => l.trim() ? trozosCSV(l, sep).map(valorCSV) : null);
+  const llenas = filas.filter(Boolean), ncol = Math.max(...llenas.map(f => f.length)), esN = x => /^\d{1,2}$/.test(x || '') && +x >= 1 && +x <= 60;
+  let cn = -1, mejor = 0; for (let j = 0; j < ncol; j++){ const k = llenas.filter(f => esN(f[j])).length; if (k > mejor){ mejor = k; cn = j; } }
   if (cn < 0 || mejor < 2) throw new Error('no encuentro la columna del número de lista');
-  const hayCab = !esN(filas[0][cn]), cab = hayCab ? filas[0].map(h => llano(h)) : [];
+  const i0 = filas.findIndex(Boolean), hayCab = !esN(filas[i0][cn]), cab = hayCab ? filas[i0].map(h => llano(h)) : [];
   const iG = cab.findIndex(h => /grup|curs|unitat|unidad|clase/.test(h));
   const iNom = cab.findIndex(h => /\bnom\b|nombre/.test(h) && !/cognom|apellid/.test(h));
   const iApe = cab.map((h, j) => /cognom|apellid/.test(h) ? j : -1).filter(j => j >= 0);
-  const out = {}; let seccion = null, secciones = 0;
-  for (const f of filas.slice(hayCab ? 1 : 0)){
+  const datos = []; let seccion = null;
+  filas.forEach((f, i) => {
+    if (!f || (hayCab && i === i0)) return;
     /* un renglón sin número que nombra un grupo («1r ESO A», «Taller…») abre su lista */
-    if (!esN(f[cn])){ const t = f.filter(Boolean).join(' ').trim(); if (t){ seccion = normGrupo(t) || 'otro: ' + t.slice(0, 30); secciones++; } continue; }
+    if (!esN(f[cn])){ const t = f.filter(Boolean).join(' ').trim(); if (t) seccion = normGrupo(t) || 'otro: ' + t.slice(0, 30); return; }
     const nombre = iNom >= 0 && iApe.length ? iApe.map(j => f[j]).filter(Boolean).join(' ') + ', ' + f[iNom]
       : f.filter((x, j) => j !== cn && j !== iG && x && !/^\d+$/.test(x)).join(' ');
-    if (!nombre.replace(/[,\s]/g, '')) continue;
-    const g = iG >= 0 ? (normGrupo(f[iG]) || 'otro: ' + (f[iG] || '¿?')) : seccion || gActual;
-    const L = out[g] = out[g] || {};
-    if (L[+f[cn]]) throw new Error('el n.º ' + f[cn] + ' sale dos veces en ' + (g.startsWith('otro') ? g.slice(6) : etqGrupo(g)) + ': parece que hay varias listas y no sé de qué grupo es cada una. Deja en el archivo solo un grupo, o añade una columna «Grupo»');
-    L[+f[cn]] = nombre;
-  }
+    if (!nombre.replace(/[,\s]/g, '')) return;
+    datos.push({fila: i, n: +f[cn], g: iG >= 0 ? (normGrupo(f[iG]) || 'otro: ' + (f[iG] || '¿?')) : seccion || gActual, nombre});
+  });
+  return {bom, eol, sep, lineas, cn, datos};
+}
+function leeLista(txt, gActual){
+  const out = {};
+  for (const d of analizaLista(txt, gActual).datos){ const L = out[d.g] = out[d.g] || {};
+    if (L[d.n]) throw new Error('el n.º ' + d.n + ' sale dos veces en ' + (d.g.startsWith('otro') ? d.g.slice(6) : etqGrupo(d.g)) + ': parece que hay varias listas y no sé de qué grupo es cada una. Deja en el archivo solo un grupo, o añade una columna «Grupo»');
+    L[d.n] = d.nombre; }
   if (!Object.keys(out).length) throw new Error('no hay ningún alumno con número');
   return out;
 }
+/* leer el archivo en UTF-8 o, si no lo es, como lo guarda Excel en Windows */
+async function textoLista(file){ const buf = await file.arrayBuffer();
+  try { return {txt: new TextDecoder('utf-8', {fatal: true}).decode(buf), enc: 'utf-8'}; } catch (e) { return {txt: new TextDecoder('windows-1252').decode(buf), enc: 'windows-1252'}; } }
 function montaNombres(C){
   if ($('#cOlvida')) $('#cOlvida').onclick = () => { LISTA = {}; aviso('Nombres olvidados'); pintaHerramienta(); };
   if (!$('#cLista')) return;
   $('#cLista').onclick = () => $('#cListaF').click();
   $('#cListaF').onchange = async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return;
-    const buf = await file.arrayBuffer(); let txt; try { txt = new TextDecoder('utf-8', {fatal: true}).decode(buf); } catch (er) { txt = new TextDecoder('windows-1252').decode(buf); }
+    const {txt} = await textoLista(file);
     try { const L = leeLista(txt, H.g), mios = gruposDe(''), fuera = Object.keys(L).filter(g => !mios.includes(g));
       for (const g of fuera) delete L[g]; const gs = Object.keys(L);
       if (!gs.length) return aviso('Ningún alumno es de tus grupos (' + fuera.map(g => g.startsWith('otro') ? g.slice(6) : etqGrupo(g)).join(', ') + ')', 5000);
@@ -1837,6 +1858,111 @@ function eventosAules(A){
     {id: id(), fecha: A.vence, grupos: g, tipo: 'entrega', texto: `Vencen a las 23:59 las actas de ${A.app} (${t}).`, local: true}];
   if (A.tipo === 'previa') return [{id: id(), fecha: suma(A.fecha, 1), grupos: g, tipo: 'aules', texto: `Salen solas en Aules las soluciones de la ficha previa de ${t}.`, local: true}];
   return [];
+}
+
+/* ── ARREGLAR LA LISTA DE NOMBRES ──
+   Quitar a quien no viene (pero sigue matriculado) y, si se quiere, correr los números:
+   quitado el 12, el 13 pasa a ser el 12, el 14 el 13… Todo pasa en el móvil: el CSV se abre
+   desde el OneDrive, se arregla aquí y se devuelve al OneDrive con el menú de compartir,
+   en el mismo formato (separador, codificación, comillas); los renglones que no cambian se
+   escriben tal como venían. Si se corren los números, las notas de esta app (corrector,
+   fichas, evaluación) se mueven con ellos; lo apuntado fuera (cuaderno de aula, papeles,
+   Itaca) no. Los nombres no se guardan: viven en LE mientras la herramienta está abierta. */
+let LE = null;
+const CP1252 = {'€': 0x80, '‚': 0x82, 'ƒ': 0x83, '„': 0x84, '…': 0x85, '†': 0x86, '‡': 0x87, 'ˆ': 0x88, '‰': 0x89, 'Š': 0x8A, '‹': 0x8B, 'Œ': 0x8C, 'Ž': 0x8E,
+  '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97, '˜': 0x98, '™': 0x99, 'š': 0x9A, '›': 0x9B, 'œ': 0x9C, 'ž': 0x9E, 'Ÿ': 0x9F};
+const enWindows = t => Uint8Array.from([...t].map(c => { const k = c.charCodeAt(0); return k < 0x80 || (k >= 0xA0 && k < 0x100) ? k : CP1252[c] || 0x3F; }));
+/* para cada grupo tocado: número viejo → número nuevo (null = quitado) */
+function mapasLista(){
+  const m = {};
+  for (const g of new Set(LE.A.datos.filter(d => LE.quitar.has(d.fila)).map(d => d.g))){
+    const ds = LE.A.datos.filter(d => d.g === g).sort((a, b) => a.n - b.n), q = ds.filter(d => LE.quitar.has(d.fila));
+    m[g] = {}; for (const d of ds) m[g][d.n] = LE.quitar.has(d.fila) ? null : LE.correr ? d.n - q.filter(x => x.n < d.n).length : d.n;
+  }
+  return m;
+}
+function textoNuevo(mapas){
+  const {lineas, sep, cn, eol, bom} = LE.A, porFila = new Map(LE.A.datos.map(d => [d.fila, d]));
+  const out = [];
+  lineas.forEach((l, i) => { const d = porFila.get(i);
+    if (!d || !mapas[d.g]){ out.push(l); return; }
+    const nuevo = mapas[d.g][d.n]; if (nuevo == null) return;
+    if (nuevo === d.n){ out.push(l); return; }
+    const tr = trozosCSV(l, sep), r = tr[cn], m = /^(\s*"?\s*)\d+(\s*"?\s*)$/.exec(r);
+    tr[cn] = m ? m[1] + nuevo + m[2] : String(nuevo); out.push(tr.join(sep)); });
+  return (bom ? '﻿' : '') + out.join(eol);
+}
+/* las notas de la app, con los números nuevos */
+function mueveNotas(mapas){
+  const remap = (al, mp) => { const o = {}; for (const [k, v] of Object.entries(al || {})){ const n = +k; if (!(n in mp)) o[k] = v; else if (mp[n] != null) o[mp[n]] = v; } return o; };
+  for (const [g, mp] of Object.entries(mapas)){
+    for (const [k, R] of Object.entries(NT.corr)) if (k.endsWith('|' + g)) R.al = remap(R.al, mp);
+    for (const [k, R] of Object.entries(NT.fichas || {})) if (k.endsWith('|' + g)) R.al = remap(R.al, mp);
+    for (const [k, E] of Object.entries(NT.eval)) if (k.startsWith(g + '|')) E.al = remap(E.al, mp);
+    const vivos = Object.values(mp).filter(v => v != null); if (vivos.length) NT.alumnos[g] = Math.max(...vivos);
+  }
+  guardaNotas();
+}
+/* quién tiene notas en la app y se va a quitar (para avisar antes de borrar) */
+function notasDeQuitados(mapas){
+  const out = [];
+  for (const [g, mp] of Object.entries(mapas)) for (const [n, v] of Object.entries(mp)) if (v == null){
+    const tiene = Object.entries(NT.corr).some(([k, R]) => k.endsWith('|' + g) && R.al[n]) || Object.entries(NT.fichas || {}).some(([k, R]) => k.endsWith('|' + g) && R.al[n]) || Object.entries(NT.eval).some(([k, E]) => k.startsWith(g + '|') && E.al[n]);
+    if (tiene) out.push(etqGrupo(g) + ' n.º ' + n); }
+  return out;
+}
+function pintaListaEd(C){
+  if (!LE){
+    C.innerHTML = `<div class="caja"><h2>La lista de nombres</h2><p class="nota" style="margin-top:0">Abre tu CSV desde el OneDrive. Podrás quitar a quien no viene y, si quieres, correr los números. Al acabar, lo guardas otra vez en el OneDrive. El archivo no sale del móvil y aquí no se queda ningún nombre.</p>
+      <div class="fila"><button class="btn prim" id="leAbre">Abrir la lista (CSV)</button><input type="file" id="leF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>`;
+    $('#leAbre').onclick = () => $('#leF').click();
+    $('#leF').onchange = async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+      try { const {txt, enc} = await textoLista(file), A = analizaLista(txt, '¿?');
+        if (!A.datos.length) throw new Error('no hay ningún alumno con número');
+        const vistos = new Set(); for (const d of A.datos){ const k = d.g + '|' + d.n; if (vistos.has(k)) throw new Error('el n.º ' + d.n + ' sale dos veces en el mismo grupo: hay varias listas y el archivo no dice de qué grupo es cada una'); vistos.add(k); }
+        LE = {nombre: file.name, enc, A, quitar: new Set(), correr: true}; pintaHerramienta(); }
+      catch (er) { aviso('No puedo leer la lista: ' + er.message, 4500); } };
+    return;
+  }
+  const grupos = [...new Set(LE.A.datos.map(d => d.g))], mapas = mapasLista(), mios = gruposDe('');
+  let h = `<div class="caja"><p class="nota" style="margin:0">${esc(LE.nombre)} · ${LE.A.datos.length} alumnos · ${grupos.length} ${grupos.length === 1 ? 'grupo' : 'grupos'}</p>
+    ${grupos.includes('¿?') ? `<div class="fila nota" style="margin-top:8px">El archivo no dice el grupo: es de <select id="leG"><option value="">elige…</option>${mios.map(g => `<option value="${g}">${etqGrupo(g)}</option>`).join('')}</select></div>` : ''}
+    <label class="nota" style="display:flex;gap:8px;margin-top:8px"><input type="checkbox" id="leCorre"${LE.correr ? ' checked' : ''}><span><b>Correr los números</b>: si quitas el 12, el 13 pasa a ser el 12, el 14 el 13…</span></label></div>`;
+  for (const g of grupos.sort((a, b) => (mios.includes(b) - mios.includes(a)) || ordena(a, b))){
+    const ds = LE.A.datos.filter(d => d.g === g).sort((a, b) => a.n - b.n), q = ds.filter(d => LE.quitar.has(d.fila)).length;
+    h += `<details class="grupo"${mios.includes(g) ? '' : ''}><summary>${g === '¿?' ? 'Sin grupo' : g.startsWith('otro') ? esc(g.slice(6)) : etqGrupo(g)} <span class="n">${ds.length - q} alumnos${q ? ' · quitas ' + q : ''}</span></summary>
+      ${ds.map(d => { const fuera = LE.quitar.has(d.fila), nuevo = mapas[g] ? mapas[g][d.n] : d.n;
+        return `<div class="cas" style="padding:6px 14px"><span${fuera ? ' style="text-decoration:line-through;opacity:.5"' : ''}><b>${d.n}</b>${!fuera && nuevo !== d.n ? ' <span class="ok">→ ' + nuevo + '</span>' : ''} ${esc(d.nombre)}</span><button class="btn peq${fuera ? '' : ' peligro'}" data-lefila="${d.fila}">${fuera ? 'Devolver' : 'Quitar'}</button></div>`; }).join('')}</details>`;
+  }
+  const cambios = Object.keys(mapas).length;
+  if (cambios){
+    const afect = Object.keys(mapas).filter(g => Object.keys(NT.corr).concat(Object.keys(NT.fichas || {})).some(k => k.endsWith('|' + g)) || Object.keys(NT.eval).some(k => k.startsWith(g + '|')));
+    h += `<div class="caja copia"><b>Al guardar</b><p class="nota" style="margin:4px 0 0">${Object.entries(mapas).map(([g, mp]) => { const fu = Object.entries(mp).filter(([, v]) => v == null).map(([n]) => n), mov = Object.entries(mp).filter(([n, v]) => v != null && v !== +n);
+      return `${etqGrupo(g)}: se quita${fu.length > 1 ? 'n' : ''} el n.º ${fu.join(', ')}${mov.length ? '; del ' + mov[0][0] + ' al ' + mov[mov.length - 1][0] + ' bajan' : ''}.`; }).join(' ')}</p>
+      ${LE.correr && afect.length ? `<p class="nota" style="margin:6px 0 0">Tus notas de ${afect.map(etqGrupo).join(', ')} en esta app se mueven con los números. Lo que tengas con el número viejo fuera de aquí (el cuaderno de aula, exámenes en papel, Itaca) no cambia.</p>` : ''}
+      <div class="fila" style="margin-top:10px"><button class="btn acento" id="leGuarda"${grupos.includes('¿?') ? ' disabled' : ''}>Guardar la lista nueva en OneDrive</button></div></div>`;
+  }
+  h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="leCierra">Cerrar sin guardar</button></div>`;
+  C.innerHTML = h;
+  if ($('#leG')) $('#leG').onchange = e => { if (!e.target.value) return; for (const d of LE.A.datos) if (d.g === '¿?') d.g = e.target.value; pintaHerramienta(); };
+  $('#leCorre').onchange = e => { LE.correr = e.target.checked; pintaHerramienta(); };
+  C.querySelectorAll('[data-lefila]').forEach(b => b.onclick = () => { const i = +b.dataset.lefila; if (LE.quitar.has(i)) LE.quitar.delete(i); else LE.quitar.add(i);
+    const det = b.closest('details'); pintaHerramienta(); const abierto = [...C.querySelectorAll('details.grupo')].find(x => x.querySelector(`[data-lefila="${i}"]`)); if (abierto) abierto.open = true; });
+  $('#leCierra').onclick = () => { LE = null; pintaHerramienta(); };
+  if ($('#leGuarda')) $('#leGuarda').onclick = async () => {
+    const borra = notasDeQuitados(mapas);
+    if (borra.length && !confirm('En esta app hay notas de ' + borra.join(', ') + '. Al quitarlos se borran. ¿Seguimos?')) return;
+    const texto = textoNuevo(mapas), bytes = LE.enc === 'windows-1252' ? enWindows(texto) : new TextEncoder().encode(texto);
+    const blob = new Blob([bytes], {type: 'text/csv'}), file = new File([blob], LE.nombre, {type: 'text/csv'});
+    try {
+      if (navigator.canShare && navigator.canShare({files: [file]})) await navigator.share({files: [file], title: LE.nombre}); else descarga(blob, LE.nombre);
+    } catch (e) { if (e.name === 'AbortError') return aviso('No se ha guardado nada'); descarga(blob, LE.nombre); }
+    if (LE.correr) mueveNotas(mapas);
+    /* si los nombres estaban cargados para corregir, se cambian por los nuevos */
+    for (const g of Object.keys(mapas)) if (LISTA[g]){ const L = {}; for (const d of LE.A.datos.filter(x => x.g === g)){ const v = mapas[g][d.n]; if (v != null) L[v] = d.nombre; } LISTA[g] = L; }
+    const sel = LE.nombre; LE = null; pintaHerramienta();
+    aviso('Hecho. En OneDrive, que sustituya a la vieja «' + sel + '»', 5000);
+  };
 }
 
 /* ── LA NOTA DE LA EVALUACIÓN ── */
