@@ -395,7 +395,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.13.1';
+const VERSION = '1.13.2';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1704,6 +1704,14 @@ function estadCorr(ex, R, N){
   return h;
 }
 
+/* el pie del examen o la ficha de un alumno: anterior, siguiente y «siguiente sin corregir»
+   (el próximo, dando la vuelta, que no está tocado o está a medias; los NP no cuentan) */
+const pieCorrige = (n, N) => `<div class="fila" style="justify-content:space-between;margin:14px 0 4px"><button class="btn" id="crAnt"${n <= 1 ? ' disabled' : ''}>‹ n.º ${n - 1}</button>
+  <button class="btn acento" id="crSinC">Siguiente sin corregir</button><button class="btn prim" id="crSig"${n >= N ? ' disabled' : ''}>n.º ${n + 1} ›</button></div>`;
+function montaSinCorregir(n, N, falta, ve){
+  $('#crSinC').onclick = () => { for (let i = 1; i < N; i++){ const k = (n - 1 + i) % N + 1; if (falta(k)){ ve(k); $('#crCuerpo').parentElement.scrollTop = 0; return; } }
+    aviso(falta(n) ? 'Solo queda este' : 'Ya están todos corregidos', 3000); };
+}
 /* ── EL CORRECTOR: el examen de un alumno ── */
 let CR = null;
 function abreCorrige(n){ CR = {n}; pintaCorrige(); abreCapa('corrige'); }
@@ -1737,8 +1745,9 @@ function pintaCorrige(){
       h += '</div>';
     }
   }
-  h += `<div class="fila" style="justify-content:space-between;margin:14px 0 4px"><button class="btn" id="crAnt"${n <= 1 ? ' disabled' : ''}>‹ n.º ${n - 1}</button><button class="btn prim" id="crSig"${n >= N ? ' disabled' : ''}>n.º ${n + 1} ›</button></div>`;
+  h += pieCorrige(n, N);
   const B = $('#crCuerpo'), top = B.parentElement.scrollTop; B.innerHTML = h;
+  montaSinCorregir(n, N, k => { const al = R.al[k]; return !al || (!al.np && (!Object.keys(al.x || {}).length || notaExamen(ex, al).faltan > 0)); }, k => { CR.n = k; pintaCorrige(); });
   const toca = () => { if (!R.al[n]) R.al[n] = {m: m.modelo, x: {}, c: {}, e: {}}; a = R.al[n]; a.t = Date.now(); R.ultModelo = a.m; return a; };
   const repinta = () => { const t = B.parentElement.scrollTop; guardaNotas(); pintaCorrige(); B.parentElement.scrollTop = t; };
   /* las casillas se marcan sin repintar la pantalla: así no se mueve nada bajo el dedo */
@@ -1916,8 +1925,9 @@ function pintaCorrigeFicha(){
       h += '</div>';
     } else if (r.v1 === 10) h += '<p class="nota">Todo 2: no necesita 2.ª vuelta.</p>';
   }
-  h += `<div class="fila" style="justify-content:space-between;margin:14px 0 4px"><button class="btn" id="crAnt"${n <= 1 ? ' disabled' : ''}>‹ n.º ${n - 1}</button><button class="btn prim" id="crSig"${n >= N ? ' disabled' : ''}>n.º ${n + 1} ›</button></div>`;
+  h += pieCorrige(n, N);
   const B = $('#crCuerpo'), top = B.parentElement.scrollTop; B.innerHTML = h;
+  montaSinCorregir(n, N, k => { const al = R.al[k]; return !al || (!al.ne && notaFicha(al).v1 == null); }, k => { CR.n = k; pintaCorrigeFicha(); });
   const toca = () => { const A = R.al[n] = R.al[n] || {v1: [], ar: [], b: []}; A.v1 = A.v1 || []; A.ar = A.ar || []; A.b = A.b || []; A.t = Date.now(); return A; };
   const repinta = () => { const t = B.parentElement.scrollTop; guardaNotas(); pintaCorrigeFicha(); B.parentElement.scrollTop = t; };
   $('#fNE').onchange = e => { toca().ne = e.target.checked; repinta(); };
