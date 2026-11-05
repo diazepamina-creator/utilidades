@@ -381,7 +381,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.12';
+const VERSION = '1.12.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -462,7 +462,7 @@ const pesoAp = a => { const i = ORDEN_AP.indexOf(a); return i < 0 ? 50 : i; };
 const bonito = n => /^[a-z0-9]+(-[a-z0-9]+)+$/.test(n) ? (n.charAt(0).toUpperCase() + n.slice(1)).replace(/-/g, ' ') : n;
 function filaDoc(d){
   const origen = d.origen === 'github' ? 'originales' : 'en el móvil';
-  return `<button class="doc" data-id="${esc(d.id)}"><span class="ico">${esImg(d) ? 'JPG' : 'PDF'}</span><span class="t"><b>${esc(bonito(d.nombre))}</b><small>${tam(d.tam)} · ${origen}</small></span>${d.hoy ? '<span class="est">★</span>' : ''}</button>`;
+  return `<button class="doc" data-id="${esc(d.id)}"><span class="ico">${esImg(d) ? extImg(d).slice(1).toUpperCase() : 'PDF'}</span><span class="t"><b>${esc(bonito(d.nombre))}</b><small>${tam(d.tam)} · ${origen}</small></span>${d.hoy ? '<span class="est">★</span>' : ''}</button>`;
 }
 function pintaLista(){
   const q = llano($('#busca').value.trim());
@@ -534,8 +534,9 @@ $('#hoja').addEventListener('click', async e => {
 const archivo = n => /\.pdf$/i.test(n) ? n : n + '.pdf';
 /* las capturas para la pizarra son imágenes (JPEG), no PDF: se ven, se comparten y se descargan como imagen */
 const esImg = d => /^image\//.test((d.blob && d.blob.type) || '') || d.origen === 'captura';
-const nombreArch = d => esImg(d) ? (/\.jpe?g$/i.test(d.nombre) ? d.nombre : d.nombre + '.jpg') : archivo(bonito(d.nombre));
-const tipoArch = d => esImg(d) ? 'image/jpeg' : 'application/pdf';
+const extImg = d => /png/.test((d.blob && d.blob.type) || '') ? '.png' : '.jpg';
+const nombreArch = d => esImg(d) ? (/\.(jpe?g|png)$/i.test(d.nombre) ? d.nombre : d.nombre + extImg(d)) : archivo(bonito(d.nombre));
+const tipoArch = d => esImg(d) ? ((d.blob && d.blob.type) || 'image/jpeg') : 'application/pdf';
 async function comparte(d){
   const f = new File([d.blob], nombreArch(d), {type: tipoArch(d)});
   if (navigator.canShare && navigator.canShare({files: [f]})){
@@ -1290,6 +1291,22 @@ function modoDocumento(im){
 /* IMAGEN PARA LA PIZARRA: lo que encierran las esquinas, con su forma (no A4), el lado largo a
    1600 px (se lee bien en la pizarra y pesa poco) y en JPEG: unos cientos de KB, no varios MB */
 let ESC_IMG = [];
+/* PNG en gris de 4 bits (8 tonos y el blanco): para el modo documento pesa la mitad o un tercio que
+   un JPEG y las letras salen limpias, sin las manchas del JPEG. El navegador solo sabe hacer PNG
+   en color de 32 bits, así que se escribe a mano: cabecera, datos comprimidos (deflate) y CRC */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = (b, c = 0xFFFFFFFF) => { for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return c; };
+async function pngGris(im){
+  const W = im.width, H = im.height, d = im.data, fila = Math.ceil(W / 2) + 1, raw = new Uint8Array(fila * H);
+  for (let y = 0; y < H; y++){ raw[y * fila] = 0;
+    for (let x = 0; x < W; x++){ const v = d[4 * (y * W + x)], q8 = Math.round(v / 255 * 7), q = v >= 235 ? 15 : q8 * 2;
+      raw[y * fila + 1 + (x >> 1)] |= x & 1 ? q : q << 4; } }
+  const idat = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  const trozo = (tipo, datos) => { const t = new TextEncoder().encode(tipo), o = new Uint8Array(12 + datos.length), v = new DataView(o.buffer);
+    v.setUint32(0, datos.length); o.set(t, 4); o.set(datos, 8); const cc = new Uint8Array(4 + datos.length); cc.set(t); cc.set(datos, 4); v.setUint32(8 + datos.length, (crc32(cc) ^ 0xFFFFFFFF) >>> 0); return o; };
+  const ihdr = new Uint8Array(13), v = new DataView(ihdr.buffer); v.setUint32(0, W); v.setUint32(4, H); ihdr.set([4, 0, 0, 0, 0], 8);
+  return new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), trozo('IHDR', ihdr), trozo('IDAT', idat), trozo('IEND', new Uint8Array(0))], {type: 'image/png'});
+}
 $('#bEscImg').onclick = async () => {
   const b = $('#bEscImg'), doc = $('#escDoc').checked, R = $('#escImgRes'); b.disabled = true; R.innerHTML = '<p class="nota">Preparando…</p>';
   try {
@@ -1298,16 +1315,17 @@ $('#bEscImg').onclick = async () => {
       const f = ESC.fotos[i], [p0, p1, p2, p3] = esqDe(f).map(([x, y]) => [x * f.cv.width, y * f.cv.height]);
       const ancho = (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p3[0], p2[1] - p3[1])) / 2;
       const alto = (Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1])) / 2;
-      const k = Math.min(1600 / Math.max(ancho, alto), 2), W = Math.max(200, Math.round(ancho * k)), Hh = Math.max(200, Math.round(alto * k));
+      const k = Math.min(1600 / Math.max(ancho, alto), 1.25), W = Math.max(200, Math.round(ancho * k)), Hh = Math.max(200, Math.round(alto * k));
       let im = endereza(f, W, Hh); if (doc) im = modoDocumento(im);
       const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; cv.getContext('2d').putImageData(im, 0, 0);
-      let buf = await jpeg(cv, doc ? .7 : .75); if (buf.byteLength > 600 * 1024) buf = await jpeg(cv, .55);
-      ESC_IMG.push(new File([buf], base + (ESC.fotos.length > 1 ? ' (' + (i + 1) + ')' : '') + '.jpg', {type: 'image/jpeg'}));
+      const nom = base + (ESC.fotos.length > 1 ? ' (' + (i + 1) + ')' : '');
+      if (doc) ESC_IMG.push(new File([await pngGris(im)], nom + '.png', {type: 'image/png'}));
+      else { let buf = await jpeg(cv, .75); if (buf.byteLength > 600 * 1024) buf = await jpeg(cv, .55); ESC_IMG.push(new File([buf], nom + '.jpg', {type: 'image/jpeg'})); }
       await espera();
     }
     const total = ESC_IMG.reduce((s, x) => s + x.size, 0);
     /* y se guardan en «Capturas» de la biblioteca, para volver a mandarlas otro día */
-    let k = 0; for (const x of ESC_IMG) await guardaDB('docs', {id: 'cap:' + Date.now() + ':' + (k++), origen: 'captura', nombre: x.name.replace(/\.jpg$/i, ''), carpeta: 'Capturas', tam: x.size, fecha: Date.now(), hoy: false, blob: x});
+    let k = 0; for (const x of ESC_IMG) await guardaDB('docs', {id: 'cap:' + Date.now() + ':' + (k++), origen: 'captura', nombre: x.name.replace(/\.(jpg|png)$/i, ''), carpeta: 'Capturas', tam: x.size, fecha: Date.now(), hoy: false, blob: x});
     await recarga();
     R.innerHTML = `<div class="caja res"><p style="margin-top:0"><b>${ESC_IMG.length === 1 ? 'Una imagen' : ESC_IMG.length + ' imágenes'}</b> · ${tam(total)} en total · guardada${ESC_IMG.length === 1 ? '' : 's'} en <b>Capturas</b> (Biblioteca)</p>
       <div class="fila"><button class="btn acento" id="bEscImgComp">Compartir (Bluetooth)</button><button class="btn" id="bEscImgBaja">Descargar</button></div></div>`;
@@ -1327,12 +1345,14 @@ $('#bEscPdf').onclick = async () => {
       const f = ESC.fotos[i], [p0, p1, p2, p3] = esqDe(f).map(([x, y]) => [x * f.cv.width, y * f.cv.height]);
       const ancho = (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p3[0], p2[1] - p3[1])) / 2;
       const alto = (Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1])) / 2;
-      const apaisada = ancho > alto, W = apaisada ? 1754 : 1240, Hh = apaisada ? 1240 : 1754;
+      const apaisada = ancho > alto, PW = apaisada ? 1754 : 1240, PH = apaisada ? 1240 : 1754;
+      /* una hoja entera llena el A4; un recorte conserva su forma (no se estira) y va arriba */
+      const kk = Math.min(PW / ancho, PH / alto), W = Math.round(ancho * kk), Hh = Math.round(alto * kk);
       let im = endereza(f, W, Hh); if (doc) im = modoDocumento(im);
       const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; cv.getContext('2d').putImageData(im, 0, 0);
       if (plant && !(imp && i % 2 === 1)) tapa(cv, [plant.r]);
       const img = await out.embedJpg(await jpeg(cv, doc ? .7 : .8)), [pw, ph] = apaisada ? [A4[1], A4[0]] : A4;
-      out.addPage([pw, ph]).drawImage(img, {x: 0, y: 0, width: pw, height: ph});
+      const iw = pw * W / PW, ih = ph * Hh / PH; out.addPage([pw, ph]).drawImage(img, {x: (pw - iw) / 2, y: ph - ih, width: iw, height: ih});
       prog((i + 1) / ESC.fotos.length); await espera();
     }
     const blob = new Blob([await out.save()], {type: 'application/pdf'}), hoy = new Date();
