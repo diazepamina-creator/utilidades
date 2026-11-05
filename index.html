@@ -258,7 +258,9 @@ details.pr>div{margin:4px 0 0 10px}
         <select id="escTapa"><option value="">no</option><option value="fichas">fichas y carril</option><option value="examen">exámenes</option></select>
         <label class="nota"><input type="checkbox" id="escImpares"> solo páginas impares</label>
       </div>
-      <div class="fila" style="margin-top:12px"><button class="btn prim" id="bEscPdf">Crear PDF</button><button class="btn peligro peq" id="bEscVacia">Empezar de nuevo</button></div>
+      <div class="fila" style="margin-top:12px"><button class="btn prim" id="bEscPdf">Crear PDF</button><button class="btn acento" id="bEscImg">Imagen para la pizarra</button><button class="btn peligro peq" id="bEscVacia">Empezar de nuevo</button></div>
+      <p class="nota">«Imagen para la pizarra»: solo lo que encierran las esquinas (un ejercicio, media página…), en una imagen ligera para mandar por Bluetooth.</p>
+      <div id="escImgRes"></div>
       <div class="prog" id="escProg" hidden><i></i></div>
     </div>
   </section>
@@ -379,7 +381,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.9.1';
+const VERSION = '1.10';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1188,6 +1190,33 @@ function modoDocumento(im){
       const j = 4 * (y * W + x); d[j] = d[j + 1] = d[j + 2] = v; } }
   return im;
 }
+/* IMAGEN PARA LA PIZARRA: lo que encierran las esquinas, con su forma (no A4), el lado largo a
+   1600 px (se lee bien en la pizarra y pesa poco) y en JPEG: unos cientos de KB, no varios MB */
+let ESC_IMG = [];
+$('#bEscImg').onclick = async () => {
+  const b = $('#bEscImg'), doc = $('#escDoc').checked, R = $('#escImgRes'); b.disabled = true; R.innerHTML = '<p class="nota">Preparando…</p>';
+  try {
+    ESC_IMG = []; const hoy = new Date(), base = 'Pizarra ' + hoy.toLocaleDateString('es-ES').replace(/\//g, '-') + ' ' + hoy.toTimeString().slice(0, 5).replace(':', '.');
+    for (let i = 0; i < ESC.fotos.length; i++){
+      const f = ESC.fotos[i], [p0, p1, p2, p3] = f.esq.map(([x, y]) => [x * f.cv.width, y * f.cv.height]);
+      const ancho = (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p3[0], p2[1] - p3[1])) / 2;
+      const alto = (Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1])) / 2;
+      const k = Math.min(1600 / Math.max(ancho, alto), 2), W = Math.max(200, Math.round(ancho * k)), Hh = Math.max(200, Math.round(alto * k));
+      let im = endereza(f, W, Hh); if (doc) im = modoDocumento(im);
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; cv.getContext('2d').putImageData(im, 0, 0);
+      let buf = await jpeg(cv, doc ? .7 : .75); if (buf.byteLength > 600 * 1024) buf = await jpeg(cv, .55);
+      ESC_IMG.push(new File([buf], base + (ESC.fotos.length > 1 ? ' (' + (i + 1) + ')' : '') + '.jpg', {type: 'image/jpeg'}));
+      await espera();
+    }
+    const total = ESC_IMG.reduce((s, x) => s + x.size, 0);
+    R.innerHTML = `<div class="caja res"><p style="margin-top:0"><b>${ESC_IMG.length === 1 ? 'Una imagen' : ESC_IMG.length + ' imágenes'}</b> · ${tam(total)} en total</p>
+      <div class="fila"><button class="btn acento" id="bEscImgComp">Compartir (Bluetooth)</button><button class="btn" id="bEscImgBaja">Descargar</button></div></div>`;
+    $('#bEscImgComp').onclick = async () => { try { if (navigator.canShare && navigator.canShare({files: ESC_IMG})) await navigator.share({files: ESC_IMG}); else throw new Error('no'); }
+      catch (e) { if (e.name !== 'AbortError') { ESC_IMG.forEach(x => descarga(x, x.name)); aviso('Este móvil no deja compartir imágenes desde aquí: se han descargado'); } } };
+    $('#bEscImgBaja').onclick = () => ESC_IMG.forEach(x => descarga(x, x.name));
+  } catch (e) { R.innerHTML = ''; aviso('Error: ' + e.message); }
+  finally { b.disabled = false; }
+};
 $('#bEscVacia').onclick = () => { if (ESC.fotos.length && !confirm('¿Quitar todas las fotos?')) return; ESC.fotos = []; ESC.actual = 0; pintaEscaner(); };
 $('#bEscPdf').onclick = async () => {
   const b = $('#bEscPdf'), doc = $('#escDoc').checked, plant = PLANTILLAS[$('#escTapa').value], imp = $('#escImpares').checked, prog = progreso('#escProg');
