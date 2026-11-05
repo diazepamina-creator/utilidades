@@ -395,7 +395,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.13.3';
+const VERSION = '1.13.4';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1590,8 +1590,10 @@ function montaNombres(C){
       for (const g of fuera) delete L[g]; const gs = Object.keys(L);
       if (!gs.length) return aviso('Ningún alumno es de tus grupos (' + fuera.map(g => g.startsWith('otro') ? g.slice(6) : etqGrupo(g)).join(', ') + ')', 5000);
       if (gs.length === 1 && gs[0] === H.g && !fuera.length && !confirm('El archivo no dice el grupo: ¿son los de ' + etqGrupo(H.g) + '? (' + Object.keys(L[H.g]).length + ' alumnos)')) return;
+      for (const g of gs){ const rn = (NT.renum || {})[g], mx = Math.max(...Object.keys(L[g]).map(Number));
+        if (rn && mx === rn.antes && rn.antes !== rn.despues && !confirm('Ojo: esta lista de ' + etqGrupo(g) + ' parece la de ANTES de correr los números (llega al ' + mx + '; la nueva, al ' + rn.despues + '). Tus notas ya están con los números nuevos: con esta lista, los nombres no cuadrarían. ¿Cargarla igualmente?')) return; }
       Object.assign(LISTA, L);
-      for (const g of gs){ const mx = Math.max(...Object.keys(L[g]).map(Number)); if (mx !== NT.alumnos[g]){ NT.alumnos[g] = mx; guardaNotas(); } }
+      for (const g of gs){ const mx = Math.max(...Object.keys(L[g]).map(Number)); const rn = (NT.renum || {})[g]; if (mx !== NT.alumnos[g] && (!rn || mx === rn.despues)){ NT.alumnos[g] = mx; guardaNotas(); } }
       aviso(gs.map(g => etqGrupo(g) + ': ' + Object.keys(L[g]).length).join(' · ') + (fuera.length ? ' · no cargo ' + fuera.map(g => g.startsWith('otro') ? g.slice(6) : etqGrupo(g)).join(', ') + ' (no son grupos tuyos)' : ''), 5000); pintaHerramienta(); }
     catch (er) { aviso('No puedo leer la lista: ' + er.message, 4500); } };
 }
@@ -2084,15 +2086,44 @@ function textoNuevo(mapas){
   return (bom ? '﻿' : '') + out.join(eol);
 }
 /* las notas de la app, con los números nuevos */
+/* cada corrimiento se apunta (solo números y notas) para poder deshacerlo: el mapa viejo → nuevo
+   y las notas de los quitados. Se guardan los cinco últimos */
+const almacenesDe = g => [...Object.entries(NT.corr).filter(([k]) => k.endsWith('|' + g)).map(([k, R]) => ['corr', k, R]),
+  ...Object.entries(NT.fichas || {}).filter(([k]) => k.endsWith('|' + g)).map(([k, R]) => ['fichas', k, R]),
+  ...Object.entries(NT.eval).filter(([k]) => k.startsWith(g + '|')).map(([k, E]) => ['eval', k, E])];
+function remapGrupo(g, mp, guardaQuitados){
+  const quit = [];
+  for (const [tipo, k, R] of almacenesDe(g)){ const o = {};
+    for (const [n, v] of Object.entries(R.al || {})){ const nn = +n; if (!(nn in mp)) o[n] = v; else if (mp[nn] != null) o[mp[nn]] = v; else if (guardaQuitados) quit.push([tipo, k, nn, v]); }
+    R.al = o; }
+  return quit;
+}
 function mueveNotas(mapas){
-  const remap = (al, mp) => { const o = {}; for (const [k, v] of Object.entries(al || {})){ const n = +k; if (!(n in mp)) o[k] = v; else if (mp[n] != null) o[mp[n]] = v; } return o; };
+  const reg = {fecha: Date.now(), grupos: {}};
   for (const [g, mp] of Object.entries(mapas)){
-    for (const [k, R] of Object.entries(NT.corr)) if (k.endsWith('|' + g)) R.al = remap(R.al, mp);
-    for (const [k, R] of Object.entries(NT.fichas || {})) if (k.endsWith('|' + g)) R.al = remap(R.al, mp);
-    for (const [k, E] of Object.entries(NT.eval)) if (k.startsWith(g + '|')) E.al = remap(E.al, mp);
+    reg.grupos[g] = {mapa: mp, quitados: remapGrupo(g, mp, true), antes: NT.alumnos[g]};
     const vivos = Object.values(mp).filter(v => v != null); if (vivos.length) NT.alumnos[g] = Math.max(...vivos);
+    NT.renum = NT.renum || {}; NT.renum[g] = {antes: Math.max(...Object.keys(mp).map(Number)), despues: NT.alumnos[g], fecha: Date.now()};
   }
+  NT.corrimientos = (NT.corrimientos || []).slice(-4).concat([reg]);
   guardaNotas();
+}
+/* deshacer: el mapa al revés y las notas de los quitados en su sitio */
+function deshazCorrimiento(reg){
+  for (const [g, d] of Object.entries(reg.grupos)){
+    const inv = {}; for (const [viejo, nuevo] of Object.entries(d.mapa)) if (nuevo != null) inv[nuevo] = +viejo;
+    remapGrupo(g, inv, false);
+    for (const [tipo, k, n, v] of d.quitados){ const A = tipo === 'corr' ? NT.corr : tipo === 'fichas' ? NT.fichas : NT.eval; if (A[k]) A[k].al[n] = v; }
+    if (d.antes) NT.alumnos[g] = d.antes; if (NT.renum) delete NT.renum[g];
+  }
+  NT.corrimientos = (NT.corrimientos || []).filter(x => x !== reg); guardaNotas();
+}
+/* para un corrimiento hecho antes de que se apuntaran: el grupo y los números (viejos) que se quitaron */
+function deshazAMano(g, quitados){
+  const N = nAlumnos(g), Q = [...new Set(quitados)].sort((a, b) => a - b), viejos = [];
+  for (let k = 1; k <= N + Q.length; k++) if (!Q.includes(k)) viejos.push(k);
+  const inv = {}; viejos.forEach((v, i) => { inv[i + 1] = v; });
+  remapGrupo(g, inv, false); NT.alumnos[g] = N + Q.length; if (NT.renum) delete NT.renum[g]; guardaNotas();
 }
 /* quién tiene notas en la app y se va a quitar (para avisar antes de borrar) */
 function notasDeQuitados(mapas){
@@ -2105,8 +2136,18 @@ function notasDeQuitados(mapas){
 function pintaListaEd(C){
   if (!LE){
     C.innerHTML = `<div class="caja"><h2>La lista de nombres</h2><p class="nota" style="margin-top:0">Abre tu CSV desde el OneDrive. Podrás quitar a quien no viene y, si quieres, correr los números. Al acabar, lo guardas otra vez en el OneDrive. El archivo no sale del móvil y aquí no se queda ningún nombre.</p>
-      <div class="fila"><button class="btn prim" id="leAbre">Abrir la lista (CSV)</button><input type="file" id="leF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>`;
+      <div class="fila"><button class="btn prim" id="leAbre">Abrir la lista (CSV)</button><input type="file" id="leF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>
+      ${(NT.corrimientos || []).slice().reverse().map((r, i) => `<div class="caja"><h2>Deshacer un corrimiento</h2><p class="nota" style="margin-top:0">${new Date(r.fecha).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'})} · ${Object.entries(r.grupos).map(([g, d]) => etqGrupo(g) + ': se quitó el n.º ' + Object.entries(d.mapa).filter(([, v]) => v == null).map(([k]) => k).join(', ')).join(' · ')}. Las notas vuelven a los números de antes (y las de los quitados, también).</p><button class="btn peq peligro" data-desh="${i}">Deshacer</button></div>`).join('')}
+      <details class="caja"><summary class="nota" style="cursor:pointer">Deshacer a mano un corrimiento de antes</summary>
+        <p class="nota">Si corriste los números con la versión anterior de la app: el grupo y el número (o números) que quitaste. Las notas vuelven a su número de antes.</p>
+        <div class="fila"><select id="leDG">${gruposDe('').map(g => `<option value="${g}">${etqGrupo(g)}</option>`).join('')}</select><input type="text" id="leDN" placeholder="n.º quitado (12 o 12, 15)" inputmode="numeric" style="flex:1"><button class="btn peq peligro" id="leDOk">Deshacer</button></div></details>`;
     $('#leAbre').onclick = () => $('#leF').click();
+    C.querySelectorAll('[data-desh]').forEach(b => b.onclick = () => { const r = (NT.corrimientos || []).slice().reverse()[+b.dataset.desh];
+      if (!confirm('¿Devolver las notas a los números de antes? Después carga la lista vieja (la de antes de quitar).')) return; deshazCorrimiento(r); aviso('Hecho: las notas están otra vez con los números de antes', 5000); pintaHerramienta(); });
+    $('#leDOk').onclick = () => { const g = $('#leDG').value, q = ($('#leDN').value.match(/\d+/g) || []).map(Number).filter(x => x > 0);
+      if (!q.length) return aviso('Escribe el número que quitaste');
+      if (!confirm('¿Deshacer en ' + etqGrupo(g) + ' el corrimiento por quitar el n.º ' + q.join(', ') + '? Las notas del ' + q[0] + ' en adelante suben un número. Hazlo una sola vez.')) return;
+      deshazAMano(g, q); aviso('Hecho. Carga la lista de antes (con el n.º ' + q.join(', ') + ') y comprueba un par de alumnos', 6000); pintaHerramienta(); };
     $('#leF').onchange = async e => { const file = e.target.files[0]; e.target.value = ''; if (!file) return;
       try { const {txt, enc} = await textoLista(file), A = analizaLista(txt, '¿?');
         if (!A.datos.length) throw new Error('no hay ningún alumno con número');
@@ -2152,6 +2193,7 @@ function pintaListaEd(C){
     try {
       if (navigator.canShare && navigator.canShare({files: [file]})) await navigator.share({files: [file], title: nom}); else descarga(blob, nom);
     } catch (e) { if (e.name === 'AbortError') return aviso('No se ha guardado nada'); descarga(blob, nom); }
+    if (LE.correr && !confirm('¿Se ha guardado la lista nueva en OneDrive? Solo entonces muevo tus notas a los números nuevos. Si no se ha guardado, pulsa Cancelar y vuelve a intentarlo.')) return aviso('No he movido nada: la lista y las notas siguen como estaban', 5000);
     if (LE.correr) mueveNotas(mapas);
     /* si los nombres estaban cargados para corregir, se cambian por los nuevos */
     for (const g of Object.keys(mapas)) if (LISTA[g]){ const L = {}; for (const d of LE.A.datos.filter(x => x.g === g)){ const v = mapas[g][d.n]; if (v != null) L[v] = d.nombre; } LISTA[g] = L; }
