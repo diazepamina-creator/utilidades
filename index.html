@@ -395,7 +395,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.13.2';
+const VERSION = '1.13.3';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -2176,7 +2176,7 @@ async function pintaAzar(C){
   const ult = G.sal[G.sal.length - 1];
   C.innerHTML = `<div class="caja"><div class="fila"><select id="azG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
       <span class="nota" style="flex:1">${N} alumnos · faltan ${G.aus.length} · han salido ${G.sal.length} · quedan ${quedan().length}</span></div>
-      ${LISTA[g] ? '' : '<p class="nota" style="margin:6px 0 0">Sin nombres: carga la lista en «Corregir examen» o «Corregir fichas» si quieres que salgan.</p>'}</div>
+      <div class="fila" style="margin-top:8px">${LISTA[g] ? `<span class="nota" style="flex:1">Con nombres (solo mientras la app esté abierta).</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button><span class="nota">En la pizarra, mejor sin nombres.</span>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>
     <div class="azar" id="azCaja"><div id="azNum">${ult ? ult : '?'}</div><div id="azNom">${ult && nom(ult) ? esc(corto(nom(ult))) : '&nbsp;'}</div></div>
     <div class="fila" style="justify-content:center;margin:10px 0"><button class="btn acento" id="azSaca" style="font-size:20px;padding:12px 28px">Sacar</button>
       <button class="btn" id="azDeshaz"${ult ? '' : ' disabled'}>Que vuelva</button><button class="btn" id="azPant">⛶</button></div>
@@ -2185,6 +2185,7 @@ async function pintaAzar(C){
       <div class="rej" style="margin-top:8px">${Array.from({length: N}, (_, i) => i + 1).map(n => `<button class="num${G.aus.includes(n) ? ' np' : ''}" data-aus="${n}"><b>${n}</b>${nom(n) ? `<i>${esc(corto(nom(n)))}</i>` : ''}<small>${G.aus.includes(n) ? 'falta' : '&nbsp;'}</small></button>`).join('')}</div></details>
     <div class="fila"><button class="btn peq peligro" id="azReset">Volver a empezar</button></div>`;
   $('#azG').onchange = e => { H.g = e.target.value; pintaHerramienta(); };
+  montaNombres(C);
   C.querySelectorAll('[data-aus]').forEach(b => b.onclick = () => { const n = +b.dataset.aus, k = G.aus.indexOf(n); if (k < 0) G.aus.push(n); else G.aus.splice(k, 1); guardaAzar(); pintaHerramienta(); });
   $('#azReset').onclick = () => { if (!confirm('¿Empezar de cero en ' + etqGrupo(g) + '? Se olvida quién ha salido (los que faltan se quedan).')) return; G.sal = []; guardaAzar(); pintaHerramienta(); };
   $('#azDeshaz').onclick = () => { G.sal.pop(); guardaAzar(); pintaHerramienta(); };
