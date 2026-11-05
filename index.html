@@ -303,7 +303,7 @@ details.pr>div{margin:4px 0 0 10px}
     <div class="caja">
       <h2>Espacio</h2>
       <p class="nota" id="ajEspacio"></p>
-      <div class="fila"><button class="btn peq peligro" id="bBorraMios">Vaciar «Mis archivos»</button><button class="btn peq peligro" id="bBorraGh">Borrar lo traído de GitHub</button><button class="btn peq peligro" id="bBorraTodo">Borrar todo</button></div>
+      <div class="fila"><button class="btn peq peligro" id="bBorraMios">Vaciar «Mis archivos»</button><button class="btn peq peligro" id="bBorraCap">Vaciar «Capturas»</button><button class="btn peq peligro" id="bBorraGh">Borrar lo traído de GitHub</button><button class="btn peq peligro" id="bBorraTodo">Borrar todo</button></div>
     </div>
   </section>
 </main>
@@ -381,7 +381,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.10';
+const VERSION = '1.11';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -455,14 +455,14 @@ function etiqueta(fuente, rel, nombres){
 /* la biblioteca va en dos niveles: la sección (lo de antes del primer « · ») y, dentro, el apartado */
 const seccion = g => g.split(' · ')[0], apartado = g => g.split(' · ').slice(1).join(' · ');
 const pesoGrupo = g => { const t = seccion(g); return /^Aules 1/.test(t) ? 1 : /^Aules 2/.test(t) ? 2 : /^Aules/.test(t) ? 3 : /^Para imprimir/.test(t) ? 3.5 : /^Taller/.test(t) ? 4 : /^Carril/.test(t) ? 5
-  : /^Cuadernillos/.test(t) ? 7 : /^Exámenes/.test(t) ? 8 : /^Olimpiadas/.test(t) ? 9 : t === 'Mis archivos' ? 10 : 6; };
+  : /^Cuadernillos/.test(t) ? 7 : /^Exámenes/.test(t) ? 8 : /^Olimpiadas/.test(t) ? 9 : t === 'Mis archivos' ? 10 : t === 'Capturas' ? 10.5 : 6; };
 const ORDEN_AP = ['fichas 1.º', 'fichas 2.º', 'fichas', 'ficha previa', 'repaso', 'para los que acaban', 'soluciones', 'álbum', 'del profesor', 'claves y rúbrica', 'Aules'];
 const pesoAp = a => { const i = ORDEN_AP.indexOf(a); return i < 0 ? 50 : i; };
 /* los nombres de archivo técnicos (ficha-01-fuerza-1eso) se leen mejor con espacios */
 const bonito = n => /^[a-z0-9]+(-[a-z0-9]+)+$/.test(n) ? (n.charAt(0).toUpperCase() + n.slice(1)).replace(/-/g, ' ') : n;
 function filaDoc(d){
   const origen = d.origen === 'github' ? 'originales' : 'en el móvil';
-  return `<button class="doc" data-id="${esc(d.id)}"><span class="ico">PDF</span><span class="t"><b>${esc(bonito(d.nombre))}</b><small>${tam(d.tam)} · ${origen}</small></span>${d.hoy ? '<span class="est">★</span>' : ''}</button>`;
+  return `<button class="doc" data-id="${esc(d.id)}"><span class="ico">${esImg(d) ? 'JPG' : 'PDF'}</span><span class="t"><b>${esc(bonito(d.nombre))}</b><small>${tam(d.tam)} · ${origen}</small></span>${d.hoy ? '<span class="est">★</span>' : ''}</button>`;
 }
 function pintaLista(){
   const q = llano($('#busca').value.trim());
@@ -503,7 +503,7 @@ $('#lista').addEventListener('contextmenu', e => { if (e.target.closest('.doc'))
 async function borraLargo(id){
   const d = DOCS.find(x => x.id === id); if (!d) return;
   if (d.origen === 'github') return aviso('Viene de tus originales: con «Actualizar» vuelve. Para que no salga, hay que quitarlo del catálogo.', 4500);
-  if (!confirm('¿Borrar «' + bonito(d.nombre) + '» de «Mis archivos»?')) return;
+  if (!confirm('¿Borrar «' + bonito(d.nombre) + '» de «' + d.carpeta + '»?')) return;
   await borraDB('docs', d.id); await recarga(); pintaLista(); aviso('Borrado');
 }
 
@@ -515,6 +515,7 @@ function abreHoja(id){
   $('#hojaMeta').textContent = hojaDoc.carpeta + ' · ' + tam(hojaDoc.tam);
   $('#hojaHoy').textContent = hojaDoc.hoy ? 'Quitar de «para hoy»' : 'Añadir a «para hoy»';
   $('#hojaBorrar').hidden = hojaDoc.origen === 'github';
+  $('#hoja [data-a="herr"]').hidden = esImg(hojaDoc);
   abreCapa('hoja');
 }
 $('#hoja').addEventListener('click', async e => {
@@ -522,7 +523,7 @@ $('#hoja').addEventListener('click', async e => {
   const d = hojaDoc, a = b.dataset.a;
   if (a === 'ver'){ cambiaCapa('visor'); verDoc(d); }
   else if (a === 'compartir'){ cierraCapa(); comparte(d); }
-  else if (a === 'descargar'){ cierraCapa(); descarga(d.blob, archivo(d.nombre)); }
+  else if (a === 'descargar'){ cierraCapa(); descarga(d.blob, nombreArch(d)); }
   else if (a === 'hoy'){ d.hoy = !d.hoy; await guardaDB('docs', d); cierraCapa(); pintaLista(); aviso(d.hoy ? 'En «para hoy»' : 'Quitado de «para hoy»'); }
   else if (a === 'herr'){ cierraCapa(); ve('herr'); herrDoc = d; aviso('Elige qué hacer con «' + d.nombre + '»'); }
   else if (a === 'borrar'){ if (!confirm('¿Borrar «' + d.nombre + '» del móvil?')) return; await borraDB('docs', d.id); await recarga(); cierraCapa(); pintaLista(); }
@@ -531,8 +532,12 @@ $('#hoja').addEventListener('click', async e => {
 /* compartir: el menú de Android (Bluetooth, Nearby, Drive…). Si el navegador no
    sabe compartir archivos, se descarga y se comparte desde Descargas */
 const archivo = n => /\.pdf$/i.test(n) ? n : n + '.pdf';
+/* las capturas para la pizarra son imágenes (JPEG), no PDF: se ven, se comparten y se descargan como imagen */
+const esImg = d => /^image\//.test((d.blob && d.blob.type) || '') || d.origen === 'captura';
+const nombreArch = d => esImg(d) ? (/\.jpe?g$/i.test(d.nombre) ? d.nombre : d.nombre + '.jpg') : archivo(bonito(d.nombre));
+const tipoArch = d => esImg(d) ? 'image/jpeg' : 'application/pdf';
 async function comparte(d){
-  const f = new File([d.blob], archivo(d.nombre), {type: 'application/pdf'});
+  const f = new File([d.blob], nombreArch(d), {type: tipoArch(d)});
   if (navigator.canShare && navigator.canShare({files: [f]})){
     try { await navigator.share({files: [f], title: d.nombre}); } catch (e) { if (e.name !== 'AbortError') aviso('No se ha podido compartir: ' + e.message); }
   } else { descarga(d.blob, f.name); aviso('Este navegador no comparte archivos: lo tienes en Descargas.'); }
@@ -540,7 +545,7 @@ async function comparte(d){
 /* varios a la vez: Android los manda juntos por Bluetooth, Nearby o correo */
 async function comparteVarios(ds){
   if (!ds.length) return aviso('No hay nada que compartir');
-  const fs = ds.map(d => new File([d.blob], archivo(bonito(d.nombre)), {type: 'application/pdf'}));
+  const fs = ds.map(d => new File([d.blob], nombreArch(d), {type: tipoArch(d)}));
   if (navigator.canShare && navigator.canShare({files: fs})){
     try { await navigator.share({files: fs, title: ds.length + ' documentos'}); } catch (e) { if (e.name !== 'AbortError') aviso('No se ha podido compartir: ' + e.message); }
   } else { for (const f of fs) descarga(f, f.name); aviso('Este navegador no comparte archivos: los tienes en Descargas.'); }
@@ -639,6 +644,8 @@ async function verDoc(d){
 }
 async function pintaVisor(){
   const turno = ++visorTurno, cont = $('#visorPags'); cont.innerHTML = '';
+  if (esImg(visorDoc)){ const im = new Image(), u = URL.createObjectURL(visorDoc.blob); im.src = u; im.onload = () => setTimeout(() => URL.revokeObjectURL(u), 1000);
+    im.style.width = Math.round(Math.min(innerWidth - 16, 900) * visorZoom) + 'px'; im.style.background = '#fff'; im.style.boxShadow = '0 2px 10px rgba(0,0,0,.3)'; cont.append(im); return; }
   const pdf = await abrePdf(visorDoc.blob);
   const ancho = Math.min(innerWidth - 16, 900) * visorZoom, dpr = Math.min(devicePixelRatio || 1, 2.5);
   for (let n = 1; n <= pdf.numPages; n++){
@@ -768,7 +775,7 @@ function pintaHerramienta(){
 function abreSelector(){ $('#selBusca').value = ''; pintaSelector(); abreCapa('selector'); }
 function pintaSelector(){
   const q = llano($('#selBusca').value.trim());
-  const ds = DOCS.filter(d => !q || llano(d.nombre + ' ' + d.carpeta).includes(q)).sort((a, b) => pesoGrupo(a.carpeta) - pesoGrupo(b.carpeta) || ordena(a.carpeta, b.carpeta) || ordena(a.nombre, b.nombre));
+  const ds = DOCS.filter(d => !esImg(d) && (!q || llano(d.nombre + ' ' + d.carpeta).includes(q))).sort((a, b) => pesoGrupo(a.carpeta) - pesoGrupo(b.carpeta) || ordena(a.carpeta, b.carpeta) || ordena(a.nombre, b.nombre));
   $('#selLista').innerHTML = ds.length ? '<div class="caja" style="padding:0">' + ds.map(d => filaDoc(d).replace('<small>', '<small>' + esc(d.carpeta) + ' · ')).join('') + '</div>' : '<div class="vacio">La biblioteca está vacía.</div>';
 }
 $('#selBusca').addEventListener('input', pintaSelector);
@@ -1081,7 +1088,11 @@ $('#qrComparte').onclick = () => $('#qrLienzo').toBlob(async b => { const f = ne
 AL_CERRAR.qrVista = () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
 
 /* ── ESCANEAR ── las fotos, sus cuatro esquinas, y un PDF A4 enderezado */
-const ESC = {fotos: [], actual: 0};
+const ESC = {fotos: [], actual: 0, modo: 'rect'};
+/* dos formas de marcar: RECTÁNGULO (se arrastran los lados; rápido en clase, para recortar
+   un ejercicio o media página) o ESQUINAS (las cuatro, para enderezar una hoja torcida) */
+const rectDe = esq => { const xs = esq.map(p => p[0]), ys = esq.map(p => p[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]; };
+const esqDe = f => { if (ESC.modo !== 'rect') return f.esq; const [a, b, c, d] = f.rect || rectDe(f.esq); return [[a, b], [c, b], [c, d], [a, d]]; };
 const MAXFOTO = 2200;   /* lado mayor de la foto con que se trabaja: más es memoria y no se lee mejor */
 $('#bFoto').onclick = () => $('#fFoto').click();
 $('#bGaleria').onclick = () => $('#fGaleria').click();
@@ -1114,7 +1125,7 @@ function buscaEsquinas(cv){
 }
 function pintaEscaner(){
   const T = $('#escTira'), hay = ESC.fotos.length;
-  $('#escOpciones').hidden = !hay; $('#escNota').textContent = hay ? 'Ajusta las cuatro esquinas a la hoja. Añade más fotos para un PDF de varias páginas.' : 'Haz una foto por hoja, con la hoja entera a la vista. Después ajusta las cuatro esquinas.';
+  $('#escOpciones').hidden = !hay; $('#escNota').textContent = hay ? (ESC.modo === 'rect' ? 'Arrastra los lados hasta lo que quieras (o toca Toda, Arriba, Abajo…). Para enderezar una hoja torcida, «Esquinas».' : 'Ajusta las cuatro esquinas a la hoja. Añade más fotos para un PDF de varias páginas.') : 'Haz una foto por hoja, con la hoja entera a la vista. Después ajusta las cuatro esquinas.';
   T.innerHTML = ESC.fotos.map((f, i) => `<div class="mini${i === ESC.actual ? ' actual' : ''}" data-i="${i}"><canvas></canvas>p. ${i + 1} <button class="btn peq" data-borra="${i}" style="padding:0 6px;border:0">✕</button></div>`).join('');
   T.querySelectorAll('.mini').forEach(div => { const f = ESC.fotos[+div.dataset.i], m = div.querySelector('canvas'); m.width = 70; m.height = Math.round(70 * f.cv.height / f.cv.width); m.getContext('2d').drawImage(f.cv, 0, 0, m.width, m.height); });
   T.onclick = e => { const b = e.target.closest('[data-borra]'); if (b){ ESC.fotos.splice(+b.dataset.borra, 1); ESC.actual = Math.max(0, Math.min(ESC.actual, ESC.fotos.length - 1)); pintaEscaner(); return; }
@@ -1125,22 +1136,53 @@ function pintaEscaner(){
 function pintaEditor(){
   const E = $('#escEditor'); E.innerHTML = '';
   const f = ESC.fotos[ESC.actual]; if (!f) return;
+  if (!f.pag) f.pag = rectDe(f.esq);
+  if (!f.rect) f.rect = f.pag.slice();
+  const barra = document.createElement('div'); barra.className = 'fila'; barra.style.margin = '6px 0';
+  barra.innerHTML = `<span class="seg"><button data-modo="rect"${ESC.modo === 'rect' ? ' class="si"' : ''} style="width:auto;padding:0 12px">Rectángulo</button><button data-modo="esq"${ESC.modo === 'esq' ? ' class="si"' : ''} style="width:auto;padding:0 12px">Esquinas</button></span>`
+    + (ESC.modo === 'rect' ? `<span class="fila" style="gap:6px">${[['toda', 'Toda'], ['arriba', 'Arriba'], ['abajo', 'Abajo'], ['izq', 'Izq.'], ['der', 'Der.']].map(([k, t]) => `<button class="btn peq" data-pre="${k}">${t}</button>`).join('')}</span>` : '');
+  E.append(barra);
+  barra.querySelectorAll('[data-modo]').forEach(b => b.onclick = () => { ESC.modo = b.dataset.modo; ponConf('escModo', ESC.modo); pintaEscaner(); });
+  barra.querySelectorAll('[data-pre]').forEach(b => b.onclick = () => { const [a, c, d, e] = f.pag, mx = (a + d) / 2, my = (c + e) / 2;
+    f.rect = {toda: [a, c, d, e], arriba: [a, c, d, my], abajo: [a, my, d, e], izq: [a, c, mx, e], der: [mx, c, d, e]}[b.dataset.pre].slice(); dibuja(); });
   const box = document.createElement('div'); box.className = 'editor'; const cv = document.createElement('canvas'); box.append(cv); E.append(box);
   const k = Math.min(1, 1100 / Math.max(f.cv.width, f.cv.height)); cv.width = Math.round(f.cv.width * k); cv.height = Math.round(f.cv.height * k);
   const c = cv.getContext('2d');
   const dibuja = () => { c.drawImage(f.cv, 0, 0, cv.width, cv.height);
+    c.strokeStyle = '#D9661A'; c.lineWidth = Math.max(2, cv.width / 300);
+    if (ESC.modo === 'rect'){
+      const [a, b, d, e] = f.rect.map((v, i) => v * (i % 2 ? cv.height : cv.width));
+      c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 0, cv.width, b); c.fillRect(0, e, cv.width, cv.height - e); c.fillRect(0, b, a, e - b); c.fillRect(d, b, cv.width - d, e - b);
+      c.strokeRect(a, b, d - a, e - b);
+      const L = cv.width / 9, G = Math.max(6, cv.width / 90); c.fillStyle = '#fff';
+      for (const [x, y, w, h] of [[(a + d) / 2 - L / 2, b - G / 2, L, G], [(a + d) / 2 - L / 2, e - G / 2, L, G], [a - G / 2, (b + e) / 2 - L / 2, G, L], [d - G / 2, (b + e) / 2 - L / 2, G, L]]){ c.fillRect(x, y, w, h); c.strokeRect(x, y, w, h); }
+      return; }
     const P = f.esq.map(([x, y]) => [x * cv.width, y * cv.height]), r = cv.width / 40;
-    c.fillStyle = 'rgba(217,102,26,.14)'; c.strokeStyle = '#D9661A'; c.lineWidth = Math.max(2, cv.width / 300);
+    c.fillStyle = 'rgba(217,102,26,.14)';
     c.beginPath(); P.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill(); c.stroke();
     P.forEach(([x, y]) => { c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = 'rgba(255,255,255,.85)'; c.fill(); c.stroke(); }); };
   dibuja();
-  let cual = -1;
+  let cual = -1, ini = null;
   const punto = e => { const R = cv.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - R.left) / R.width)), Math.min(1, Math.max(0, (e.clientY - R.top) / R.height))]; };
   cv.style.touchAction = 'none';
-  cv.onpointerdown = e => { const [x, y] = punto(e), R = cv.getBoundingClientRect(); let mejor = 1e9;
+  cv.onpointerdown = e => { const [x, y] = punto(e), R = cv.getBoundingClientRect();
+    if (ESC.modo === 'rect'){
+      /* el lado más cerca del dedo (0 izq., 1 arriba, 2 der., 3 abajo); dentro y lejos de los lados, se mueve entero */
+      const [a, b, d, g] = f.rect, dist = [Math.abs(x - a) * R.width, Math.abs(y - b) * R.height, Math.abs(x - d) * R.width, Math.abs(y - g) * R.height];
+      const dentroY = y > b - .05 && y < g + .05, dentroX = x > a - .05 && x < d + .05;
+      const ok = [dentroY, dentroX, dentroY, dentroX]; let m = 1e9; cual = -1;
+      dist.forEach((v, i) => { if (ok[i] && v < m){ m = v; cual = i; } });
+      if (m > 45) cual = (x > a && x < d && y > b && y < g) ? 4 : -1;
+      ini = [x, y, f.rect.slice()]; if (cual >= 0) cv.setPointerCapture(e.pointerId); return; }
+    let mejor = 1e9;
     f.esq.forEach(([a, b], i) => { const dd = Math.hypot((a - x) * R.width, (b - y) * R.height); if (dd < mejor){ mejor = dd; cual = i; } });
     if (mejor > 60) cual = -1; else cv.setPointerCapture(e.pointerId); };
-  cv.onpointermove = e => { if (cual < 0) return; f.esq[cual] = punto(e); dibuja(); };
+  cv.onpointermove = e => { if (cual < 0) return; const [x, y] = punto(e);
+    if (ESC.modo === 'rect'){ const r = f.rect, M = .03;
+      if (cual === 0) r[0] = Math.min(x, r[2] - M); else if (cual === 1) r[1] = Math.min(y, r[3] - M); else if (cual === 2) r[2] = Math.max(x, r[0] + M); else if (cual === 3) r[3] = Math.max(y, r[1] + M);
+      else { const [x0, y0, r0] = ini, dx = Math.max(-r0[0], Math.min(1 - r0[2], x - x0)), dy = Math.max(-r0[1], Math.min(1 - r0[3], y - y0)); f.rect = [r0[0] + dx, r0[1] + dy, r0[2] + dx, r0[3] + dy]; }
+      dibuja(); return; }
+    f.esq[cual] = [x, y]; dibuja(); };
   cv.onpointerup = () => { cual = -1; };
 }
 /* la homografía que lleva el rectángulo de salida a las cuatro esquinas de la foto */
@@ -1156,7 +1198,7 @@ function homografia(de, a){
 /* endereza: cada píxel de la hoja A4 de salida se busca en la foto (interpolación bilineal) */
 function endereza(f, W, H){
   const sw = f.cv.width, sh = f.cv.height, src = f.cv.getContext('2d').getImageData(0, 0, sw, sh).data;
-  const h = homografia([[0, 0], [W, 0], [W, H], [0, H]], f.esq.map(([x, y]) => [x * sw, y * sh]));
+  const h = homografia([[0, 0], [W, 0], [W, H], [0, H]], esqDe(f).map(([x, y]) => [x * sw, y * sh]));
   const out = new ImageData(W, H), o = out.data;
   for (let v = 0; v < H; v++) for (let u = 0; u < W; u++){
     const den = h[6] * u + h[7] * v + 1, x = (h[0] * u + h[1] * v + h[2]) / den, y = (h[3] * u + h[4] * v + h[5]) / den;
@@ -1198,7 +1240,7 @@ $('#bEscImg').onclick = async () => {
   try {
     ESC_IMG = []; const hoy = new Date(), base = 'Pizarra ' + hoy.toLocaleDateString('es-ES').replace(/\//g, '-') + ' ' + hoy.toTimeString().slice(0, 5).replace(':', '.');
     for (let i = 0; i < ESC.fotos.length; i++){
-      const f = ESC.fotos[i], [p0, p1, p2, p3] = f.esq.map(([x, y]) => [x * f.cv.width, y * f.cv.height]);
+      const f = ESC.fotos[i], [p0, p1, p2, p3] = esqDe(f).map(([x, y]) => [x * f.cv.width, y * f.cv.height]);
       const ancho = (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p3[0], p2[1] - p3[1])) / 2;
       const alto = (Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1])) / 2;
       const k = Math.min(1600 / Math.max(ancho, alto), 2), W = Math.max(200, Math.round(ancho * k)), Hh = Math.max(200, Math.round(alto * k));
@@ -1209,7 +1251,10 @@ $('#bEscImg').onclick = async () => {
       await espera();
     }
     const total = ESC_IMG.reduce((s, x) => s + x.size, 0);
-    R.innerHTML = `<div class="caja res"><p style="margin-top:0"><b>${ESC_IMG.length === 1 ? 'Una imagen' : ESC_IMG.length + ' imágenes'}</b> · ${tam(total)} en total</p>
+    /* y se guardan en «Capturas» de la biblioteca, para volver a mandarlas otro día */
+    let k = 0; for (const x of ESC_IMG) await guardaDB('docs', {id: 'cap:' + Date.now() + ':' + (k++), origen: 'captura', nombre: x.name.replace(/\.jpg$/i, ''), carpeta: 'Capturas', tam: x.size, fecha: Date.now(), hoy: false, blob: x});
+    await recarga();
+    R.innerHTML = `<div class="caja res"><p style="margin-top:0"><b>${ESC_IMG.length === 1 ? 'Una imagen' : ESC_IMG.length + ' imágenes'}</b> · ${tam(total)} en total · guardada${ESC_IMG.length === 1 ? '' : 's'} en <b>Capturas</b> (Biblioteca)</p>
       <div class="fila"><button class="btn acento" id="bEscImgComp">Compartir (Bluetooth)</button><button class="btn" id="bEscImgBaja">Descargar</button></div></div>`;
     $('#bEscImgComp').onclick = async () => { try { if (navigator.canShare && navigator.canShare({files: ESC_IMG})) await navigator.share({files: ESC_IMG}); else throw new Error('no'); }
       catch (e) { if (e.name !== 'AbortError') { ESC_IMG.forEach(x => descarga(x, x.name)); aviso('Este móvil no deja compartir imágenes desde aquí: se han descargado'); } } };
@@ -1224,7 +1269,7 @@ $('#bEscPdf').onclick = async () => {
   try {
     const out = await PDFDocument.create(), A4 = [595.28, 841.89];
     for (let i = 0; i < ESC.fotos.length; i++){
-      const f = ESC.fotos[i], [p0, p1, p2, p3] = f.esq.map(([x, y]) => [x * f.cv.width, y * f.cv.height]);
+      const f = ESC.fotos[i], [p0, p1, p2, p3] = esqDe(f).map(([x, y]) => [x * f.cv.width, y * f.cv.height]);
       const ancho = (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + Math.hypot(p2[0] - p3[0], p2[1] - p3[1])) / 2;
       const alto = (Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) + Math.hypot(p2[0] - p1[0], p2[1] - p1[1])) / 2;
       const apaisada = ancho > alto, W = apaisada ? 1754 : 1240, Hh = apaisada ? 1240 : 1754;
@@ -1268,7 +1313,9 @@ $('#bProbar').onclick = async () => { const c = await conf(); if (!c.token) retu
   try { const r = await api(c, ''); aviso('Conexión correcta con ' + r.full_name + (r.private ? ' (privado)' : '')); } catch (e) { aviso('No conecta: ' + e.message, 4500); } };
 $('#bRepo').onclick = async () => { await ponConf('dueno', $('#ajDueno').value.trim() || CONF0.dueno); await ponConf('repo', $('#ajRepo').value.trim() || CONF0.repo); await ponConf('rama', $('#ajRama').value.trim() || CONF0.rama); aviso('Guardado'); pintaAjustes(); };
 $('#bBorraGh').onclick = async () => { if (!confirm('¿Borrar del móvil todo lo traído de GitHub? Con «Actualizar» vuelve.')) return; for (const d of DOCS) if (d.origen === 'github') await borraDB('docs', d.id); await recarga(); pintaAjustes(); };
-$('#bBorraMios').onclick = async () => { const mios = DOCS.filter(d => d.origen !== 'github'); if (!mios.length) return aviso('«Mis archivos» ya está vacío');
+$('#bBorraCap').onclick = async () => { const cs = DOCS.filter(d => d.origen === 'captura'); if (!cs.length) return aviso('«Capturas» ya está vacía');
+  if (!confirm('¿Borrar las ' + cs.length + ' capturas?')) return; for (const d of cs) await borraDB('docs', d.id); await recarga(); pintaAjustes(); aviso('Vaciada'); };
+$('#bBorraMios').onclick = async () => { const mios = DOCS.filter(d => d.origen === 'local'); if (!mios.length) return aviso('«Mis archivos» ya está vacío');
   if (!confirm('¿Borrar los ' + mios.length + ' archivos de «Mis archivos»?')) return; for (const d of mios) await borraDB('docs', d.id); await recarga(); pintaAjustes(); aviso('Vaciado'); };
 $('#bBorraTodo').onclick = async () => { if (!confirm('¿Borrar todo: lo traído, «Mis archivos» y el token? Las notas se quedan.')) return; for (const d of DOCS) await borraDB('docs', d.id); await ponConf('token', ''); await recarga(); pintaAjustes(); };
 
@@ -2136,7 +2183,7 @@ async function recuperaNotas(file){
 /* ── ARRANQUE ── */
 (async () => {
   await recarga(); pintaLista();
-  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || [];
+  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || []; ESC.modo = (await leeDB('conf', 'escModo')) || 'rect';
   const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
