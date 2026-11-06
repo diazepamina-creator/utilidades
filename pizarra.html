@@ -1,0 +1,235 @@
+<!doctype html>
+<!-- ══════════════════════════════════════════════════════════════════════
+     PIZARRA · las fichas del repositorio privado, en la pizarra digital
+     Va en un USB que hace de llave: el token de solo lectura está aquí
+     dentro. Doble clic, se elige curso y tema, se toca la ficha y se abre
+     a pantalla completa. La ficha se baja a la memoria (blob), sin caché ni
+     Descargas: al cerrar la pestaña no queda nada en el equipo del aula.
+
+     El repositorio (privado) se ordena en carpetas:
+         <curso>/<tema>/<ficha>.pdf      p. ej.  1ESO/Potencias/Ficha 3.pdf
+     Lo que esté fuera de dos carpetas va a «Sueltas».
+
+     El token: fine-grained, SOLO el repositorio de fichas, «Contents:
+     read-only», con caducidad. Si se pierde el USB, se anula en GitHub
+     (Settings → Developer settings → Fine-grained tokens) y no pasa nada.
+     NUNCA aquí el token de originales ni el de Utilidades. Este archivo,
+     con el token puesto, no se sube a ningún repositorio.
+     ══════════════════════════════════════════════════════════════════════ -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fichas</title>
+<style>
+  :root{--fondo:#1E2430;--panel:#2A3242;--linea:#3E4A60;--texto:#F2EEE6;--tenue:#A9B2C3;--oro:#E8B34B;--mal:#E07C6A}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--fondo);color:var(--texto);font:400 22px/1.35 system-ui,-apple-system,"Segoe UI",Ubuntu,sans-serif}
+  button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+  header{display:flex;align-items:center;gap:16px;padding:18px 28px;border-bottom:2px solid var(--linea)}
+  header h1{margin:0;font-size:30px;letter-spacing:.5px;flex:1}
+  #cursos{display:flex;gap:12px;flex-wrap:wrap;padding:20px 28px 4px}
+  #cursos button{min-width:120px;padding:16px 26px;border-radius:14px;border:2px solid var(--linea);background:var(--panel);font-weight:700;font-size:26px}
+  #cursos button[aria-pressed="true"]{background:var(--oro);border-color:var(--oro);color:#20180A}
+  main{padding:8px 28px 40px}
+  section h2{margin:26px 0 12px;font-size:24px;color:var(--oro);font-weight:700}
+  .fichas{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .fichas button{text-align:left;min-height:84px;padding:16px 20px;border-radius:14px;border:2px solid var(--linea);background:var(--panel)}
+  .fichas button:active{background:var(--linea)}
+  #aviso{margin:40px 28px;padding:24px 28px;border-radius:14px;background:var(--panel);border-left:8px solid var(--oro);font-size:24px}
+  #aviso.mal{border-left-color:var(--mal)}
+  #aviso:empty{display:none}
+  #visor{position:fixed;inset:0;background:#000;display:none;flex-direction:column}
+  #visor.abierto{display:flex}
+  #visor .barra{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel)}
+  #visor .barra span{flex:1;font-size:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #visor .barra button{padding:12px 26px;border-radius:12px;border:2px solid var(--linea);background:var(--fondo);font-weight:700}
+  #visor iframe{flex:1;border:0;width:100%;background:#fff}
+  #vPaginas{flex:1;overflow:auto;background:#5B6272;padding:8px;display:none}
+  #vPaginas canvas{display:block;width:100%;height:auto;margin:0 auto 8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+  #visor.lienzo iframe{display:none}
+  #visor.lienzo #vPaginas{display:block}
+  #llave{margin:30px 28px;padding:22px 26px;border-radius:14px;background:var(--panel);display:grid;gap:14px;max-width:820px}
+  #llave[hidden]{display:none}
+  #llave p{margin:0;font-size:20px}
+  #llave input{font:inherit;font-size:18px;padding:14px;border-radius:10px;border:2px solid var(--linea);background:var(--fondo);color:var(--texto);width:100%}
+  #llave button{justify-self:start;padding:14px 26px;border-radius:12px;border:0;background:var(--oro);color:#20180A;font-weight:700}
+  .cargando{opacity:.55;pointer-events:none}
+</style>
+</head>
+<body>
+<header><h1>Fichas</h1><button type="button" id="bRecarga" style="padding:12px 22px;border-radius:12px;border:2px solid var(--linea);background:var(--panel)">Recargar</button></header>
+<nav id="cursos" aria-label="Cursos"></nav>
+<form id="llave" hidden>
+  <p>Este archivo aún no tiene llave. Pega el token (el de solo lectura de «fichas-aula»): lo pruebo y te descargo el archivo con la llave dentro, listo para el USB. Aquí no se guarda en ningún sitio.</p>
+  <input id="lToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" aria-label="Token">
+  <button type="submit">Probar y descargar</button>
+</form>
+<div id="aviso" role="status">Si solo ves este aviso, este visor no ejecuta la página (pasa con las vistas previas del móvil). Ábrela en un navegador: en el ordenador, doble clic.</div>
+<main id="lista"></main>
+<div id="visor" role="dialog" aria-modal="true" aria-label="Ficha">
+  <div class="barra"><span id="vTitulo"></span><button type="button" id="bCompleta">Pantalla completa</button><button type="button" id="bCierra">Cerrar</button></div>
+  <iframe id="vMarco" title="Ficha"></iframe>
+  <div id="vPaginas"></div>
+</div>
+<script>
+'use strict';
+/* ── LA LLAVE: lo único que se toca en este archivo ── */
+const DUENO = 'diazepamina-creator';
+const REPO = 'fichas-aula';
+const TOKEN = 'PEGA_AQUI_EL_TOKEN';
+/* ─────────────────────────────────────────────────── */
+
+/* el archivo tal cual, antes de pintar nada: de aquí sale la copia con la llave */
+const FUENTE = '<!doctype html>\n' + document.documentElement.outerHTML;
+const SIN_LLAVE = TOKEN.indexOf('PEGA') === 0;
+let LLAVE = TOKEN;
+const $ = id => document.getElementById(id);
+const API = 'https://api.github.com/repos/' + DUENO + '/' + REPO;
+const cab = extra => Object.assign({Authorization: 'Bearer ' + LLAVE, 'X-GitHub-Api-Version': '2022-11-28'}, extra || {});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const bonito = s => s.replace(/\.pdf$/i, '').replace(/_+/g, ' ').replace(/([^\s])-(?=[^\s])/g, '$1 ');
+/* orden «humano»: Ficha 2 antes que Ficha 10 */
+const orden = (a, b) => a.localeCompare(b, 'es', {numeric: true, sensitivity: 'base'});
+let ARBOL = {}, CURSO = null, URL_ABIERTA = null;
+
+function aviso(txt, mal){ const a = $('aviso'); a.textContent = txt || ''; a.className = mal ? 'mal' : ''; }
+
+function explica(e, r){
+  if(!navigator.onLine || (e && e.name === 'TypeError')) return 'No hay conexión con GitHub. Hoy, bluetooth (y luego se borra).';
+  if(r && r.status === 401) return 'La llave no vale: el token está anulado, ha caducado o no se ha pegado bien.';
+  if(r && (r.status === 403 || r.status === 404)) return 'La llave no abre «' + REPO + '»: el token tiene que ser de ese repositorio, con «Contents: read-only».';
+  return 'GitHub no ha respondido bien' + (r ? ' (' + r.status + ')' : '') + '. Prueba «Recargar».';
+}
+
+async function carga(){
+  if(LLAVE.indexOf('PEGA') === 0){ $('llave').hidden = false; aviso(''); return; }
+  aviso('Cargando fichas…'); $('lista').innerHTML = '';
+  let r;
+  try{
+    r = await fetch(API + '/git/trees/HEAD?recursive=1', {headers: cab(), cache: 'no-store'});
+    if(!r.ok) throw null;
+    const d = await r.json();
+    ARBOL = {};
+    d.tree.filter(x => x.type === 'blob' && /\.pdf$/i.test(x.path)).forEach(x => {
+      const p = x.path.split('/');
+      const curso = p.length >= 3 ? p[0] : 'Sueltas', tema = p.length >= 3 ? p.slice(1, -1).join(' · ') : (p.length === 2 ? p[0] : 'Sin tema');
+      ((ARBOL[curso] = ARBOL[curso] || {})[tema] = ARBOL[curso][tema] || []).push(x.path);
+    });
+    const cursos = Object.keys(ARBOL).sort(orden);
+    if(!cursos.length){ aviso('El repositorio no tiene ningún PDF todavía.'); $('cursos').innerHTML = ''; return; }
+    let guardado = null; try{ guardado = localStorage.getItem('fichas.curso'); }catch(e){}
+    CURSO = cursos.includes(CURSO) ? CURSO : cursos.includes(guardado) ? guardado : cursos[0];
+    aviso('');
+    pintaCursos(cursos); pinta();
+  }catch(e){ aviso(explica(e, r), true); }
+}
+
+function pintaCursos(cursos){
+  $('cursos').innerHTML = cursos.map(c => '<button type="button" data-c="' + esc(c) + '" aria-pressed="' + (c === CURSO) + '">' + esc(c) + '</button>').join('');
+}
+
+function pinta(){
+  const temas = ARBOL[CURSO] || {};
+  $('lista').innerHTML = Object.keys(temas).sort(orden).map(t =>
+    '<section><h2>' + esc(bonito(t)) + '</h2><div class="fichas">' +
+    temas[t].sort((a, b) => orden(a.split('/').pop(), b.split('/').pop())).map(p => '<button type="button" data-p="' + esc(p) + '">' + esc(bonito(p.split('/').pop())) + '</button>').join('') +
+    '</div></section>').join('');
+}
+
+/* EL LIENZO: los navegadores del móvil (Chrome de Android, Safari) no
+   enseñan un PDF dentro de la página, lo mandan a otra app (y eso deja
+   copia). Ahí la ficha se dibuja aquí mismo, página a página, con pdf.js
+   (cdnjs; si hay red para GitHub, la hay para esto). En la pizarra (Chrome,
+   Firefox, Edge de escritorio) va el visor del propio navegador */
+const LIENZO = navigator.pdfViewerEnabled === false || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+let pdfjs = null;
+function cargaPdfjs(){
+  if(pdfjs) return pdfjs;
+  pdfjs = new Promise((ok, mal) => {
+    const sc = document.createElement('script');
+    sc.src = PDFJS + 'pdf.min.js';
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); };
+    sc.onerror = () => { pdfjs = null; mal(new TypeError('pdf.js')); };
+    document.head.appendChild(sc);
+  });
+  return pdfjs;
+}
+async function dibuja(datos){
+  const lib = await cargaPdfjs(), doc = await lib.getDocument({data: datos}).promise;
+  const caja = $('vPaginas'), ancho = Math.max(300, caja.clientWidth - 16), dpr = Math.min(window.devicePixelRatio || 1, 3);
+  for(let n = 1; n <= doc.numPages; n++){
+    if(!$('visor').classList.contains('abierto')) return;
+    const pg = await doc.getPage(n), v0 = pg.getViewport({scale: 1}), v = pg.getViewport({scale: ancho / v0.width * dpr});
+    const c = document.createElement('canvas'); c.width = Math.round(v.width); c.height = Math.round(v.height);
+    caja.appendChild(c);
+    await pg.render({canvasContext: c.getContext('2d'), viewport: v}).promise;
+  }
+  doc.destroy();
+}
+
+async function abre(ruta, boton){
+  boton.classList.add('cargando');
+  let r;
+  try{
+    r = await fetch(API + '/contents/' + ruta.split('/').map(encodeURIComponent).join('/'), {headers: cab({Accept: 'application/vnd.github.raw'}), cache: 'no-store'});
+    if(!r.ok) throw null;
+    const blob = new Blob([await r.arrayBuffer()], {type: 'application/pdf'});
+    cierra();
+    URL_ABIERTA = URL.createObjectURL(blob);
+    $('vTitulo').textContent = bonito(ruta.split('/').pop());
+    if(LIENZO){
+      $('visor').classList.add('abierto', 'lienzo');
+      await dibuja(await blob.arrayBuffer());
+    }else{
+      $('vMarco').src = URL_ABIERTA;
+      $('visor').classList.add('abierto');
+    }
+    if(!LIENZO) pideCompleta();
+  }catch(e){ aviso(explica(e, r), true); }
+  boton.classList.remove('cargando');
+}
+
+/* al cerrar, la ficha se suelta de la memoria */
+function cierra(){
+  $('visor').classList.remove('abierto', 'lienzo');
+  $('vMarco').removeAttribute('src');
+  $('vPaginas').innerHTML = '';
+  if(URL_ABIERTA){ URL.revokeObjectURL(URL_ABIERTA); URL_ABIERTA = null; }
+  if(document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+function pideCompleta(){ const v = $('visor'); if(v.requestFullscreen && !document.fullscreenElement) v.requestFullscreen().catch(() => {}); }
+
+$('cursos').addEventListener('click', e => {
+  const b = e.target.closest('button[data-c]'); if(!b) return;
+  CURSO = b.dataset.c; try{ localStorage.setItem('fichas.curso', CURSO); }catch(e){}
+  pintaCursos(Object.keys(ARBOL).sort(orden)); pinta();
+});
+$('lista').addEventListener('click', e => { const b = e.target.closest('button[data-p]'); if(b) abre(b.dataset.p, b); });
+$('bCierra').addEventListener('click', cierra);
+$('bCompleta').addEventListener('click', pideCompleta);
+$('bRecarga').addEventListener('click', carga);
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && $('visor').classList.contains('abierto') && !document.fullscreenElement) cierra(); });
+window.addEventListener('pagehide', cierra);
+$('llave').addEventListener('submit', async e => {
+  e.preventDefault();
+  const t = $('lToken').value.trim();
+  if(!t) return;
+  LLAVE = t; $('llave').hidden = true;
+  await carga();
+  if(!Object.keys(ARBOL).length){ LLAVE = TOKEN; $('llave').hidden = false; return; }
+  /* la llave abre: la copia con el token en su línea, para el USB */
+  const copia = FUENTE.replace(/const TOKEN = '[^']*';/, "const TOKEN = '" + t.replace(/[^A-Za-z0-9_]/g, '') + "';");
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([copia], {type: 'text/html'}));
+  a.download = 'pizarra-llave.html';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  $('lToken').value = '';
+  aviso('La llave abre. Se ha descargado «pizarra-llave.html»: ese es el que va al USB (y a ningún otro sitio).');
+});
+carga();
+</script>
+</body>
+</html>
