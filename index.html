@@ -437,7 +437,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.14';
+const VERSION = '1.14.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -672,8 +672,11 @@ $$('.pie button').forEach(b => b.onclick = () => ve(b.dataset.v));
 const pila = [];
 const AL_CERRAR = {visor: () => { $('#visorPags').innerHTML = ''; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); },
   editorPag: () => { if (editorFin) editorFin(); }, herramienta: () => { LE = null; CUAD = null; }, corrige: () => { if (H && (H.tipo === 'corregir' || H.tipo === 'fichas')) pintaHerramienta(); }};
-function abreCapa(id){ $('#' + id).hidden = false; pila.push(id); history.pushState({capa: id}, ''); }
-function cambiaCapa(id){ const v = pila.pop(); if (v){ $('#' + v).hidden = true; (AL_CERRAR[v] || (() => {}))(); } $('#' + id).hidden = false; pila.push(id); history.replaceState({capa: id}, ''); }
+/* la capa que se abre queda ENCIMA de las que ya están, aunque vaya antes en la página
+   (hasta 1.14, «Ver» desde «Listo» abría el visor debajo y parecía que no hacía nada) */
+const encima = id => { const el = $('#' + id); if (el.classList.contains('capa')) el.style.zIndex = 21 + pila.length; };
+function abreCapa(id){ encima(id); $('#' + id).hidden = false; pila.push(id); history.pushState({capa: id}, ''); }
+function cambiaCapa(id){ const v = pila.pop(); if (v){ $('#' + v).hidden = true; (AL_CERRAR[v] || (() => {}))(); } encima(id); $('#' + id).hidden = false; pila.push(id); history.replaceState({capa: id}, ''); }
 function cierraCapa(){ if (pila.length) history.back(); }
 addEventListener('popstate', () => { const id = pila.pop(); if (!id) return; $('#' + id).hidden = true; (AL_CERRAR[id] || (() => {}))(); });
 $$('[data-cierra]').forEach(b => b.onclick = cierraCapa);
