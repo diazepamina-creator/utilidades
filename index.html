@@ -51,6 +51,10 @@
     (compartir, Bluetooth a la pizarra, abrir con otra app), se reciben PDF e
     imágenes de otras apps («Compartir con Utilidades»), hay avisos antes de cada
     clase con material y el escáner de documentos de Android. En la web, nada cambia.
+  - LA IA (1.15, opcional). La API de Claude con mi clave, como en el cuaderno: buscar
+    material con mis palabras, el resumen de la clase, variantes de una ficha, «¿qué toca
+    hoy?» y la rúbrica nueva de un examen en blanco. Lo que puede salir lo decide la
+    frontera del código (vigilaSalida), probada en pruebas/frontera.test.mjs.
   Librerías (en lib/, para que funcione sin red): pdf.js 3.11.174 (Apache 2.0)
   para pintar, pdf-lib 1.17.1 (MIT) para escribir PDF y qrcode-generator 1.4.4
   (MIT) para los QR.
@@ -65,7 +69,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
 body{background:var(--papel);color:var(--tinta);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior-y:contain}
-button,input,select{font:inherit;color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 .cab{position:sticky;top:0;z-index:5;background:var(--tinta);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px}
 .cab h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.2px;flex:1}
@@ -121,6 +125,7 @@ details.hoy>summary{color:var(--acento)}
 .hoja .acc{display:flex;align-items:center;gap:12px;width:100%;border:0;border-top:1px solid var(--linea);background:none;padding:13px 4px;text-align:left;font-size:16px}
 .hoja .acc svg{width:22px;height:22px;color:var(--suave);flex:none}
 .hoja .acc.peligro{color:var(--mal)}
+.hoja .acc[hidden]{display:none}   /* sin esto, display:flex ganaba al atributo hidden y se veían todos los botones (hasta 1.14) */
 .miniaturas{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;margin-top:10px}
 .mini{position:relative;background:var(--blanco);border:2px solid var(--linea);border-radius:8px;padding:4px;text-align:center;font-size:12px;color:var(--suave)}
 .mini canvas{width:100%;height:auto;display:block;border-radius:3px}
@@ -220,7 +225,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <div style="text-align:center;flex:1"><b id="hoyFecha" style="font-size:18px"></b><div class="nota" id="hoySub" style="margin:0"></div></div>
       <button class="btn peq" id="hoyDespues" aria-label="Día siguiente">›</button>
     </div>
-    <div class="fila" style="margin-top:10px"><button class="btn peq" id="hoyVolver" hidden>Volver a hoy</button><button class="btn peq" id="hoySemana">Ver la semana</button><button class="btn peq" id="hoyComparte">Compartir todo lo de hoy</button></div>
+    <div class="fila" style="margin-top:10px"><button class="btn peq" id="hoyVolver" hidden>Volver a hoy</button><button class="btn peq" id="hoySemana">Ver la semana</button><button class="btn peq" id="hoyComparte">Compartir todo lo de hoy</button><button class="btn peq" id="hoyIa" hidden>¿Qué toca hoy? (IA)</button></div>
     <div id="hoyCopia"></div>
     <div id="hoyLista"></div>
   </section>
@@ -231,6 +236,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <input id="busca" type="search" placeholder="Buscar ficha, tema, soluciones…" aria-label="Buscar">
       <button class="btn prim" id="bSync">Actualizar</button>
     </div>
+    <div class="fila" style="margin-top:8px"><button class="btn peq" id="bIaBusca" hidden>Buscar con IA</button></div>
     <div class="prog" id="syncProg" hidden><i></i></div>
     <p class="nota" id="syncNota"></p>
     <div id="lista"></div>
@@ -326,6 +332,16 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <div class="fila"><input type="text" id="ajNomCopia" style="flex:1" autocomplete="off"></div>
       <div class="fila" style="margin-top:8px"><button class="btn peq acento" id="bCompNotas">Compartir (OneDrive)</button><button class="btn peq" id="bCopiaNotas">Descargar</button><button class="btn peq" id="bRecNotas">Recuperar una copia</button><input type="file" id="fRecNotas" accept="application/json,.json" hidden></div>
     </div>
+    <div class="caja" id="ajIA">
+      <h2>La IA (opcional)</h2>
+      <p id="iaEstado" style="margin:0 0 6px"></p>
+      <p class="nota" style="margin-top:0">La API de Claude, con tu clave (la creas en la Consola de Anthropic). La clave se queda solo en este móvil, en su propia entrada: no va en la copia de las notas ni en la app publicada. Puede salir: el catálogo de tu biblioteca, el calendario, el texto de tus fichas, exámenes <b>en blanco</b> y sus claves, tu programación y recuentos sin números ni nombres. <b>Nunca</b> salen el escáner, las fotos de trabajos, las actas tal cual, las notas por alumno, los nombres ni el token.</p>
+      <div class="fila"><input type="password" id="iaClave" placeholder="Clave de la API (sk-ant-…)" style="flex:1" autocomplete="off"><button class="btn prim" id="bIaClave">Guardar y probar</button></div>
+      <div class="fila" style="margin-top:8px"><label class="nota">Modelo <select id="iaModelo"></select></label><label class="nota">Intensidad <select id="iaEsfuerzo"></select></label></div>
+      <div class="fila" style="margin-top:8px"><button class="btn peq" id="bIaProbar">Probar la conexión</button><button class="btn peq peligro" id="bIaQuita">Quitar la clave</button></div>
+      <p class="nota" id="iaProg"></p>
+      <div class="fila"><button class="btn peq" id="bIaProg">Cargar la programación</button><button class="btn peq peligro" id="bIaProgQuita" hidden>Quitar</button><input type="file" id="fIaProg" accept=".json,.txt,application/json,text/plain" hidden></div>
+    </div>
     <div class="caja" id="ajAndroid" hidden>
       <h2>La app de Android</h2>
       <p class="nota" id="avEstado" style="margin-top:0"></p>
@@ -380,6 +396,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
     <button class="acc" data-a="compartir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Compartir (Bluetooth, Nearby, correo…)</button>
     <button class="acc" data-a="hoy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span id="hojaHoy">Para hoy</span></button>
     <button class="acc" data-a="herr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>Tapar, reducir, páginas…</button>
+    <button class="acc" data-a="variantes" id="hojaVar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>Variantes de los ejercicios (IA)</button>
     <button class="acc" data-a="descargar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>Descargar</button>
     <button class="acc peligro" data-a="borrar" id="hojaBorrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Borrar de «Mis archivos»</button>
   </div>
@@ -421,6 +438,11 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
   <div class="cuerpo" id="crCuerpo"></div>
 </section>
 
+<section class="capa" id="iaCapa" hidden>
+  <header class="cab"><button data-cierra>‹ Volver</button><h1 id="iaTit">IA</h1></header>
+  <div class="cuerpo" id="iaCuerpo"></div>
+</section>
+
 <section class="capa" id="resultado" hidden>
   <header class="cab"><button data-cierra>‹ Volver</button><h1>Listo</h1></header>
   <div class="cuerpo">
@@ -437,7 +459,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.14.1';
+const VERSION = '1.15';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -763,6 +785,7 @@ function abreHoja(id){
   $('#hojaHoy').textContent = hojaDoc.hoy ? 'Quitar de «para hoy»' : 'Añadir a «para hoy»';
   $('#hojaBorrar').hidden = hojaDoc.origen === 'github';
   $('#hoja [data-a="herr"]').hidden = esImg(hojaDoc);
+  $('#hojaVar').hidden = !(iaLista() && hojaDoc.origen === 'github' && !esImg(hojaDoc) && $('#iaCapa').hidden);
   abreCapa('hoja');
 }
 $('#hoja').addEventListener('click', async e => {
@@ -771,6 +794,7 @@ $('#hoja').addEventListener('click', async e => {
   if (a === 'ver'){ cambiaCapa('visor'); verDoc(d); }
   else if (a === 'compartir'){ cierraCapa(); comparte(d); }
   else if (a === 'descargar'){ cierraCapa(); descarga(d.blob, nombreArch(d)); }
+  else if (a === 'variantes') variantesIA(d, true);
   else if (a === 'hoy'){ d.hoy = !d.hoy; await guardaDB('docs', d); cierraCapa(); pintaLista(); aviso(d.hoy ? 'En «para hoy»' : 'Quitado de «para hoy»'); }
   else if (a === 'herr'){ cierraCapa(); ve('herr'); herrDoc = d; aviso('Elige qué hacer con «' + d.nombre + '»'); }
   else if (a === 'borrar'){ if (!confirm('¿Borrar «' + d.nombre + '» del móvil?')) return; await borraDB('docs', d.id); await recarga(); cierraCapa(); pintaLista(); }
@@ -880,7 +904,7 @@ async function sincroniza(){
     const vivos = new Set(remotos.map(r => r.path)); let fuera = 0;
     for (const d of locales) if (!vivos.has(d.path)){ await borraDB('docs', d.id); fuera++; }
     try { const b = await api(c, '/contents/herramientas/calendario.json?ref=' + encodeURIComponent(c.rama), true); CAL = JSON.parse(await b.text()); await ponConf('calendario', CAL); } catch (e) {}
-    try { const b = await api(c, '/contents/herramientas/rubricas.json?ref=' + encodeURIComponent(c.rama), true); RUB = JSON.parse(await b.text()); await ponConf('rubricas', RUB); } catch (e) {}
+    try { const b = await api(c, '/contents/herramientas/rubricas.json?ref=' + encodeURIComponent(c.rama), true); RUB_GH = JSON.parse(await b.text()); await ponConf('rubricas', RUB_GH); mezclaRubricas(); } catch (e) {}
     try { const b = await api(c, '/contents/herramientas/fichas.json?ref=' + encodeURIComponent(c.rama), true); FIC = JSON.parse(await b.text()); await ponConf('fichas', FIC); } catch (e) {}
     await ponConf('ultima', Date.now());
     N.textContent = (bajar.length ? bajar.length + (bajar.length === 1 ? ' archivo nuevo o cambiado' : ' archivos nuevos o cambiados') : 'Todo estaba al día')
@@ -1289,12 +1313,13 @@ function pintaResActas(){
       : e === 'no cuadra' ? '<b class="mal">✗ no cuadra</b> <small class="nota">retocada, o el editor de Aules cambió los espacios: pide el .txt</small>' : '<b class="nota">sin código</b>'; };
   const buenas = rs.filter(r => estado(r).startsWith('buena')).length;
   R.innerHTML = `<div class="caja"><h2>${rs.length} ${rs.length === 1 ? 'acta' : 'actas'} · ${buenas} buenas</h2>
-    <div class="fila"><button class="btn peq" id="acCsv">Copiar como tabla</button></div></div>` + rs.map((r, i) => {
+    <div class="fila"><button class="btn peq" id="acCsv">Copiar como tabla</button>${iaLista() ? '<button class="btn peq acento" id="acIa">Resumen con IA</button>' : ''}</div></div>` + rs.map((r, i) => {
       const gemelas = (porCuerpo.get(r.cuerpo) || []).filter(j => j !== i);
       return `<div class="caja" style="padding:12px 14px"><div class="fila" style="justify-content:space-between"><b>${esc(r.quien !== 'pegada' ? r.quien : (r.nombre || 'sin nombre'))}</b>${sello(r)}</div>
         <div class="nota" style="margin:4px 0">${esc(r.app)}${r.nombre && r.quien !== 'pegada' ? ' · en el acta: ' + esc(r.nombre) : ''}${r.fecha ? ' · ' + esc(r.fecha) : ''}${r.tiempo ? ' · ' + esc(r.tiempo) : ''}</div>
         ${r.progreso ? `<div>${esc(r.progreso)}</div>` : ''}${r.errores ? `<div class="nota" style="margin:4px 0">Errores: ${esc(r.errores)}</div>` : ''}
         ${gemelas.length ? `<div class="mal" style="margin-top:4px">⚠ Igual que la de ${gemelas.map(j => esc(rs[j].quien !== 'pegada' ? rs[j].quien : rs[j].nombre || 'otra')).join(', ')} (salvo nombre y fecha)</div>` : ''}</div>`; }).join('');
+  if ($('#acIa')) $('#acIa').onclick = () => resumenIA(rs.length + ' actas', agregaActas(rs, estado), 'Por app: cuántas actas, cuántas buenas, el progreso y los errores con nombre. Nunca quién, ni el nombre, la fecha o el tiempo de cada una.');
   $('#acCsv').onclick = async () => { const cab = ['quién', 'app', 'nombre en el acta', 'fecha', 'tiempo', 'progreso', 'código', 'errores'];
     const filas = rs.map(r => [r.quien, r.app, r.nombre, r.fecha, r.tiempo, r.progreso, estado(r) + (r.aviso && r.aviso.length ? ': ' + r.aviso.join('; ') : ''), r.errores]);
     const tsv = [cab].concat(filas).map(f => f.map(x => String(x || '').replace(/\t|\n/g, ' ')).join('\t')).join('\n');
@@ -1633,7 +1658,7 @@ async function pintaAjustes(){
   if (navigator.storage && navigator.storage.estimate){ try { const e = await navigator.storage.estimate(); t += ' · ocupado ' + tam(e.usage || 0) + ' de ' + tam(e.quota || 0) + ' disponibles'; } catch (e) {} }
   $('#ajEspacio').textContent = t;
   $('#ajNomCopia').value = nombreCopia();
-  pintaAndroid();
+  pintaAndroid(); pintaIA();
   $('#ajNotas').textContent = resumenNotas() + ' · ' + (NT.ultimaCopia ? 'última copia: ' + new Date(NT.ultimaCopia).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) : 'sin ninguna copia todavía');
 }
 $('#bCompNotas').onclick = () => copiaNotas('compartir', $('#ajNomCopia').value);
@@ -1850,7 +1875,7 @@ function pintaCorregir(C){
   const gs = gruposDe(ex.curso); H.g = gs.includes(H.g) ? H.g : gs.includes(ult.g) ? ult.g : gs[0];
   NT.ultima = {ex: H.ex, g: H.g};
   const R = corr(ex.id, H.g), N = nAlumnos(H.g);
-  let h = `<div class="caja"><div class="fila"><select id="cEx" style="flex:1">${RUB.examenes.map(e => `<option value="${e.id}"${e.id === ex.id ? ' selected' : ''}>${esc(e.tema)} (${esc(e.curso.replace(' ESO', ''))})</option>`).join('')}</select>
+  let h = `<div class="caja"><div class="fila"><select id="cEx" style="flex:1">${RUB.examenes.map(e => `<option value="${e.id}"${e.id === ex.id ? ' selected' : ''}>${esc(e.tema)} (${esc(e.curso.replace(' ESO', ''))})${e.propia ? ' · tuya' + (e.sinRevisar ? ', sin revisar' : '') : ''}</option>`).join('')}</select>
     <select id="cG">${gs.map(g => `<option value="${g}"${g === H.g ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select></div>
     <div class="fila nota" style="margin-top:8px">Alumnos en ${etqGrupo(H.g)}: <input type="number" id="cN" min="1" max="40" value="${N}"> </div>
     <div class="mods">${ex.modelos.map(m => `<span>${m.marca ? `<img src="${m.marca}" alt="">` : ''}<b>${esc(m.nombre)}</b>${m.apodo ? ' · ' + esc(m.apodo) : ''}</span>`).join('')}</div>
@@ -1858,7 +1883,7 @@ function pintaCorregir(C){
   const hechos = Object.entries(R.al).filter(([n]) => +n <= N), corregidos = hechos.filter(([, a]) => !a.np && Object.keys(a.x).length);
   h += `<div class="fila" style="margin:6px 0"><button class="btn peq${H.vista !== 'estad' ? ' prim' : ''}" id="cVLista">Lista</button><button class="btn peq${H.vista === 'estad' ? ' prim' : ''}" id="cVEstad">Estadísticas</button>
     <span class="nota" style="margin-left:auto">${corregidos.length} de ${N} corregidos</span></div>`;
-  if (H.vista === 'estad') h += estadCorr(ex, R, N);
+  if (H.vista === 'estad'){ h += estadCorr(ex, R, N); if (iaLista() && corregidos.length) h += '<div class="fila"><button class="btn acento peq" id="cIaRes">Resumen con IA</button><span class="nota">Sale solo el recuento, sin números de lista.</span></div>'; }
   else {
     if (LISTA[H.g]) h += `<input type="search" id="cBusca" placeholder="Busca por nombre…" style="width:100%;margin:4px 0" autocomplete="off">`;
     h += `<div class="rej${LISTA[H.g] ? ' connom' : ''}">`;
@@ -1869,7 +1894,8 @@ function pintaCorregir(C){
       h += `<button class="num${cl}" data-n="${n}"${nom ? ` data-q="${esc(llano(nom))}"` : ''}><b>${n}</b>${nom ? `<i>${esc(corto(nom))}</i>` : ''}${s}</button>`; }
     h += '</div><p class="nota">Toca un número para corregir su examen. «…»: le faltan casillas por marcar.</p>';
   }
-  h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="cTabla">Copiar como tabla</button><button class="btn peq peligro" id="cBorra">Borrar esta corrección</button></div>`;
+  h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="cTabla">Copiar como tabla</button><button class="btn peq peligro" id="cBorra">Borrar esta corrección</button></div>
+    <div class="fila" style="margin-top:8px">${iaLista() ? '<button class="btn peq" id="cIaRub">Nueva rúbrica (IA)</button>' : ''}${ex.propia ? '<button class="btn peq" id="cEdRub">Editar esta rúbrica</button>' : ''}</div>`;
   C.innerHTML = h;
   $('#cEx').onchange = e => { H.ex = e.target.value; H.g = null; pintaHerramienta(); };
   $('#cG').onchange = e => { H.g = e.target.value; pintaHerramienta(); };
@@ -1881,6 +1907,9 @@ function pintaCorregir(C){
   if ($('#cBusca')){ const bs = $('#cBusca'); bs.oninput = () => { const q = llano(bs.value.trim()); C.querySelectorAll('.num[data-n]').forEach(b => b.hidden = !!q && !(b.dataset.q || '').includes(q)); };
     bs.onkeydown = e => { if (e.key === 'Enter'){ const v = [...C.querySelectorAll('.num[data-n]')].filter(b => !b.hidden); if (v.length === 1) abreCorrige(+v[0].dataset.n); } }; }
   $('#cTabla').onclick = () => copiaTabla(tablaCorr(ex, R, N), 'correccion-' + ex.id + '-' + H.g + '.tsv');
+  if ($('#cIaRes')) $('#cIaRes').onclick = () => resumenIA(ex.tema + ' · ' + etqGrupo(H.g), agregaCorreccion(ex, R.al, N, notaExamen), 'Por pregunta y casilla: cuántos bien, medio y mal, y los errores con nombre. Sin números de lista ni notas de nadie.');
+  if ($('#cIaRub')) $('#cIaRub').onclick = nuevaRubrica;
+  if ($('#cEdRub')) $('#cEdRub').onclick = () => editaRubrica(ex, false);
   $('#cBorra').onclick = () => { if (!hechos.length) return aviso('No hay nada corregido');
     if (!confirm('¿Borrar las ' + hechos.length + ' correcciones de ' + ex.tema + ' en ' + etqGrupo(H.g) + '? No se puede deshacer.')) return;
     delete NT.corr[claveCorr(ex.id, H.g)]; guardaNotas(); pintaHerramienta(); };
@@ -2658,7 +2687,7 @@ const hechaCopia = async () => { NT.ultimaCopia = Date.now(); await guardaDB('co
 const nombreCopia = () => { const d = new Date(); return 'notas-' + hoyISO() + '-' + String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0') + '.json'; };
 async function copiaNotas(modo = 'compartir', nombre){
   nombre = (nombre || nombreCopia()).trim().replace(/[\\/:*?"<>|]/g, '-'); if (!/\.json$/i.test(nombre)) nombre += '.json';
-  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT, locales: LOCALES})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
+  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT, locales: LOCALES, rubricas: PROPIAS})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
   if (nativa()){ if (await sacaNativo([f], {titulo: nombre})){ await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); } return; }
   if (modo === 'compartir'){
     if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); return; } catch (e) { if (e.name === 'AbortError') return; } }
@@ -2670,15 +2699,487 @@ async function recuperaNotas(file){
     NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, o.notas); await guardaDB('conf', NT, 'notas');
     /* lo apuntado en Hoy (desde 1.14): se suma a lo que ya haya, sin repetir */
     if (Array.isArray(o.locales)){ const ya = new Set(LOCALES.map(x => x.id)); LOCALES = LOCALES.concat(o.locales.filter(x => x && !ya.has(x.id))); await ponConf('eventosLocales', LOCALES); avProgramar(); }
+    if (Array.isArray(o.rubricas)){ const ya = new Set(PROPIAS.map(x => x.id)); PROPIAS = PROPIAS.concat(o.rubricas.filter(x => x && x.id && !ya.has(x.id))); await guardaPropias(); }
     aviso('Notas recuperadas'); pintaAjustes(); }
   catch (e) { aviso('No se puede leer: ' + e.message, 4000); }
+}
+
+/* ══ LA FRONTERA DE LA IA (1.15) ═════════════════════════════════════════
+   Qué puede salir del móvil hacia la API de Claude y qué NUNCA sale. Se decide aquí, en el
+   código, y lo comprueba pruebas/frontera.test.mjs (solo en originales). Estas funciones no
+   tocan la pantalla ni las variables de la app: reciben lo que miran.
+   · PUEDE salir: el catálogo de la biblioteca (solo lo que viene de los originales: nunca
+     «Mis archivos» ni «Capturas»), el calendario (los textos que puedan señalar a alguien,
+     tapados), el texto de mis fichas, exámenes EN BLANCO y sus claves, mi programación y
+     recuentos de las actas o del corrector SIN números de lista ni nombres, y solo con al
+     menos IA_MIN alumnos (con menos, un recuento casi es una nota).
+   · NUNCA sale: el escáner y cualquier foto de trabajo de alumnos, las actas tal cual, las
+     notas por alumno, los nombres, los listados, el token de GitHub.
+   · La última puerta: vigilaSalida() mira la petición entera justo antes de enviarla y la
+     para si encuentra un token o una clave, un nombre de la lista cargada junto a otro suyo,
+     un «n.º 12», datos con forma de notas por alumno, o una imagen o un PDF que no se haya
+     aprobado antes como material en blanco (huellaAdjunto, guardada al comprobarlo).
+   · pareceManuscrito(): antes de aprobar una foto (o un PDF escaneado), busca letra a mano.
+     Es una heurística: si duda, no se envía. Por eso la forma buena es el PDF de los
+     originales, que no pasa por aquí. */
+const IA_MIN = 5;
+const IA_RIESGO = [/(?<![\p{L}\d])(ACIS|ACI|NEAE|NESE|NEE|TDAH|TEA)(?![\p{L}\d])/gu,
+  /(?<![\p{L}\d])(dislexia|orientaci[oó]n|convivencia|expulsi[oó]n|expulsad[oa]s?|parte de (?:incidencia|disciplina)|familia|madre|padre|n\.?\s?º\s?\d+|n[uú]mero\s+\d+|(?:un|una|el|la)\s+alumn[oa]|(?:un|una|el|la)\s+chic[oa])(?![\p{L}\d])/giu];
+const iaLlano = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function riesgosIA(t){ const r = []; if (typeof t !== 'string') return r; for (const re of IA_RIESGO) for (const m of t.matchAll(re)) r.push(m[0]); return r; }
+/* el catálogo: solo lo traído de los originales (id, nombre y grupo) */
+function iaCatalogo(docs){ return (docs || []).filter(d => d && d.origen === 'github' && d.path).map(d => ({id: d.id, nombre: d.nombre, grupo: d.carpeta})); }
+/* el calendario, con los eventos que tocan entre desde y hasta (todos si no se dice) */
+function iaCalendario(cal, locales, desde, hasta){
+  if (!cal) return null;
+  const tapa = t => riesgosIA(String(t || '')).length ? '(texto que podía señalar a un alumno: no se envía)' : String(t || '');
+  const grupos = {}; for (const [g, v] of Object.entries(cal.grupos || {})) grupos[g] = {nombre: v.nombre, dias: v.dias, horas: v.horas || {}};
+  const toca = e => !desde || e.sinFecha || (e.fecha ? e.fecha >= desde && e.fecha <= hasta : !(e.hasta < desde || e.desde > hasta));
+  const eventos = (cal.eventos || []).concat(locales || []).filter(toca).map(e => {
+    const o = {tipo: e.tipo, texto: tapa(e.texto), grupos: e.grupos || []};
+    for (const k of ['fecha', 'desde', 'hasta', 'cada', 'sinFecha', 'aprox']) if (e[k] != null) o[k] = e[k];
+    if (e.docs && e.docs.length) o.docs = e.docs.map(p => 'gh:' + p);
+    return o; });
+  return {franjas: cal.franjas || {}, grupos, eventos};
+}
+function iaProgramacion(p){ return p && p.niveles ? {nombre: p.nombre || '', curso: p.curso || '', niveles: p.niveles} : null; }
+/* el recuento del corrector: por pregunta y casilla, cuántos bien, medio y mal, y los errores
+   con nombre; nada por alumno. nota = la función que pone la nota (notaExamen) */
+function agregaCorreccion(ex, al, N, nota){
+  const als = []; let np = 0;
+  for (let n = 1; n <= N; n++){ const a = (al || {})[n]; if (!a) continue; if (a.np){ np++; continue; } if (Object.keys(a.x || {}).length) als.push({a, r: nota(ex, a)}); }
+  if (als.length < IA_MIN) return null;
+  const notas = als.map(x => x.r.nota), r2 = x => Math.round(x * 100) / 100;
+  const bandas = {'menos de 3': 0, 'de 3 a 5': 0, 'de 5 a 7': 0, '7 o más': 0};
+  for (const v of notas) bandas[v < 3 ? 'menos de 3' : v < 5 ? 'de 3 a 5' : v < 7 ? 'de 5 a 7' : '7 o más']++;
+  const firma = m => m.preguntas.map(p => p.casillas.length).join(','), juntos = [];
+  for (const m of ex.modelos){ const del = als.filter(x => x.r.modelo === m); if (!del.length) continue;
+    const g = juntos.find(G => firma(G.m) === firma(m)); if (g){ g.nombres.push(m.nombre); g.als = g.als.concat(del); } else juntos.push({m, nombres: [m.nombre], als: del}); }
+  const modelos = juntos.map(G => G.als.length < IA_MIN ? {modelos: G.nombres, corregidos: G.als.length, detalle: 'menos de ' + IA_MIN + ': no se detalla'} : {modelos: G.nombres, corregidos: G.als.length,
+    preguntas: G.m.preguntas.map((p, ip) => {
+      const pts = G.als.map(x => x.r.porP[x.r.modelo.preguntas[ip].n]), errores = {};
+      const casillas = p.casillas.map((c, ic) => { const k = {texto: c.texto, puntos: c.puntos, bien: 0, medio: 0, mal: 0, sin_marcar: 0};
+        for (const x of G.als){ const v = x.a.x[x.r.modelo.preguntas[ip].casillas[ic].id]; if (v == null) k.sin_marcar++; else if (v >= 1) k.bien++; else if (v > 0) k.medio++; else k.mal++; }
+        return k; });
+      for (const x of G.als){ const pm = x.r.modelo.preguntas[ip]; for (const i of (x.a.e || {})[pm.n] || []){ const e = pm.errores[i]; if (e) errores[e.nombre] = (errores[e.nombre] || 0) + 1; } }
+      return {n: p.n, titulo: p.titulo, puntos: p.puntos, media: r2(pts.reduce((s, v) => s + v, 0) / pts.length), casillas,
+        errores: Object.entries(errores).sort((a, b) => b[1] - a[1]).map(([nombre, veces]) => ({nombre, veces}))}; })});
+  return {examen: {tema: ex.tema, curso: ex.curso, unidad: ex.unidad || ''}, corregidos: als.length, no_presentados: np,
+    media: r2(notas.reduce((s, v) => s + v, 0) / notas.length), aprobados: notas.filter(v => v >= 5).length, bandas, modelos};
+}
+/* el recuento de las actas: por app, cuántas, cuántas buenas, el progreso y los errores con
+   nombre; nunca quién, el nombre del acta, la fecha ni el tiempo */
+function agregaActas(rs, estado){
+  if (!rs || rs.length < IA_MIN) return null;
+  const apps = {};
+  for (const r of rs){ const A = apps[r.app] = apps[r.app] || {actas: 0, buenas: 0, progreso: {}, errores_con_nombre: {}};
+    A.actas++; if (String(estado(r)).startsWith('buena')) A.buenas++;
+    if (r.progreso) A.progreso[r.progreso] = (A.progreso[r.progreso] || 0) + 1;
+    for (const e of String(r.errores || '').split(/;\s*/)){ const k = e.replace(/\s*\(?\s*[x×]\s*\d+\s*\)?\s*$/i, '').trim();
+      if (k && !riesgosIA(k).length) A.errores_con_nombre[k] = (A.errores_con_nombre[k] || 0) + 1; } }
+  return {actas: rs.length, apps};
+}
+/* la huella de un adjunto (su base64): la longitud y un FNV-1a de una muestra */
+function huellaAdjunto(b64){ let h = 2166136261; const s = String(b64 || ''), paso = Math.max(1, Math.floor(s.length / 4096));
+  for (let i = 0; i < s.length; i += paso){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return s.length + ':' + h.toString(16); }
+/* la última puerta: la petición entera, justo antes de salir. Lanza un error si algo no puede salir */
+function vigilaSalida(body, {token = '', nombres = [], aprobados = new Set()} = {}){
+  const fallos = new Set(), textos = [];
+  const recorre = x => {
+    if (Array.isArray(x)) return x.forEach(recorre);
+    if (x && typeof x === 'object'){
+      if (x.type === 'image' || x.type === 'document'){ const s = x.source || {}; if (s.type !== 'base64' || !aprobados.has(huellaAdjunto(s.data))) fallos.add('una imagen o un PDF que no se ha comprobado como material en blanco'); return; }
+      if ('al' in x || 'corr' in x || ('x' in x && ('m' in x || 'np' in x || 'e' in x))) fallos.add('notas por alumno');
+      for (const k of Object.keys(x)) recorre(x[k]); return; }
+    if (typeof x === 'string') textos.push(x);
+  };
+  recorre(body.messages || []);
+  const t = textos.join('\n');
+  if ((token && t.includes(token)) || /github_pat_[A-Za-z0-9_]{20,}|\bgh[pousr]_[A-Za-z0-9]{30,}/.test(t)) fallos.add('el token de GitHub');
+  if (/sk-ant-[A-Za-z0-9_-]{10,}/.test(t)) fallos.add('una clave de la API');
+  /* lo mismo dentro del texto: los datos salen como JSON escrito en el mensaje */
+  if (/"(?:al|corr|porP|np)"\s*:/.test(t) || /"\d+[a-z]?·\d+"\s*:\s*(?:0|1|0?\.5)\s*[,}]/.test(t)) fallos.add('notas por alumno');
+  if (/(?<![\p{L}\d])n\.?\s?º\s?\d+|\bnº\s*\d+|n[uú]mero\s+de\s+lista\s*:?\s*\d+/iu.test(t)) fallos.add('un número de lista');
+  /* un alumno de la lista cargada: dos palabras suyas seguidas («María García», «García, María») */
+  const l = ' ' + iaLlano(t).replace(/[^a-z0-9ñ]+/g, ' ') + ' ';
+  for (const nom of nombres){ const w = iaLlano(nom).replace(/[^a-z0-9ñ]+/g, ' ').trim().split(' ').filter(x => x.length >= 3);
+    for (let i = 0; i < w.length; i++) for (let j = 0; j < w.length; j++) if (i !== j && l.includes(' ' + w[i] + ' ' + w[j] + ' ')){ fallos.add('el nombre de un alumno de la lista'); i = j = w.length; } }
+  if (fallos.size) throw new Error('No se envía: lleva ' + [...fallos].join(', ') + '.');
+  return true;
+}
+/* ¿hay letra a mano? img = {data (RGBA), width, height}, de unos 1100 px de ancho.
+   Se buscan las manchas de tinta (umbral adaptativo) y, entre las anchas y finas, las que
+   suben y bajan muchas veces: una palabra escrita a mano de un tirón. La letra impresa son
+   piezas sueltas (una por letra) y no ondula así. Calibrado (nov 2026) con las páginas de
+   latex/examenes y de las fichas, limpias y «fotografiadas» (borrosas, con sombra y ruido):
+   0-2 trazos ondulados; con letra a mano corrida encima, 3 o más en 42 de 45. Umbral: 3.
+   Lo que no ve bien: respuestas solo con números sueltos. Por eso además se pide marcar
+   «Es material en blanco», y la forma buena es el PDF de los originales. */
+const ONDULADOS_MANO = 3;
+function pareceManuscrito(img){
+  const W = img.width, H = img.height, D = img.data, n = W * H, L = new Float32Array(n);
+  for (let i = 0; i < n; i++) L[i] = .299 * D[4 * i] + .587 * D[4 * i + 1] + .114 * D[4 * i + 2];
+  const r = Math.max(8, Math.round(W / 40)), I = new Float64Array((W + 1) * (H + 1));
+  for (let y = 0; y < H; y++){ let s = 0; for (let x = 0; x < W; x++){ s += L[y * W + x]; I[(y + 1) * (W + 1) + x + 1] = I[y * (W + 1) + x + 1] + s; } }
+  const B = new Uint8Array(n);
+  for (let y = 0; y < H; y++){ const y0 = Math.max(0, y - r), y1 = Math.min(H, y + r + 1);
+    for (let x = 0; x < W; x++){ const x0 = Math.max(0, x - r), x1 = Math.min(W, x + r + 1), p = y * W + x;
+      const m = (I[y1 * (W + 1) + x1] - I[y0 * (W + 1) + x1] - I[y1 * (W + 1) + x0] + I[y0 * (W + 1) + x0]) / ((x1 - x0) * (y1 - y0));
+      if (L[p] < m - 22 && L[p] < 200) B[p] = 1; } }
+  /* las manchas (8 vecinos), con su caja y cuántos puntos tienen */
+  const lab = new Int32Array(n), cs = [], pila = [];
+  for (let p0 = 0; p0 < n; p0++){ if (!B[p0] || lab[p0]) continue; const id = cs.length + 1;
+    let x0 = W, x1 = 0, y0 = H, y1 = 0, k = 0; pila.push(p0); lab[p0] = id;
+    while (pila.length){ const p = pila.pop(), x = p % W, y = (p - x) / W; k++;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){ const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const q = yy * W + xx; if (B[q] && !lab[q]){ lab[q] = id; pila.push(q); } } }
+    cs.push({id, x0, x1, y0, y1, w: x1 - x0 + 1, h: y1 - y0 + 1, k}); }
+  const piezas = cs.filter(c => c.k >= 8 && c.w * c.h < n * .02 && !(c.h <= 4 && c.w > 4 * c.h));
+  if (piezas.length < 25) return {manuscrito: false, piezas: piezas.length, ondulados: 0, motivo: 'casi sin tinta'};
+  const hs = piezas.map(p => p.h).sort((a, b) => a - b), hm = hs[hs.length >> 1];
+  /* el perfil de arriba de cada pieza ancha y fina: cuántas vueltas de al menos un cuarto de su altura */
+  let ondulados = 0;
+  for (const c of piezas){ if (c.w < 3 * hm || c.h < .8 * hm || c.k / (c.w * c.h) > .35) continue;
+    const top = []; for (let x = c.x0; x <= c.x1; x++){ for (let y = c.y0; y <= c.y1; y++) if (lab[y * W + x] === c.id){ top.push(y); break; } }
+    const um = Math.max(2, .25 * c.h); let dir = 0, ext = top[0], vueltas = 0;
+    for (const t of top){ if (dir >= 0 && t > ext + um){ if (dir > 0) vueltas++; dir = -1; ext = t; } else if (dir <= 0 && t < ext - um){ if (dir < 0) vueltas++; dir = 1; ext = t; } else if ((dir >= 0 && t < ext) || (dir <= 0 && t > ext)) ext = t; }
+    if (vueltas >= 5) ondulados++; }
+  const manuscrito = ondulados >= ONDULADOS_MANO;
+  return {manuscrito, piezas: piezas.length, ondulados, motivo: manuscrito ? ondulados + ' trazos largos que suben y bajan, como palabras escritas a mano' : 'parece impreso'};
+}
+/* ── las rúbricas propias: las mismas comprobaciones que herramientas/rubricas.py ── */
+function compruebaRubrica(ex){
+  const err = [], c2 = x => String(Math.round(x * 1000) / 1000).replace('.', ',');
+  if (!ex || !ex.modelos || !ex.modelos.length) return ['no hay preguntas'];
+  if (!String(ex.tema || '').trim()) err.push('falta el tema');
+  for (const m of ex.modelos){ let total = 0; const ids = new Set(), pre = ex.modelos.length > 1 ? m.nombre + ', ' : '';
+    if (!m.preguntas || !m.preguntas.length){ err.push(pre + 'no hay preguntas'); continue; }
+    for (const p of m.preguntas){ const pts = Number(p.puntos); let s = 0;
+      if (!(pts > 0)) err.push(`${pre}pregunta ${p.n}: no vale nada`);
+      if (!p.casillas || !p.casillas.length) err.push(`${pre}pregunta ${p.n}: no tiene casillas`);
+      for (const c of p.casillas || []){ const v = Number(c.puntos); if (!(v > 0)) err.push(`${pre}pregunta ${p.n}, «${c.texto || '?'}»: la casilla no vale nada`);
+        s += v || 0; if (ids.has(c.id)) err.push(`${pre}pregunta ${p.n}: casilla repetida (${c.id})`); ids.add(c.id); }
+      if (Math.abs(s - pts) > 1e-9) err.push(`${pre}pregunta ${p.n}: las casillas suman ${c2(s)} y la pregunta vale ${c2(pts || 0)}`);
+      total += pts || 0; }
+    if (Math.abs(total - 10) > 1e-9) err.push(`${pre}el examen suma ${c2(total)}, no 10`); }
+  return err;
+}
+/* fin de la frontera */
+
+/* ══ LA IA (1.15): la API de Claude, como en el cuaderno de aula ══════════════
+   La clave, el modelo y la intensidad viven en este móvil, en su propia entrada de
+   localStorage (LSIA): fuera de IndexedDB, de la copia de las notas y del código publicado.
+   Todo lo que sale pasa por iaLlama(), que llama a vigilaSalida() justo antes del fetch.
+   Cinco cosas: buscar material con mis palabras, el resumen de la clase (con el recuento
+   agregado), variantes de los ejercicios de una ficha, «¿qué toca hoy?» y la rúbrica nueva
+   de un examen o una ficha a partir del examen en blanco y su clave. */
+const LSIA = 'utilidades.ia';
+const API_IA = 'https://api.anthropic.com/v1/messages';
+const MODELOS_IA = [['claude-opus-5-5', 'Opus · el más fino'], ['claude-sonnet-5-5', 'Sonnet · equilibrado'], ['claude-haiku-5-5', 'Haiku · rápido y barato']];
+const INTENSIDAD_IA = [['low', 'Baja'], ['medium', 'Media'], ['high', 'Alta']];
+const IA0 = {clave: '', modelo: 'claude-opus-5-5', esfuerzo: 'medium'};
+const iaCfg = () => { try { return Object.assign({}, IA0, JSON.parse(localStorage.getItem(LSIA) || '{}')); } catch (e) { return Object.assign({}, IA0); } };
+const iaGuarda = c => { try { localStorage.setItem(LSIA, JSON.stringify(c)); } catch (e) {} };
+const iaLista = () => !!iaCfg().clave;
+const APROBADOS = new Set();   /* las huellas de los adjuntos comprobados como material en blanco (solo en memoria) */
+const nombresCargados = () => Object.values(LISTA).flatMap(g => Object.values(g));
+function errorIA(st, d){ const m = (d && d.error && d.error.message) || '';
+  return st === 401 ? 'la clave no vale (¿copiada entera?)' : st === 403 ? 'la clave no tiene permiso para este modelo' : st === 429 ? 'demasiadas peticiones o sin saldo en la Consola' : st === 529 || st === 503 ? 'la API está saturada: prueba en un rato' : m || 'error ' + st; }
+async function iaLlama({system, contenido, esquema, maxTokens = 8000, esfuerzo}){
+  const c = iaCfg(); if (!c.clave) throw new Error('Falta la clave de la API (Ajustes → La IA).');
+  const body = {model: c.modelo, max_tokens: maxTokens, output_config: {effort: esfuerzo || c.esfuerzo}, messages: [{role: 'user', content: contenido}]};
+  if (system) body.system = system;
+  if (esquema) body.output_config.format = {type: 'json_schema', schema: esquema};
+  /* si los filtros de seguridad de Opus o Sonnet rechazan algo, la API lo repite con otro modelo */
+  const respaldo = /opus|sonnet/.test(c.modelo); if (respaldo) body.fallbacks = 'default';
+  vigilaSalida(body, {token: (await conf()).token, nombres: nombresCargados(), aprobados: APROBADOS});
+  const cab = {'content-type': 'application/json', 'x-api-key': c.clave, 'anthropic-version': '2026-10-21', 'anthropic-dangerous-direct-browser-access': 'true'};
+  if (respaldo) cab['anthropic-beta'] = 'server-side-fallback-2026-07-01';
+  let r; try { r = await fetch(API_IA, {method: 'POST', headers: cab, body: JSON.stringify(body)}); } catch (e) { throw new Error('sin conexión con la API'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(errorIA(r.status, d));
+  if (d.stop_reason === 'refusal') throw new Error('la IA no ha querido responder a esto');
+  if (d.stop_reason === 'max_tokens') throw new Error('la respuesta se ha cortado: prueba con menos material o con intensidad baja');
+  const txt = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  if (!esquema) return {o: txt, uso: d.usage || {}};
+  try { return {o: JSON.parse(txt), uso: d.usage || {}}; } catch (e) { throw new Error('la respuesta no se ha podido leer'); }
+}
+/* la prueba de conexión: una llamada mínima, sin nada de la app */
+async function iaPrueba(){
+  const c = iaCfg();
+  try { await iaLlama({contenido: 'Responde solo: ok', maxTokens: 400, esfuerzo: 'low'}); c.ok = true; c.msg = ''; }
+  catch (e) { c.ok = false; c.msg = e.message; }
+  c.probado = Date.now(); iaGuarda(Object.assign(iaCfg(), {ok: c.ok, msg: c.msg, probado: c.probado})); return c;
+}
+const nombreModelo = m => (MODELOS_IA.find(x => x[0] === m) || ['', m])[1].split(' ·')[0];
+const nombreEsfuerzo = e => (INTENSIDAD_IA.find(x => x[0] === e) || ['', e])[1].toLowerCase();
+/* un esquema JSON: todos los campos obligatorios y nada más (como piden las salidas estructuradas) */
+const obj = props => ({type: 'object', properties: props, required: Object.keys(props), additionalProperties: false});
+const S = {type: 'string'}, NUM = {type: 'number'}, BOOL = {type: 'boolean'}, lista = it => ({type: 'array', items: it});
+
+/* ── el panel de Ajustes ── */
+let PROG = null;   /* la programación (el mismo archivo que carga el cuaderno), en IndexedDB */
+function pintaIA(){
+  const c = iaCfg(), E = $('#iaEstado');
+  E.innerHTML = !c.clave ? '<span class="nota">Sin configurar.</span>'
+    : c.ok ? `<b class="ok">✓ conectada</b> <span class="nota">· ${esc(nombreModelo(c.modelo))}, intensidad ${esc(nombreEsfuerzo(c.esfuerzo))} · probada el ${new Date(c.probado).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'})}</span>`
+    : c.probado ? `<b class="mal">✗ no conecta</b> <span class="nota">· ${esc(c.msg || '')}</span>` : '<span class="nota">Sin probar.</span>';
+  $('#iaClave').value = ''; $('#iaClave').placeholder = c.clave ? 'Clave guardada (…' + c.clave.slice(-4) + '). Pega otra para cambiarla' : 'Clave de la API (sk-ant-…)';
+  $('#iaModelo').innerHTML = MODELOS_IA.map(([v, t]) => `<option value="${v}"${v === c.modelo ? ' selected' : ''}>${t}</option>`).join('');
+  $('#iaEsfuerzo').innerHTML = INTENSIDAD_IA.map(([v, t]) => `<option value="${v}"${v === c.esfuerzo ? ' selected' : ''}>${t}</option>`).join('');
+  $('#bIaQuita').hidden = $('#bIaProbar').hidden = !c.clave;
+  $('#iaProg').textContent = PROG ? '✓ Programación: ' + (PROG.nombre || 'cargada') + (PROG.curso ? ' · ' + PROG.curso : '') + ' · ' + Object.values(PROG.niveles).reduce((s, L) => s + L.length, 0) + ' situaciones' : 'Programación: sin cargar (el mismo archivo que en el cuaderno). La usa «¿Qué toca hoy?».';
+  $('#bIaProgQuita').hidden = !PROG;
+  pintaBotonesIA();
+}
+function pintaBotonesIA(){ const s = iaLista(); $('#bIaBusca').hidden = !s; $('#hoyIa').hidden = !s; }
+$('#bIaClave').onclick = async () => {
+  let k = $('#iaClave').value.replace(/\s+/g, ''); const c = iaCfg();
+  if (!k && !c.clave) return aviso('Pega la clave primero');
+  if (k){ if (!/^sk-ant-/.test(k) && !confirm('La clave no empieza por «sk-ant-». ¿La guardo igualmente?')) return;
+    if (k.length < 40) aviso('La clave parece incompleta', 3500); c.clave = k; }
+  c.modelo = $('#iaModelo').value; c.esfuerzo = $('#iaEsfuerzo').value; iaGuarda(c);
+  $('#iaEstado').innerHTML = '<span class="nota">Probando la conexión…</span>';
+  const r = await iaPrueba(); pintaIA(); aviso(r.ok ? 'La IA está conectada' : 'No conecta: ' + r.msg, 4000);
+};
+$('#bIaProbar').onclick = async () => { $('#iaEstado').innerHTML = '<span class="nota">Probando la conexión…</span>'; const r = await iaPrueba(); pintaIA(); aviso(r.ok ? 'Conecta' : 'No conecta: ' + r.msg, 4000); };
+$('#iaModelo').onchange = $('#iaEsfuerzo').onchange = () => { const c = iaCfg(); c.modelo = $('#iaModelo').value; c.esfuerzo = $('#iaEsfuerzo').value; c.ok = false; c.probado = 0; iaGuarda(c); pintaIA(); if (c.clave) $('#bIaProbar').click(); };
+$('#bIaQuita').onclick = () => { if (!confirm('¿Quitar la clave de la API de este móvil?')) return; try { localStorage.removeItem(LSIA); } catch (e) {} pintaIA(); };
+$('#bIaProg').onclick = () => $('#fIaProg').click();
+$('#fIaProg').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const j = JSON.parse(await f.text()); if (j.tipo !== 'programacion-cuaderno' || !j.niveles) throw new Error('no es la programación del cuaderno');
+    PROG = {nombre: j.nombre || 'Programación de aula', curso: j.curso || '', niveles: j.niveles, cargada: Date.now()}; await ponConf('programacion', PROG); aviso('Programación cargada'); pintaIA(); }
+  catch (err) { aviso('No se puede leer: ' + err.message, 4000); } };
+$('#bIaProgQuita').onclick = async () => { PROG = null; await borraDB('conf', 'programacion'); pintaIA(); };
+
+/* ── la capa de la IA: cada función enseña aquí qué sale, espera y pinta lo que vuelve ── */
+function capaIA(titulo, html, reemplaza){ $('#iaTit').textContent = titulo; $('#iaCuerpo').innerHTML = html; if (reemplaza) cambiaCapa('iaCapa'); else if ($('#iaCapa').hidden) abreCapa('iaCapa'); $('#iaCapa').scrollTop = 0; }
+const sale = t => `<p class="nota" style="margin-top:0">Sale: ${t}. Nada de alumnos.</p>`;
+const esperaIA = '<p class="nota" id="iaEspera">Preguntando a la IA…</p><div class="prog"><i style="width:60%"></i></div>';
+async function conIA(boton, f){ const b = typeof boton === 'string' ? $(boton) : boton; if (b) b.disabled = true;
+  try { await f(); } catch (e) { const ee = $('#iaEspera'); if (ee) ee.parentElement.querySelectorAll('.prog').forEach(x => x.remove());
+    if (ee) ee.outerHTML = '<p class="mal">' + esc(e.message) + '</p>'; else if ($('#iaRes')) $('#iaRes').innerHTML = '<p class="mal">' + esc(e.message) + '</p>'; else aviso(e.message, 5000); } finally { if (b) b.disabled = false; } }
+const filaIA = (id, porque) => { const d = DOCS.find(x => x.id === id); return !d ? '' : porque ? filaDoc(d).replace('<small>', '<small>' + esc(porque) + ' · ') : filaDoc(d); };
+$('#iaCuerpo').addEventListener('click', e => { const b = e.target.closest('.doc[data-id]'); if (b) abreHoja(b.dataset.id); });
+
+/* a) buscar material con mis palabras */
+const ESQ_BUSCA = obj({resultados: lista(obj({id: S, porque: S})), nota: S});
+const SYS_BUSCA = 'Eres el buscador de la biblioteca de material de clase de un profesor de matemáticas de ESO (Comunitat Valenciana). Te da una petición con sus palabras y el catálogo de su biblioteca (id, nombre del archivo y grupo). Devuelve los documentos que mejor encajan, del más al menos probable, como mucho 8, solo con ids del catálogo, cada uno con una frase corta de por qué. Los nombres de las apps dan pistas del tema (La palestra: enteros; La clonadora: potencias; Miut: divisibilidad; La grapadora y la pizzería de Nick: fracciones; Nicoleta: pastelería). «1.º» y «2.º» son cursos de ESO. Si nada encaja, lista vacía y dilo en «nota».';
+$('#bIaBusca').onclick = () => {
+  const q0 = $('#busca').value.trim();
+  capaIA('Buscar con IA', `${sale('tu frase y el catálogo de tu biblioteca (solo los títulos de tus originales)')}
+    <div class="fila"><input type="search" id="iaQ" style="flex:1" placeholder="«la ficha de las tartas para 2.º»" value="${esc(q0)}"><button class="btn prim" id="iaQBtn">Buscar</button></div><div id="iaRes"></div>`);
+  const va = () => conIA('#iaQBtn', async () => { const q = $('#iaQ').value.trim(); if (!q) return aviso('Escribe qué buscas');
+    const cat = iaCatalogo(DOCS); if (!cat.length) throw new Error('La biblioteca no tiene nada de tus originales: pulsa Actualizar');
+    $('#iaRes').innerHTML = esperaIA;
+    const {o} = await iaLlama({system: SYS_BUSCA, esquema: ESQ_BUSCA, maxTokens: 4000, contenido: 'Catálogo (JSON):\n' + JSON.stringify(cat) + '\n\nBusco: ' + q});
+    const fs = o.resultados.map(x => filaIA(x.id, x.porque)).filter(Boolean).join('');
+    $('#iaRes').innerHTML = (fs ? '<div class="caja" style="padding:0">' + fs + '</div>' : '<div class="vacio">Nada.</div>') + (o.nota ? '<p class="nota">' + esc(o.nota) + '</p>' : ''); });
+  $('#iaQBtn').onclick = va; $('#iaQ').onkeydown = e => { if (e.key === 'Enter') va(); };
+  if (q0) va();
+};
+
+/* b) el resumen de la clase: el móvil cuenta y sale solo el recuento */
+const ESQ_RESUMEN = obj({resumen: S, repasar: lista(obj({que: S, porque: S, cuantos: S})), fichas: lista(obj({id: S, porque: S}))});
+const SYS_RESUMEN = 'Eres el ayudante de un profesor de matemáticas de ESO (Comunitat Valenciana). Te da el recuento AGREGADO de una clase, sin alumnos: del corrector de exámenes (por pregunta y casilla: cuántos bien, medio y mal, y los errores con nombre con cuántas veces) o de las actas de sus apps (progreso y errores con nombre). Y el catálogo de su biblioteca. Dile en castellano, en corto y sin rodeos, como un compañero de departamento: un resumen de dos o tres frases; qué repasar, lo más urgente primero, con la pregunta o el error concreto y cuántos lo tienen («pregunta 3: 14 de 22 ✗»); y qué fichas de su biblioteca encajan para ese repaso (solo ids del catálogo, con por qué).';
+function resumenIA(titulo, agregado, explica){
+  if (!agregado) return aviso('Hacen falta al menos ' + IA_MIN + ' para que un recuento no señale a nadie', 4500);
+  capaIA('Resumen con IA', `${sale('el recuento de abajo y el catálogo de tu biblioteca')}
+    <div class="caja"><h2>${esc(titulo)}</h2><p class="nota" style="margin:0">${esc(explica)}</p>
+    <details style="margin-top:8px"><summary class="nota" style="cursor:pointer">Lo que sale, tal cual</summary><pre style="white-space:pre-wrap;font-size:12px;max-height:40vh;overflow:auto">${esc(JSON.stringify(agregado, null, 1))}</pre></details>
+    <div class="fila" style="margin-top:10px"><button class="btn acento" id="iaResBtn">Pedir el resumen</button></div></div><div id="iaRes"></div>`);
+  $('#iaResBtn').onclick = () => conIA('#iaResBtn', async () => { $('#iaRes').innerHTML = esperaIA;
+    const {o} = await iaLlama({system: SYS_RESUMEN, esquema: ESQ_RESUMEN, contenido: 'Recuento (JSON):\n' + JSON.stringify(agregado) + '\n\nCatálogo (JSON):\n' + JSON.stringify(iaCatalogo(DOCS))});
+    $('#iaRes').innerHTML = `<div class="caja"><p style="margin-top:0">${esc(o.resumen)}</p>${o.repasar.length ? '<h2>Qué repasar</h2>' + o.repasar.map(x => `<p style="margin:6px 0"><b>${esc(x.que)}</b> <small class="nota">${esc(x.cuantos)}</small><br><span class="nota">${esc(x.porque)}</span></p>`).join('') : ''}</div>`
+      + (o.fichas.length ? '<div class="caja" style="padding:0"><div class="sub">Fichas que encajan</div>' + o.fichas.map(x => filaIA(x.id, x.porque)).join('') + '</div>' : ''); });
+}
+
+/* c) variantes de los ejercicios de una ficha, en el formato de la casa */
+const ESQ_VAR = obj({ejercicios: lista(obj({titulo: S, latex: S, solucion: S, nota: S}))});
+const SYS_VAR = `Eres el ayudante de un profesor de matemáticas de ESO que escribe sus fichas en LaTeX con su propia clase. Te da el texto de una ficha (sacado del PDF: se pierden los dibujos y el formato) y te pide variantes de sus ejercicios para revisarlas él. Mismo nivel, misma idea y el mismo contexto de la ficha (sus personajes y objetos), con números distintos y sin repetir ninguno; nada más difícil de lo que pide la ficha.
+Escríbelas en el formato de la casa: \\bloque{n}{Título}{Etapa} para cada bloque, \\ej{a}, \\ej{b}… para los apartados, \\casillita[8mm] donde va la respuesta corta, \\renglon[2cm] para un hueco de cuenta, \\consola{…} para el error típico que hay que evitar, matemáticas entre $…$ con \\cdot para multiplicar, y en castellano. Cada variante con su solución (corta, como en una clave) y, en «nota», qué has cambiado o qué conviene mirar.`;
+async function textoPdf(blob, max = 8){ const pdf = await abrePdf(blob); let t = '';
+  for (let i = 1; i <= Math.min(pdf.numPages, max); i++){ const tc = await (await pdf.getPage(i)).getTextContent(); t += tc.items.map(x => x.str + (x.hasEOL ? '\n' : ' ')).join('') + '\n\n'; }
+  return t.replace(/[ \t]+\n/g, '\n').trim(); }
+async function variantesIA(d, desdeHoja){
+  if (d.origen !== 'github' || esImg(d)) return aviso('Las variantes, con las fichas de tus originales');
+  capaIA('Variantes con IA', `${sale('el texto de esta ficha (de tus originales)')}
+    <div class="caja"><h2>${esc(bonito(d.nombre))}</h2>
+    <div class="fila"><span>Qué ejercicio</span><input type="text" id="iaVarQue" style="flex:1" placeholder="todos, el 3, el bloque 2…"></div>
+    <div class="fila" style="margin-top:8px"><span>Cuántas variantes de cada uno</span><select id="iaVarN"><option>1</option><option selected>2</option><option>3</option></select></div>
+    <div class="fila" style="margin-top:10px"><button class="btn acento" id="iaVarBtn">Pedir las variantes</button></div></div><div id="iaRes"></div>`, desdeHoja);
+  $('#iaVarBtn').onclick = () => conIA('#iaVarBtn', async () => {
+    const t = await textoPdf(d.blob); if (t.length < 40) throw new Error('Este PDF no tiene texto que leer (es una imagen)');
+    if (riesgosIA(t).length) throw new Error('El texto de la ficha parece llevar algo de un alumno (' + riesgosIA(t)[0] + '): no se envía');
+    $('#iaRes').innerHTML = esperaIA;
+    const {o} = await iaLlama({system: SYS_VAR, esquema: ESQ_VAR, maxTokens: 12000, contenido: 'Ficha «' + bonito(d.nombre) + '» (texto):\n' + t + '\n\nQuiero: ' + ($('#iaVarQue').value.trim() || 'todos los ejercicios') + ', ' + $('#iaVarN').value + ' variante(s) de cada uno.'});
+    const todo = o.ejercicios.map(x => '% ' + x.titulo + '\n' + x.latex + '\n% Solución: ' + x.solucion.replace(/\n/g, '\n% ')).join('\n\n');
+    $('#iaRes').innerHTML = `<div class="fila"><button class="btn peq acento" id="iaVarCopia">Copiar todo (LaTeX)</button><span class="nota">Para revisarlas: no se guardan solas.</span></div>`
+      + o.ejercicios.map(x => `<div class="caja"><h2>${esc(x.titulo)}</h2><pre style="white-space:pre-wrap;font-size:13px">${esc(x.latex)}</pre><p class="nota sol">Solución: ${esc(x.solucion)}</p>${x.nota ? '<p class="nota"><i>' + esc(x.nota) + '</i></p>' : ''}</div>`).join('');
+    $('#iaVarCopia').onclick = async () => { try { await navigator.clipboard.writeText(todo); aviso('Copiado'); } catch (e) { descarga(new Blob([todo], {type: 'text/x-tex'}), 'variantes-' + d.nombre + '.tex'); } }; });
+}
+
+/* d) ¿qué toca hoy? */
+const ESQ_HOY = obj({resumen: S, grupos: lista(obj({grupo: S, hora: S, que: S, docs: lista(S), ojo: S}))});
+const SYS_HOY = 'Eres el ayudante de un profesor de matemáticas de ESO (Comunitat Valenciana). Con su calendario de clase (grupos, días y horas, y lo que tiene puesto cada día o cada semana, con sus PDF), su programación de aula (si la hay) y el catálogo de su biblioteca, dile qué toca el día que te pregunta: grupo a grupo y en el orden de sus horas, qué hacer, con qué PDF (ids del catálogo: «gh:» y la ruta) y lo que convenga no olvidar (exámenes o entregas que se acercan, algo pendiente de fecha). Si la programación dice que debería ir por otro sitio, dilo en «ojo». En castellano, en corto, sin inventar nada que no esté en lo que te da.';
+$('#hoyIa').onclick = () => {
+  const dia = DIA || hoyISO();
+  capaIA('¿Qué toca hoy?', `${sale('tu calendario de estas semanas, tu programación' + (PROG ? '' : ' (no está cargada)') + ' y el catálogo de tu biblioteca')}
+    <div class="caja"><h2>${esc(largaFecha(dia))}</h2><div class="fila"><button class="btn acento" id="iaHoyBtn">Preguntar</button></div></div><div id="iaRes"></div>`);
+  $('#iaHoyBtn').onclick = () => conIA('#iaHoyBtn', async () => { if (!CAL) throw new Error('Aún no hay calendario: pulsa Actualizar en la Biblioteca');
+    $('#iaRes').innerHTML = esperaIA;
+    const ctx = {dia, dia_de_la_semana: largaFecha(dia).split(' ')[0], calendario: iaCalendario(CAL, LOCALES, suma(dia, 1 - diaSem(dia)), suma(dia, 21)), programacion: iaProgramacion(PROG), catalogo: iaCatalogo(DOCS)};
+    const {o} = await iaLlama({system: SYS_HOY, esquema: ESQ_HOY, contenido: 'Lo que tengo (JSON):\n' + JSON.stringify(ctx) + '\n\n¿Qué toca el ' + largaFecha(dia) + '?'});
+    $('#iaRes').innerHTML = `<div class="caja"><p style="margin:0">${esc(o.resumen)}</p></div>` + o.grupos.map(g => `<div class="caja" style="padding:0"><div style="padding:12px 14px"><b>${esc(g.hora ? g.hora + ' · ' : '')}${esc(g.grupo)}</b><div>${esc(g.que)}</div>${g.ojo ? '<div class="nota mal">' + esc(g.ojo) + '</div>' : ''}</div>${g.docs.map(id => filaIA(id, '')).join('')}</div>`).join(''); });
+};
+
+/* e) la rúbrica nueva, a partir del examen EN BLANCO y su clave */
+let RUB_GH = null, PROPIAS = [];
+/* las del corrector: las de los originales y, detrás, las mías (rubricasPropias, en el móvil) */
+function mezclaRubricas(){ const ex = ((RUB_GH && RUB_GH.examenes) || []).concat(PROPIAS); RUB = ex.length ? Object.assign({version: 1}, RUB_GH || {}, {examenes: ex}) : null; }
+const guardaPropias = async () => { await ponConf('rubricasPropias', PROPIAS); mezclaRubricas(); };
+const ESQ_RUB = obj({tema: S, curso: S, unidad: S, reglas: S, avisos: lista(S), preguntas: lista(obj({titulo: S, puntos: NUM, puntuacion: S, medio: S, solucion: S, sin_revisar: BOOL,
+  errores: lista(obj({nombre: S, detalle: S})), casillas: lista(obj({texto: S, puntos: NUM, termometro: BOOL}))}))});
+const SYS_RUB = `Haces la rúbrica de corrección de un examen (o una ficha) de matemáticas de ESO para el corrector del móvil de un profesor. Te da el examen EN BLANCO y, si la tiene, su clave.
+El formato: preguntas con lo que vale cada una; cada pregunta partida en casillas (cada apartado o cada paso que se corrige por separado) que él marcará ✓ (vale entera), ½ (la mitad) o ✗ (nada). Las casillas de una pregunta suman exactamente lo que vale la pregunta, y el examen suma 10: respeta los valores que diga el examen o la clave y, si no suman 10, dilo en «avisos». Usa múltiplos de 0,25.
+Para cada pregunta: un título corto; la puntuación como la diría la clave («0,25 cada una»); «medio», el criterio del ½ (cuándo una casilla vale la mitad); la solución, de la clave; si no hay clave o no se lee, propónla tú y pon sin_revisar: true; los errores con nombre típicos (nombre corto y en qué apartado se ve: «sumar los exponentes al clonar» → «c) g^5»); y termometro: true en la casilla que mejor dice si se ha entendido lo esencial (una o dos en todo el examen).
+«reglas»: las reglas generales de corrección si la clave las da (proceso visible, error de cálculo aislado…); si no, vacío. tema, curso («1.º ESO»…) y unidad, del examen.
+Todo en castellano y con la notación del examen. Si alguna imagen tuviera respuestas escritas a mano de un alumno, no las uses: dilo en «avisos» y trabaja solo con lo impreso.`;
+/* convierte lo que devuelve la IA al formato de rubricas.json (un único modelo) */
+function rubricaDeIA(o, meta){
+  const sinClave = !meta.conClave, t = meta.tema || o.tema || 'Rúbrica nueva';
+  return {id: 'propia-' + Date.now().toString(36), propia: true, tipo: meta.tipo, tema: t, curso: meta.curso || o.curso || '', unidad: meta.unidad || o.unidad || '', creada: Date.now(), sinClave, avisos: o.avisos || [],
+    modelos: [{modelo: 'A', nombre: 'Modelo único', apodo: '', marca: null, reglas: o.reglas || '', titulo: t, archivo: '',
+      preguntas: o.preguntas.map((p, i) => ({n: i + 1, titulo: p.titulo, puntos: p.puntos, criterios: [], etapa: '', base: p.puntuacion, medio: p.medio,
+        puntuacion: p.puntuacion + (p.medio ? ' · ½: ' + p.medio : ''), sinRevisar: sinClave || !!p.sin_revisar, solucion: p.solucion,
+        errores: p.errores.map(e => ({nombre: e.nombre, detalle: e.detalle})),
+        casillas: p.casillas.map((c, k) => ({id: (i + 1) + '·' + (k + 1), texto: c.texto, puntos: c.puntos, termometro: !!c.termometro}))}))}]};
+}
+/* comprobar un adjunto antes de aprobarlo: un PDF con texto, tal cual; una foto o un PDF
+   escaneado, sin letra a mano (pareceManuscrito). Devuelve el bloque para la API o un error. */
+const reduceImagen = async (fuente, lado) => { const bm = fuente instanceof Blob ? await createImageBitmap(fuente, {imageOrientation: 'from-image'}).catch(() => createImageBitmap(fuente)) : fuente;
+  const k = Math.min(1, lado / Math.max(bm.width, bm.height)), cv = document.createElement('canvas'); cv.width = Math.round(bm.width * k); cv.height = Math.round(bm.height * k);
+  const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height); c.drawImage(bm, 0, 0, cv.width, cv.height); return cv; };
+const datosDe = cv => cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+async function preparaAdjunto(fuente){
+  if (fuente.doc){   /* de los originales: en blanco por definición */
+    const data = await aBase64(fuente.doc.blob); APROBADOS.add(huellaAdjunto(data));
+    return {bloque: {type: 'document', source: {type: 'base64', media_type: 'application/pdf', data}}, desc: bonito(fuente.doc.nombre) + ' (de tus originales)'}; }
+  const f = fuente.file;
+  if (/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)){
+    const pdf = await abrePdf(f), N = Math.min(pdf.numPages, 6); let letras = 0;
+    for (let i = 1; i <= N; i++) letras += (await (await pdf.getPage(i)).getTextContent()).items.reduce((s, x) => s + x.str.trim().length, 0);
+    if (letras < 60 * N){   /* escaneado: se mira como una foto, página a página */
+      for (let i = 1; i <= N; i++){ const m = pareceManuscrito(datosDe(await reduceImagen((await pintaPagina(pdf, i, 110)).cv, 1100)));
+        if (m.manuscrito) return {error: `la página ${i} parece tener letra a mano (${m.motivo}). No se envía: usa el PDF de tus originales o una foto del examen sin hacer.`}; } }
+    const data = await aBase64(f); APROBADOS.add(huellaAdjunto(data));
+    return {bloque: {type: 'document', source: {type: 'base64', media_type: 'application/pdf', data}}, desc: f.name + (letras < 60 * N ? ' (escaneado, sin letra a mano)' : '')}; }
+  if (!/^image\//.test(f.type)) return {error: 'solo PDF o fotos'};
+  const m = pareceManuscrito(datosDe(await reduceImagen(f, 1100)));
+  if (m.manuscrito) return {error: `la foto parece tener letra a mano (${m.motivo}). Si es un examen hecho por un alumno, no puede salir. Haz la foto del examen sin hacer o usa el PDF de tus originales.`};
+  const cv = await reduceImagen(f, 1600), data = (await aBase64(new Blob([await jpeg(cv, .82)]))); APROBADOS.add(huellaAdjunto(data));
+  return {bloque: {type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data}}, desc: f.name + ' (foto, sin letra a mano)'};
+}
+let NR = null;   /* la rúbrica nueva en preparación */
+function nuevaRubrica(){
+  NR = {tipo: 'examen', examen: [], clave: [], tema: '', curso: '', unidad: ''};
+  pintaNuevaRubrica();
+}
+function pintaNuevaRubrica(){
+  const lado = k => `<div class="caja"><h2>${k === 'examen' ? 'El examen EN BLANCO' : 'La clave (opcional)'}</h2>
+    ${NR[k].map((a, i) => `<div class="fila" style="justify-content:space-between"><span>${a.error ? '<b class="mal">✗</b>' : '<b class="ok">✓</b>'} ${esc(a.desc || a.nombre)}</span><button class="btn peq" data-quita="${k}:${i}">Quitar</button></div>${a.error ? '<p class="nota mal" style="margin:2px 0 8px">' + esc(a.error) + '</p>' : ''}`).join('')}
+    <div class="fila" style="margin-top:6px"><button class="btn peq" data-de="${k}:biblio">De tus originales</button><button class="btn peq" data-de="${k}:pdf">PDF del móvil</button><button class="btn peq" data-de="${k}:foto">Foto</button></div>
+    ${k === 'clave' && !NR.clave.length ? '<p class="nota">Sin clave, la IA propone las soluciones y salen marcadas «sin revisar».</p>' : ''}</div>`;
+  capaIA('Nueva rúbrica', `${sale('el examen en blanco y su clave (comprobados antes: si una foto o un PDF escaneado parece tener letra a mano, no sale)')}
+    <div class="caja"><div class="fila"><select id="nrTipo"><option value="examen"${NR.tipo === 'examen' ? ' selected' : ''}>Examen</option><option value="ficha"${NR.tipo === 'ficha' ? ' selected' : ''}>Ficha</option></select>
+      <select id="nrCurso">${['', '1.º ESO', '2.º ESO', '3.º ESO', '4.º ESO', 'Taller 4.º'].map(c => `<option value="${c}"${c === NR.curso ? ' selected' : ''}>${c || 'curso (lo dice el examen)'}</option>`).join('')}</select></div>
+      <div class="fila" style="margin-top:8px"><input type="text" id="nrTema" style="flex:1" placeholder="Tema (si no, lo saca del examen)" value="${esc(NR.tema)}"><input type="text" id="nrUnidad" style="flex:1" placeholder="Unidad" value="${esc(NR.unidad)}"></div></div>
+    ${lado('examen')}${lado('clave')}
+    <div class="opc"><label><input type="checkbox" id="nrBlanco"><span>Es material en blanco<small>Sin nombres ni respuestas de alumnos. Las fotos y los PDF del móvil se miran antes por si llevan letra a mano.</small></span></label></div>
+    <div class="fila"><button class="btn acento" id="nrPide">Pedir la rúbrica</button></div><div id="iaRes"></div>
+    <input type="file" id="nrFile" hidden>`);
+  $('#nrTipo').onchange = e => NR.tipo = e.target.value; $('#nrCurso').onchange = e => NR.curso = e.target.value;
+  $('#nrTema').oninput = e => NR.tema = e.target.value; $('#nrUnidad').oninput = e => NR.unidad = e.target.value;
+  $$('#iaCuerpo [data-quita]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.quita.split(':'); NR[k].splice(+i, 1); pintaNuevaRubrica(); });
+  $$('#iaCuerpo [data-de]').forEach(b => b.onclick = () => { const [k, de] = b.dataset.de.split(':');
+    if (de === 'biblio') return eligeOriginal(k);
+    const F = $('#nrFile'); F.accept = de === 'pdf' ? 'application/pdf' : 'image/*'; F.multiple = de === 'foto'; if (de === 'foto') F.setAttribute('capture', 'environment'); else F.removeAttribute('capture');
+    F.onchange = async () => { const fs = [...F.files]; F.value = ''; for (const f of fs){ aviso('Mirando «' + f.name + '»…', 1500); const r = await preparaAdjunto({file: f}).catch(e => ({error: e.message})); NR[k].push(Object.assign({nombre: f.name}, r)); } pintaNuevaRubrica(); };
+    F.click(); });
+  $('#nrPide').onclick = () => conIA('#nrPide', async () => {
+    const ex = NR.examen.filter(a => !a.error), cl = NR.clave.filter(a => !a.error);
+    if (NR.examen.some(a => a.error) || NR.clave.some(a => a.error)) throw new Error('Quita primero lo marcado con ✗: eso no puede salir');
+    if (!ex.length) throw new Error('Falta el examen en blanco');
+    if (!$('#nrBlanco').checked) throw new Error('Marca «Es material en blanco»');
+    $('#iaRes').innerHTML = esperaIA;
+    const contenido = [{type: 'text', text: 'EXAMEN EN BLANCO:'}].concat(ex.map(a => a.bloque), cl.length ? [{type: 'text', text: 'SU CLAVE:'}].concat(cl.map(a => a.bloque)) : [],
+      [{type: 'text', text: (NR.tipo === 'ficha' ? 'Es una ficha.' : 'Es un examen.') + (NR.tema ? ' Tema: ' + NR.tema + '.' : '') + (NR.curso ? ' Curso: ' + NR.curso + '.' : '') + (cl.length ? '' : ' No hay clave: propón las soluciones y márcalas sin_revisar.') + ' Haz la rúbrica.'}]);
+    const {o} = await iaLlama({system: SYS_RUB, esquema: ESQ_RUB, maxTokens: 16000, contenido});
+    editaRubrica(rubricaDeIA(o, {tipo: NR.tipo, tema: NR.tema.trim(), curso: NR.curso, unidad: NR.unidad.trim(), conClave: cl.length > 0}), true); });
+}
+function eligeOriginal(k){
+  const ds = DOCS.filter(d => d.origen === 'github' && !esImg(d));   /* solo lo de los originales: nunca «Mis archivos» ni «Capturas» */
+  capaIA('Elige de tus originales', `<input type="search" id="nrBusca" placeholder="Buscar…" style="width:100%"><div id="nrLista"></div>`);
+  const pinta = () => { const q = llano($('#nrBusca').value.trim()); const v = ds.filter(d => !q || llano(d.nombre + ' ' + d.carpeta).includes(q)).sort((a, b) => /examen|clave/i.test(b.carpeta + b.nombre) - /examen|clave/i.test(a.carpeta + a.nombre) || ordena(a.nombre, b.nombre)).slice(0, 80);
+    $('#nrLista').innerHTML = '<div class="caja" style="padding:0">' + v.map(d => filaDoc(d).replace('class="doc"', 'class="doc" data-elige="1"').replace('<small>', '<small>' + esc(d.carpeta) + ' · ')).join('') + '</div>'; };
+  $('#nrBusca').oninput = pinta; pinta();
+  $('#nrLista').onclick = async e => { e.stopPropagation(); const b = e.target.closest('.doc'); if (!b) return; const d = DOCS.find(x => x.id === b.dataset.id);
+    NR[k].push(Object.assign({nombre: d.nombre}, await preparaAdjunto({doc: d}))); pintaNuevaRubrica(); };
+}
+/* el editor: lo que ha devuelto la IA, para revisarlo antes de usarlo; no se guarda si no cuadra */
+let ER = null;
+function editaRubrica(ex, nueva){ ER = {ex: JSON.parse(JSON.stringify(ex)), nueva}; pintaEditor(); }
+function pintaEditor(){
+  const ex = ER.ex, m = ex.modelos[0], errs = compruebaRubrica(ex), c3 = x => String(x).replace('.', ',');
+  capaIA(ER.nueva ? 'Revisa la rúbrica' : 'Editar la rúbrica', `${ex.sinClave ? '<p class="mal" style="margin-top:0"><b>Sin clave:</b> las soluciones las ha propuesto la IA y salen «sin revisar» hasta que las marques.</p>' : ''}
+    ${(ex.avisos || []).length ? '<div class="caja"><b>Avisos de la IA</b>' + ex.avisos.map(a => '<p class="nota" style="margin:4px 0">' + esc(a) + '</p>').join('') + '</div>' : ''}
+    <div class="caja"><div class="fila"><input type="text" data-ed="tema" value="${esc(ex.tema)}" style="flex:1" placeholder="Tema"><input type="text" data-ed="curso" value="${esc(ex.curso)}" style="width:96px" placeholder="Curso"></div>
+      <div class="fila" style="margin-top:6px"><input type="text" data-ed="unidad" value="${esc(ex.unidad)}" style="flex:1" placeholder="Unidad"></div>
+      <label class="nota" style="display:block;margin-top:6px">Reglas de corrección</label><textarea data-ed="reglas" rows="2" style="width:100%">${esc(m.reglas)}</textarea></div>
+    <div id="erErr">${errs.length ? '<div class="caja" style="border-color:var(--mal)"><b class="mal">No cuadra:</b>' + errs.map(e => '<div class="mal">· ' + esc(e) + '</div>').join('') + '</div>' : '<p class="ok"><b>✓ Cuadra:</b> cada pregunta suma lo que vale y el examen suma 10.</p>'}</div>
+    ${m.preguntas.map((p, ip) => `<details class="grupo" ${errs.some(e => e.includes('pregunta ' + p.n + ':') || e.includes('pregunta ' + p.n + ',')) ? 'open' : ''}><summary>${p.n}. ${esc(p.titulo)} <span class="n">${c3(p.puntos)} p${p.sinRevisar ? ' · sin revisar' : ''}</span></summary><div style="padding:6px 14px 12px">
+      <div class="fila"><input type="text" data-p="${ip}:titulo" value="${esc(p.titulo)}" style="flex:1"><input type="number" step="0.25" data-p="${ip}:puntos" value="${p.puntos}"></div>
+      <label class="nota">Puntuación</label><input type="text" data-p="${ip}:base" value="${esc(p.base != null ? p.base : p.puntuacion)}" style="width:100%">
+      <label class="nota">Criterio del ½</label><input type="text" data-p="${ip}:medio" value="${esc(p.medio || '')}" style="width:100%">
+      <label class="nota">Solución</label><textarea data-p="${ip}:solucion" rows="2" style="width:100%">${esc(p.solucion)}</textarea>
+      <label class="nota"><input type="checkbox" data-p="${ip}:revisada"${p.sinRevisar ? '' : ' checked'}> Solución revisada</label>
+      <div class="sub" style="margin:8px -14px 4px">Casillas (✓ ½ ✗)</div>
+      ${p.casillas.map((c, ic) => `<div class="fila" style="flex-wrap:nowrap;margin:4px 0"><input type="text" data-c="${ip}:${ic}:texto" value="${esc(c.texto)}" style="flex:1"><input type="number" step="0.25" data-c="${ip}:${ic}:puntos" value="${c.puntos}"><label class="nota" title="termómetro"><input type="checkbox" data-c="${ip}:${ic}:termometro"${c.termometro ? ' checked' : ''}>T</label><button class="btn peq" data-cq="${ip}:${ic}">✕</button></div>`).join('')}
+      <button class="btn peq" data-ca="${ip}">+ casilla</button>
+      <div class="sub" style="margin:8px -14px 4px">Errores con nombre (uno por línea: nombre: dónde)</div>
+      <textarea data-p="${ip}:errores" rows="3" style="width:100%">${esc(p.errores.map(e => e.nombre + (e.detalle ? ': ' + e.detalle : '')).join('\n'))}</textarea>
+      <button class="btn peq peligro" data-pq="${ip}" style="margin-top:6px">Quitar la pregunta</button></div></details>`).join('')}
+    <div class="fila"><button class="btn peq" id="erMas">+ pregunta</button></div>
+    <div class="fila" style="margin-top:12px"><button class="btn acento" id="erGuarda"${errs.length ? ' disabled' : ''}>Guardar y usar en el corrector</button>${ER.nueva ? '' : '<button class="btn peq peligro" id="erBorra">Borrar esta rúbrica</button>'}</div>`);
+  const C = $('#iaCuerpo'), rehaz = () => { const y = $('#iaCapa').scrollTop, ab = [...C.querySelectorAll('details')].map(d => d.open); pintaEditor(); [...C.querySelectorAll('details')].forEach((d, i) => { if (ab[i] != null) d.open = ab[i]; }); $('#iaCapa').scrollTop = y; };
+  const num = v => { const x = Number(String(v).replace(',', '.')); return isFinite(x) ? x : 0; };
+  C.querySelectorAll('[data-ed]').forEach(x => x.onchange = () => { const k = x.dataset.ed; if (k === 'reglas') m.reglas = x.value; else { ex[k] = x.value; if (k === 'tema') m.titulo = x.value; } rehaz(); });
+  C.querySelectorAll('[data-p]').forEach(x => x.onchange = () => { const [ip, k] = x.dataset.p.split(':'), p = m.preguntas[+ip];
+    if (k === 'puntos') p.puntos = num(x.value); else if (k === 'revisada'){ p.sinRevisar = !x.checked; } else if (k === 'errores') p.errores = x.value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const i = l.indexOf(':'); return i > 0 ? {nombre: l.slice(0, i).trim(), detalle: l.slice(i + 1).trim()} : {nombre: l, detalle: ''}; });
+    else p[k] = x.value;
+    if (k === 'base' || k === 'medio') p.puntuacion = (p.base || '') + (p.medio ? ' · ½: ' + p.medio : '');
+    rehaz(); });
+  C.querySelectorAll('[data-c]').forEach(x => x.onchange = () => { const [ip, ic, k] = x.dataset.c.split(':'), c = m.preguntas[+ip].casillas[+ic]; c[k] = k === 'puntos' ? num(x.value) : k === 'termometro' ? x.checked : x.value; rehaz(); });
+  C.querySelectorAll('[data-cq]').forEach(b => b.onclick = () => { const [ip, ic] = b.dataset.cq.split(':'); m.preguntas[+ip].casillas.splice(+ic, 1); rehaz(); });
+  C.querySelectorAll('[data-ca]').forEach(b => b.onclick = () => { const p = m.preguntas[+b.dataset.ca]; p.casillas.push({id: p.n + '·' + Date.now().toString(36), texto: '', puntos: 0.25, termometro: false}); rehaz(); });
+  C.querySelectorAll('[data-pq]').forEach(b => b.onclick = () => { if (!confirm('¿Quitar la pregunta?')) return; m.preguntas.splice(+b.dataset.pq, 1); m.preguntas.forEach((p, i) => p.n = i + 1); rehaz(); });
+  $('#erMas').onclick = () => { const n = m.preguntas.length + 1; m.preguntas.push({n, titulo: 'Pregunta ' + n, puntos: 1, criterios: [], etapa: '', base: '', medio: '', puntuacion: '', sinRevisar: false, solucion: '', errores: [], casillas: [{id: n + '·1', texto: 'a)', puntos: 1, termometro: false}]}); rehaz(); };
+  $('#erGuarda').onclick = async () => { if (compruebaRubrica(ex).length) return aviso('Aún no cuadra');
+    for (const p of m.preguntas) p.solucion = p.solucion.replace(/^\[sin revisar\]\s*/, '');
+    ex.sinRevisar = m.preguntas.some(p => p.sinRevisar);
+    for (const p of m.preguntas) if (p.sinRevisar) p.solucion = '[sin revisar] ' + p.solucion;
+    const i = PROPIAS.findIndex(x => x.id === ex.id); if (i >= 0) PROPIAS[i] = ex; else PROPIAS.push(ex);
+    await guardaPropias(); aviso('Rúbrica guardada: ya está en el corrector'); if (H) H.ex = ex.id; cierraCapa(); if (H && H.tipo === 'corregir') pintaHerramienta(); };
+  if ($('#erBorra')) $('#erBorra').onclick = async () => { if (!confirm('¿Borrar la rúbrica «' + ex.tema + '»? Las correcciones hechas con ella se quedan, pero sin rúbrica no se ven.')) return;
+    PROPIAS = PROPIAS.filter(x => x.id !== ex.id); await guardaPropias(); if (H && H.ex === ex.id) H.ex = null; cierraCapa(); if (H && H.tipo === 'corregir') pintaHerramienta(); };
 }
 
 /* ── ARRANQUE ── */
 (async () => {
   await recarga(); pintaLista();
-  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || []; ESC.modo = (await leeDB('conf', 'escModo')) || 'rect';
+  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB_GH = (await leeDB('conf', 'rubricas')) || null; PROPIAS = (await leeDB('conf', 'rubricasPropias')) || []; mezclaRubricas(); PROG = (await leeDB('conf', 'programacion')) || null; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || []; ESC.modo = (await leeDB('conf', 'escModo')) || 'rect';
   const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
+  pintaBotonesIA();
   if (nativa()){ AV = Object.assign({}, AV0, (await leeDB('conf', 'avisos')) || {}); iniciaNativa(); }
   else if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
