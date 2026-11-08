@@ -339,6 +339,9 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <div class="fila"><input type="password" id="iaClave" placeholder="Clave de la API (sk-ant-…)" style="flex:1" autocomplete="off"><button class="btn prim" id="bIaClave">Guardar y probar</button></div>
       <div class="fila" style="margin-top:8px"><label class="nota">Modelo <select id="iaModelo"></select></label><label class="nota">Intensidad <select id="iaEsfuerzo"></select></label></div>
       <div class="fila" style="margin-top:8px"><button class="btn peq" id="bIaProbar">Probar la conexión</button><button class="btn peq peligro" id="bIaQuita">Quitar la clave</button></div>
+      <p class="nota" id="iaGasto" style="margin-bottom:4px"></p>
+      <div class="fila"><span class="nota">Tope al mes</span><input type="text" id="iaTope" inputmode="decimal" placeholder="sin tope" style="width:90px"><span class="nota">$</span><button class="btn peq" id="bIaTope">Poner</button><button class="btn peq" id="bIaCero">A cero</button></div>
+      <p class="nota" style="margin-top:4px">La cuenta de verdad, en la Consola de Anthropic (Settings → Billing / Limits).</p>
       <p class="nota" id="iaProg"></p>
       <div class="fila"><button class="btn peq" id="bIaProg">Cargar la programación</button><button class="btn peq peligro" id="bIaProgQuita" hidden>Quitar</button><input type="file" id="fIaProg" accept=".json,.txt,application/json,text/plain" hidden></div>
     </div>
@@ -459,7 +462,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.15';
+const VERSION = '1.15.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -2881,12 +2884,30 @@ const IA0 = {clave: '', modelo: 'claude-opus-5-5', esfuerzo: 'medium'};
 const iaCfg = () => { try { return Object.assign({}, IA0, JSON.parse(localStorage.getItem(LSIA) || '{}')); } catch (e) { return Object.assign({}, IA0); } };
 const iaGuarda = c => { try { localStorage.setItem(LSIA, JSON.stringify(c)); } catch (e) {} };
 const iaLista = () => !!iaCfg().clave;
+/* el gasto (1.15.1): cada respuesta dice cuántos tokens ha usado; se multiplican por el precio
+   del modelo (dólares por millón de tokens, nov 2026) y se suman por mes. Es una cuenta
+   aproximada de este móvil: la factura de verdad está en la Consola. Con «tope», al llegar
+   la app deja de enviar hasta el mes siguiente (o hasta que se cambie). */
+const LSGASTO = 'utilidades.ia.gasto';
+const PRECIOS_IA = {'claude-opus-5-5': [4, 20], 'claude-sonnet-5-5': [2, 10], 'claude-haiku-5-5': [0.1, 0.5]};
+const mesHoy = () => iso(new Date()).slice(0, 7);
+const gastoIA = () => { let g; try { g = JSON.parse(localStorage.getItem(LSGASTO) || '{}'); } catch (e) { g = {}; } if (g.mes !== mesHoy()) Object.assign(g, {mes: mesHoy(), usd: 0, n: 0}); return g; };
+const guardaGasto = g => { try { localStorage.setItem(LSGASTO, JSON.stringify(g)); } catch (e) {} };
+function costeIA(modelo, u){
+  const ent = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0), sal = u.output_tokens || 0;
+  let [pe, ps] = PRECIOS_IA[modelo] || PRECIOS_IA['claude-opus-5-5'];
+  if (modelo === 'claude-haiku-5-5' && ent > 100000){ pe = .5; ps = 2.5; }   /* Haiku cobra más por encima de 100 000 tokens de entrada */
+  return (ent * pe + sal * ps) / 1e6;
+}
+function apuntaGasto(modelo, u){ const g = gastoIA(), c = costeIA(modelo, u || {}); g.usd += c; g.n++; g.total = (g.total || 0) + c; guardaGasto(g); return c; }
+const dolares = x => (x < .01 && x > 0 ? '< 0,01' : x.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})) + ' $';
 const APROBADOS = new Set();   /* las huellas de los adjuntos comprobados como material en blanco (solo en memoria) */
 const nombresCargados = () => Object.values(LISTA).flatMap(g => Object.values(g));
 function errorIA(st, d){ const m = (d && d.error && d.error.message) || '';
   return st === 401 ? 'la clave no vale (¿copiada entera?)' : st === 403 ? 'la clave no tiene permiso para este modelo' : st === 429 ? 'demasiadas peticiones o sin saldo en la Consola' : st === 529 || st === 503 ? 'la API está saturada: prueba en un rato' : m || 'error ' + st; }
-async function iaLlama({system, contenido, esquema, maxTokens = 8000, esfuerzo}){
+async function iaLlama({system, contenido, esquema, maxTokens = 8000, esfuerzo, prueba}){
   const c = iaCfg(); if (!c.clave) throw new Error('Falta la clave de la API (Ajustes → La IA).');
+  const g = gastoIA(); if (!prueba && g.tope > 0 && g.usd >= g.tope) throw new Error('has llegado al tope de este mes (' + dolares(g.tope) + '): cámbialo en Ajustes → La IA');
   const body = {model: c.modelo, max_tokens: maxTokens, output_config: {effort: esfuerzo || c.esfuerzo}, messages: [{role: 'user', content: contenido}]};
   if (system) body.system = system;
   if (esquema) body.output_config.format = {type: 'json_schema', schema: esquema};
@@ -2898,6 +2919,7 @@ async function iaLlama({system, contenido, esquema, maxTokens = 8000, esfuerzo})
   let r; try { r = await fetch(API_IA, {method: 'POST', headers: cab, body: JSON.stringify(body)}); } catch (e) { throw new Error('sin conexión con la API'); }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(errorIA(r.status, d));
+  apuntaGasto(d.model || c.modelo, d.usage);
   if (d.stop_reason === 'refusal') throw new Error('la IA no ha querido responder a esto');
   if (d.stop_reason === 'max_tokens') throw new Error('la respuesta se ha cortado: prueba con menos material o con intensidad baja');
   const txt = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
@@ -2907,7 +2929,7 @@ async function iaLlama({system, contenido, esquema, maxTokens = 8000, esfuerzo})
 /* la prueba de conexión: una llamada mínima, sin nada de la app */
 async function iaPrueba(){
   const c = iaCfg();
-  try { await iaLlama({contenido: 'Responde solo: ok', maxTokens: 400, esfuerzo: 'low'}); c.ok = true; c.msg = ''; }
+  try { await iaLlama({contenido: 'Responde solo: ok', maxTokens: 400, esfuerzo: 'low', prueba: true}); c.ok = true; c.msg = ''; }
   catch (e) { c.ok = false; c.msg = e.message; }
   c.probado = Date.now(); iaGuarda(Object.assign(iaCfg(), {ok: c.ok, msg: c.msg, probado: c.probado})); return c;
 }
@@ -2930,6 +2952,10 @@ function pintaIA(){
   $('#bIaQuita').hidden = $('#bIaProbar').hidden = !c.clave;
   $('#iaProg').textContent = PROG ? '✓ Programación: ' + (PROG.nombre || 'cargada') + (PROG.curso ? ' · ' + PROG.curso : '') + ' · ' + Object.values(PROG.niveles).reduce((s, L) => s + L.length, 0) + ' situaciones' : 'Programación: sin cargar (el mismo archivo que en el cuaderno). La usa «¿Qué toca hoy?».';
   $('#bIaProgQuita').hidden = !PROG;
+  const g = gastoIA();
+  $('#iaGasto').innerHTML = `Gasto de ${new Date().toLocaleDateString('es-ES', {month: 'long'})} (aprox., en este móvil): <b>${dolares(g.usd)}</b> en ${g.n} ${g.n === 1 ? 'petición' : 'peticiones'}`
+    + (g.tope > 0 ? ` · tope ${dolares(g.tope)}${g.usd >= g.tope ? ' <b class="mal">alcanzado</b>' : ''}` : ' · sin tope');
+  $('#iaTope').value = g.tope > 0 ? String(g.tope).replace('.', ',') : '';
   pintaBotonesIA();
 }
 function pintaBotonesIA(){ const s = iaLista(); $('#bIaBusca').hidden = !s; $('#hoyIa').hidden = !s; }
@@ -2945,6 +2971,8 @@ $('#bIaClave').onclick = async () => {
 $('#bIaProbar').onclick = async () => { $('#iaEstado').innerHTML = '<span class="nota">Probando la conexión…</span>'; const r = await iaPrueba(); pintaIA(); aviso(r.ok ? 'Conecta' : 'No conecta: ' + r.msg, 4000); };
 $('#iaModelo').onchange = $('#iaEsfuerzo').onchange = () => { const c = iaCfg(); c.modelo = $('#iaModelo').value; c.esfuerzo = $('#iaEsfuerzo').value; c.ok = false; c.probado = 0; iaGuarda(c); pintaIA(); if (c.clave) $('#bIaProbar').click(); };
 $('#bIaQuita').onclick = () => { if (!confirm('¿Quitar la clave de la API de este móvil?')) return; try { localStorage.removeItem(LSIA); } catch (e) {} pintaIA(); };
+$('#bIaTope').onclick = () => { const v = leeNum($('#iaTope').value), g = gastoIA(); g.tope = v > 0 ? v : 0; guardaGasto(g); pintaIA(); aviso(g.tope ? 'Tope: ' + dolares(g.tope) + ' al mes' : 'Sin tope'); };
+$('#bIaCero').onclick = () => { if (!confirm('¿Poner a cero el gasto de este mes en la app? (La factura de la Consola no cambia.)')) return; const g = gastoIA(); g.usd = 0; g.n = 0; guardaGasto(g); pintaIA(); };
 $('#bIaProg').onclick = () => $('#fIaProg').click();
 $('#fIaProg').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try { const j = JSON.parse(await f.text()); if (j.tipo !== 'programacion-cuaderno' || !j.niveles) throw new Error('no es la programación del cuaderno');
