@@ -444,6 +444,11 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
   <div class="cuerpo" id="crCuerpo"></div>
 </section>
 
+<section class="capa" id="xlsCapa" hidden>
+  <header class="cab"><button data-cierra>‹ Volver</button><h1>Hoja de cálculo</h1></header>
+  <div class="cuerpo" id="xlsCuerpo"></div>
+</section>
+
 <section class="capa" id="iaCapa" hidden>
   <header class="cab"><button data-cierra>‹ Volver</button><h1 id="iaTit">IA</h1></header>
   <div class="cuerpo" id="iaCuerpo"></div>
@@ -465,7 +470,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.15.2';
+const VERSION = '1.15.3';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1901,7 +1906,7 @@ function pintaCorregir(C){
     h += '</div><p class="nota">Toca un número para corregir su examen. «…»: le faltan casillas por marcar.</p>';
   }
   h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="cTabla">Copiar como tabla</button><button class="btn peq peligro" id="cBorra">Borrar esta corrección</button></div>
-    <div class="fila" style="margin-top:8px">${iaLista() ? '<button class="btn peq" id="cIaRub">Nueva rúbrica (IA)</button>' : ''}${ex.propia ? '<button class="btn peq" id="cEdRub">Editar esta rúbrica</button>' : ''}</div>`;
+    <div class="fila" style="margin-top:8px"><button class="btn peq acento" id="cXlsx">Hoja de cálculo (.xlsx)</button>${iaLista() ? '<button class="btn peq" id="cIaRub">Nueva rúbrica (IA)</button>' : ''}${ex.propia ? '<button class="btn peq" id="cEdRub">Editar esta rúbrica</button>' : ''}</div>`;
   C.innerHTML = h;
   $('#cEx').onchange = e => { H.ex = e.target.value; H.g = null; pintaHerramienta(); };
   $('#cG').onchange = e => { H.g = e.target.value; pintaHerramienta(); };
@@ -1915,6 +1920,7 @@ function pintaCorregir(C){
   $('#cTabla').onclick = () => copiaTabla(tablaCorr(ex, R, N), 'correccion-' + ex.id + '-' + H.g + '.tsv');
   if ($('#cIaRes')) $('#cIaRes').onclick = () => resumenIA(ex.tema + ' · ' + etqGrupo(H.g), agregaCorreccion(ex, R.al, N, notaExamen), 'Por pregunta y casilla: cuántos bien, medio y mal, y los errores con nombre. Sin números de lista ni notas de nadie.');
   if ($('#cIaRub')) $('#cIaRub').onclick = nuevaRubrica;
+  $('#cXlsx').onclick = () => { pintaHojaCalc(); abreCapa('xlsCapa'); };
   if ($('#cEdRub')) $('#cEdRub').onclick = () => editaRubrica(ex, false);
   $('#cBorra').onclick = () => { if (!hechos.length) return aviso('No hay nada corregido');
     if (!confirm('¿Borrar las ' + hechos.length + ' correcciones de ' + ex.tema + ' en ' + etqGrupo(H.g) + '? No se puede deshacer.')) return;
@@ -1933,6 +1939,104 @@ function tablaCorr(ex, R, N){
     for (const p of r.modelo.preguntas) for (const i of (a.e || {})[p.n] || []) if (p.errores[i]) errs.push(p.n + ': ' + p.errores[i].nombre);
     filas.push([n, r.modelo.nombre].concat(r.modelo.preguntas.map(p => coma(r.porP[p.n])), [coma(r.nota), r.faltan || '', errs.join('; ')])); }
   return filas;
+}
+
+/* ── LA HOJA DE CÁLCULO (1.15.3): las notas de los exámenes, un grupo por pestaña ──
+   Para la PT (o para Itaca): el archivo .xlsx de verdad, no un pegado. Se escribe aquí mismo,
+   sin librerías: un .xlsx es un .zip con unos XML (los textos van en cada celda, «inlineStr»).
+   El zip va sin comprimir (método 0), con su CRC-32. Lo abren Excel, LibreOffice y Google. */
+function zipSinComprimir(archivos){   /* archivos: [{nombre, datos (Uint8Array)}] */
+  const enc = new TextEncoder(), partes = [], central = []; let pos = 0;
+  for (const a of archivos){ const nom = enc.encode(a.nombre), d = a.datos, crc = (crc32(d) ^ 0xFFFFFFFF) >>> 0;   /* crc32 es el de los PNG (más arriba), sin el último XOR */
+    const loc = new DataView(new ArrayBuffer(30)); loc.setUint32(0, 0x04034b50, true); loc.setUint16(4, 20, true); loc.setUint16(6, 0x0800, true);
+    loc.setUint32(14, crc, true); loc.setUint32(18, d.length, true); loc.setUint32(22, d.length, true); loc.setUint16(26, nom.length, true);
+    const cen = new DataView(new ArrayBuffer(46)); cen.setUint32(0, 0x02014b50, true); cen.setUint16(4, 20, true); cen.setUint16(6, 20, true); cen.setUint16(8, 0x0800, true);
+    cen.setUint32(16, crc, true); cen.setUint32(20, d.length, true); cen.setUint32(24, d.length, true); cen.setUint16(28, nom.length, true); cen.setUint32(42, pos, true);
+    partes.push(new Uint8Array(loc.buffer), nom, d); central.push(new Uint8Array(cen.buffer), nom); pos += 30 + nom.length + d.length; }
+  const tc = central.reduce((s, x) => s + x.length, 0), fin = new DataView(new ArrayBuffer(22));
+  fin.setUint32(0, 0x06054b50, true); fin.setUint16(8, archivos.length, true); fin.setUint16(10, archivos.length, true); fin.setUint32(12, tc, true); fin.setUint32(16, pos, true);
+  return new Blob(partes.concat(central, [new Uint8Array(fin.buffer)]), {type: 'application/zip'});
+}
+const xmlT = s => String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const colL = i => { let s = ''; i++; while (i){ const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = (i - 1 - r) / 26; } return s; };
+/* hojas: [{nombre, filas: [[celda…]], anchos: [n…], congela: filas de arriba fijas}]; celda: texto, número, null
+   o {v, b: negrita, n: con dos decimales} */
+function creaXlsx(hojas){
+  const enc = new TextEncoder(), usados = new Set();
+  const nombres = hojas.map(h => { let n = String(h.nombre).replace(/[:\\\/?*\[\]]/g, '-').slice(0, 31) || 'Hoja', k = 2, b = n; while (usados.has(n.toLowerCase())) n = b.slice(0, 28) + ' ' + k++; usados.add(n.toLowerCase()); return n; });
+  const hoja = h => { const f = h.filas.map((fila, r) => `<row r="${r + 1}">` + fila.map((c, i) => { if (c == null || c === '') return '';
+      const o = typeof c === 'object' ? c : {v: c}, ref = colL(i) + (r + 1), s = (o.b ? 1 : 0) + (o.n ? 2 : 0);
+      return typeof o.v === 'number' && isFinite(o.v) ? `<c r="${ref}"${s ? ` s="${s}"` : ''}><v>${o.v}</v></c>` : `<c r="${ref}" t="inlineStr"${s ? ` s="${s}"` : ''}><is><t xml:space="preserve">${xmlT(o.v)}</t></is></c>`; }).join('') + '</row>').join('');
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+      + (h.congela ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${h.congela}" topLeftCell="A${h.congela + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : '')
+      + (h.anchos && h.anchos.length ? '<cols>' + h.anchos.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>' : '')
+      + `<sheetData>${f}</sheetData></worksheet>`; };
+  const A = [['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+      + hojas.map((h, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') + '</Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+      + nombres.map((n, i) => `<sheet name="${xmlT(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + hojas.map((h, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
+      + `<Relationship Id="rId${hojas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="2" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>']]
+    .concat(hojas.map((h, i) => ['xl/worksheets/sheet' + (i + 1) + '.xml', hoja(h)]));
+  return zipSinComprimir(A.map(([nombre, t]) => ({nombre, datos: enc.encode(t)})));
+}
+/* la pestaña de un grupo: una fila por número de lista y, por examen corregido en ese grupo, su nota
+   (con el detalle por pregunta si se pide); abajo, la media y los aprobados de cada uno */
+function hojaGrupo(g, {detalle, nombres}){
+  const N = nAlumnos(g), exs = (RUB ? RUB.examenes : []).filter(e => gruposDe(e.curso).includes(g) && Object.keys((NT.corr[claveCorr(e.id, g)] || {al: {}}).al).length);
+  const lista = nombres && LISTA[g], cab = ['N.º'].concat(lista ? ['Nombre'] : []), anchos = [6].concat(lista ? [28] : []);
+  /* con el detalle, el nombre del examen va en una fila encima de su bloque y debajo P1, P2… y Nota */
+  const sobre = cab.map(() => null), tema = e => e.tema + (e.propia ? ' (tuya)' : '');
+  for (const e of exs){ const m0 = e.modelos[0];
+    if (detalle){ sobre.push(tema(e)); for (const p of m0.preguntas){ if (cab.length >= sobre.length) sobre.push(null); cab.push('P' + p.n + ' (' + coma(p.puntos) + ')'); anchos.push(8); } cab.push('Nota'); sobre.push(null); anchos.push(8); }
+    else { cab.push(tema(e)); anchos.push(Math.max(12, Math.min(26, e.tema.length + 4))); } }
+  cab.push('Observaciones'); anchos.push(30);
+  const filas = [[{v: etqGrupo(g) + ' · notas de los exámenes · ' + new Date().toLocaleDateString('es-ES'), b: true}], []];
+  if (detalle && exs.length) filas.push(sobre.slice(0, cab.length).map(v => v == null ? null : {v, b: true}));
+  filas.push(cab.map(v => ({v, b: true})));
+  const notas = exs.map(() => []);
+  for (let n = 1; n <= N; n++){ const f = [n].concat(lista ? [lista[n] || ''] : []), obs = [];
+    exs.forEach((e, ie) => { const a = (NT.corr[claveCorr(e.id, g)] || {al: {}}).al[n], m0 = e.modelos[0];
+      if (!a || (!a.np && !Object.keys(a.x || {}).length)){ if (detalle) m0.preguntas.forEach(() => f.push(null)); f.push(null); return; }
+      if (a.np){ if (detalle) m0.preguntas.forEach(() => f.push(null)); f.push('NP'); return; }
+      const r = notaExamen(e, a);
+      if (detalle) r.modelo.preguntas.forEach(p => f.push({v: Math.round(r.porP[p.n] * 100) / 100, n: true}));
+      f.push({v: r.nota, n: true}); notas[ie].push(r.nota);
+      if (r.faltan) obs.push(e.tema + ': ' + r.faltan + (r.faltan === 1 ? ' casilla sin marcar (cuenta 0)' : ' casillas sin marcar (cuentan 0)'));
+      if (e.modelos.length > 1) obs.push(e.tema + ': ' + r.modelo.nombre); });
+    f.push(obs.join('; ')); filas.push(f); }
+  const pie = (titulo, fn) => { const f = [{v: titulo, b: true}].concat(lista ? [null] : []); exs.forEach((e, ie) => { if (detalle) e.modelos[0].preguntas.forEach(() => f.push(null)); f.push(fn(notas[ie])); }); return f; };
+  filas.push([], pie('Media', v => v.length ? {v: Math.round(v.reduce((s, x) => s + x, 0) / v.length * 100) / 100, n: true, b: true} : null),
+    pie('Aprobados', v => v.length ? v.filter(x => x >= 5).length + ' de ' + v.length : null));
+  if (!exs.length) filas.push([], ['Aún no hay exámenes corregidos en este grupo.']);
+  return {nombre: etqGrupo(g), filas, anchos, congela: detalle && exs.length ? 4 : 3};
+}
+function pintaHojaCalc(){
+  const gs = gruposDe(''), hechos = g => (RUB ? RUB.examenes : []).filter(e => gruposDe(e.curso).includes(g) && Object.keys((NT.corr[claveCorr(e.id, g)] || {al: {}}).al).length).length;
+  const C = $('#xlsCuerpo'), d = new Date();
+  C.innerHTML = `<div class="caja"><h2>Qué grupos</h2><p class="nota" style="margin-top:0">Cada uno sale en su pestaña.</p><div class="opc">
+      ${gs.map(g => `<label><input type="checkbox" data-xg="${g}"${g === (H && H.g) || (!gs.includes(H && H.g) && hechos(g)) ? ' checked' : ''}><span>${etqGrupo(g)}<small>${hechos(g) ? hechos(g) + ' examen' + (hechos(g) === 1 ? '' : 'es') + ' con notas' : 'sin exámenes corregidos'}</small></span></label>`).join('')}</div>
+      <div class="fila"><button class="btn peq" id="xlsTodos">Todos</button><button class="btn peq" id="xlsNinguno">Ninguno</button></div></div>
+    <div class="caja"><div class="opc">
+      <label><input type="checkbox" id="xlsDet"><span>Con el detalle por pregunta<small>Una columna por pregunta, además de la nota.</small></span></label>
+      <label><input type="checkbox" id="xlsNom"${Object.keys(LISTA).length ? ' checked' : ''}><span>Con los nombres<small>${Object.keys(LISTA).length ? 'Los de la lista cargada (' + Object.keys(LISTA).map(etqGrupo).join(', ') + ')' : 'Carga la lista en el corrector para que salgan; si no, solo el número'}.</small></span></label></div>
+      <label class="nota">Nombre del archivo</label><input type="text" id="xlsNombre" style="width:100%" value="notas-examenes-${iso(d)}.xlsx"></div>
+    <div class="fila"><button class="btn acento" id="xlsComparte">Compartir</button><button class="btn" id="xlsBaja">${nativa() ? 'Abrir con…' : 'Descargar'}</button></div>
+    <p class="nota">Lleva notas de alumnos: mándalo solo por el correo o el OneDrive de la GVA.</p>`;
+  C.querySelector('#xlsTodos').onclick = () => C.querySelectorAll('[data-xg]').forEach(x => x.checked = true);
+  C.querySelector('#xlsNinguno').onclick = () => C.querySelectorAll('[data-xg]').forEach(x => x.checked = false);
+  const crea = () => { const gsel = [...C.querySelectorAll('[data-xg]:checked')].map(x => x.dataset.xg); if (!gsel.length){ aviso('Elige al menos un grupo'); return null; }
+    let nom = ($('#xlsNombre').value || '').trim().replace(/[\\/:*?"<>|]/g, '-') || 'notas.xlsx'; if (!/\.xlsx$/i.test(nom)) nom += '.xlsx';
+    const blob = creaXlsx(gsel.map(g => hojaGrupo(g, {detalle: $('#xlsDet').checked, nombres: $('#xlsNom').checked})));
+    return new File([blob], nom, {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); };
+  C.querySelector('#xlsComparte').onclick = async () => { const f = crea(); if (!f) return;
+    if (nativa()) return sacaNativo([f], {titulo: f.name});
+    if (navigator.canShare && navigator.canShare({files: [f]})){ try { await navigator.share({files: [f], title: f.name}); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    descarga(f, f.name); aviso('Este navegador no comparte archivos: lo tienes en Descargas', 3500); };
+  C.querySelector('#xlsBaja').onclick = () => { const f = crea(); if (f) descarga(f, f.name); };
 }
 
 /* las estadísticas: lo que el grupo sabe y lo que no */
