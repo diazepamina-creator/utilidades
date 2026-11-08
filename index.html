@@ -46,6 +46,11 @@
     de lista, sin nombres, y solo en el móvil: nunca van a GitHub.
   - Las páginas se pintan de una en una al exportar, nunca todas a la vez:
     un examen de 40 páginas a 150 ppp no cabe en la memoria de un móvil.
+  - LA APP DE ANDROID (1.14). El mismo index.html va dentro de una APK (carpeta
+    apk/, Capacitor), como el cuaderno de aula: los archivos salen por el sistema
+    (compartir, Bluetooth a la pizarra, abrir con otra app), se reciben PDF e
+    imágenes de otras apps («Compartir con Utilidades»), hay avisos antes de cada
+    clase con material y el escáner de documentos de Android. En la web, nada cambia.
   Librerías (en lib/, para que funcione sin red): pdf.js 3.11.174 (Apache 2.0)
   para pintar, pdf-lib 1.17.1 (MIT) para escribir PDF y qrcode-generator 1.4.4
   (MIT) para los QR.
@@ -53,6 +58,7 @@
 <script src="lib/pdf.min.js"></script>
 <script src="lib/pdf-lib.min.js"></script>
 <script src="lib/qrcode.js"></script>
+<script src="capacitor.js"></script>
 <style>
 :root{--papel:#FBF8F1;--blanco:#FFFFFF;--tinta:#1D2B45;--suave:#6B6F7B;--acento:#D9661A;--linea:#E5DDCD;--ok:#2E7D5B;--mal:#B3261E;--tapa:#2B2B2B;
   --r:14px;--sombra:0 1px 2px rgba(29,43,69,.08),0 4px 14px rgba(29,43,69,.06)}
@@ -199,6 +205,8 @@ details.pr>div{margin:4px 0 0 10px}
 .caja .fila>.barra{margin:3px 0}.barra.mal i{background:#E3A49F}
 .recu{border-top:1px solid var(--linea);padding:8px 0;font-size:15px;line-height:2.1}
 .recu input{width:52px;padding:4px;text-align:center;border:1.5px solid var(--linea);border-radius:7px}
+/* en la APK, la pantalla completa del navegador no existe (el WebView la cierra al momento) */
+body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #tmPant{display:none}
 </style>
 </head>
 <body>
@@ -257,6 +265,7 @@ details.pr>div{margin:4px 0 0 10px}
   <!-- ── ESCANEAR ── -->
   <section id="v-escaner" hidden>
     <div class="fila">
+      <button class="btn acento" id="bMlkit" hidden>Escáner de Android</button>
       <button class="btn acento" id="bFoto">Hacer foto</button>
       <button class="btn" id="bGaleria">De la galería</button>
       <input type="file" id="fFoto" accept="image/*" capture="environment" hidden>
@@ -317,10 +326,40 @@ details.pr>div{margin:4px 0 0 10px}
       <div class="fila"><input type="text" id="ajNomCopia" style="flex:1" autocomplete="off"></div>
       <div class="fila" style="margin-top:8px"><button class="btn peq acento" id="bCompNotas">Compartir (OneDrive)</button><button class="btn peq" id="bCopiaNotas">Descargar</button><button class="btn peq" id="bRecNotas">Recuperar una copia</button><input type="file" id="fRecNotas" accept="application/json,.json" hidden></div>
     </div>
+    <div class="caja" id="ajAndroid" hidden>
+      <h2>La app de Android</h2>
+      <p class="nota" id="avEstado" style="margin-top:0"></p>
+      <div class="opc">
+        <label><input type="checkbox" id="avOn"><span>Avisos antes de cada clase con material<small>«3.ª hora · 2.º B: Ficha 4». Solo la hora, el grupo y el nombre del PDF, nunca nada de alumnos (sale en la pantalla de bloqueo). Al tocarlo se abre el PDF.</small></span></label>
+        <label><input type="checkbox" id="avSemana"><span>También el material de «esta semana»<small>Si no, solo el que está puesto para ese día.</small></span></label>
+      </div>
+      <div class="fila"><span>Avisar</span><select id="avAntes"><option value="0">al empezar la clase</option><option value="5">5 min antes</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="60">1 hora antes</option></select><button class="btn peq" id="avPrueba">Probar un aviso</button></div>
+      <div class="fila" id="avExactaFila" style="margin-top:8px" hidden><span class="nota" style="flex:1">Android puede retrasar los avisos unos minutos.</span><button class="btn peq" id="avExacta">Permitir la hora exacta</button></div>
+      <details style="margin-top:10px"><summary class="nota" style="cursor:pointer">Xiaomi: para que lleguen los avisos</summary>
+        <ol class="pasos nota">
+          <li>Mantén pulsado el icono de Utilidades → <b>Información de la aplicación</b>.</li>
+          <li><b>Ahorro de batería</b> → <b>Sin restricciones</b>.</li>
+          <li><b>Inicio automático</b>: activado.</li>
+          <li><b>Notificaciones</b>: permitidas, también en la pantalla de bloqueo.</li>
+          <li>En <b>Ajustes → Aplicaciones → Permisos → Alarmas y recordatorios</b>, Utilidades permitida (es «la hora exacta»).</li>
+          <li>Pulsa <b>Probar un aviso</b>, bloquea el móvil y espera 10 segundos.</li>
+        </ol>
+      </details>
+      <p class="nota">Los datos de la app de Android son solo suyos (biblioteca, notas, token): no van a la copia de Google. Los de la web, aparte.</p>
+    </div>
     <div class="caja">
       <h2>Espacio</h2>
       <p class="nota" id="ajEspacio"></p>
       <div class="fila"><button class="btn peq peligro" id="bBorraMios">Vaciar «Mis archivos»</button><button class="btn peq peligro" id="bBorraCap">Vaciar «Capturas»</button><button class="btn peq peligro" id="bBorraGh">Borrar lo traído de GitHub</button><button class="btn peq peligro" id="bBorraTodo">Borrar todo</button></div>
+      <details id="ajPasar" style="margin-top:10px"><summary class="nota" style="cursor:pointer">Pasar los datos a la app de Android</summary>
+        <ol class="pasos nota">
+          <li>Instala la APK y ábrela una vez.</li>
+          <li><b>Notas</b> (y lo apuntado en Hoy): «Compartir (OneDrive)» aquí arriba; en la APK, Ajustes → «Recuperar una copia».</li>
+          <li><b>Mis archivos</b> y <b>Capturas</b>: estos botones → elige <b>Utilidades</b> en el menú de compartir. Entran en «Mis archivos» de la APK.</li>
+          <li><b>La biblioteca</b>: en la APK, pega el token en Ajustes y pulsa Actualizar.</li>
+        </ol>
+        <div class="fila"><button class="btn peq" id="bPasaMios">Compartir «Mis archivos»</button><button class="btn peq" id="bPasaCap">Compartir «Capturas»</button></div>
+      </details>
     </div>
   </section>
 </main>
@@ -398,7 +437,7 @@ details.pr>div{margin:4px 0 0 10px}
 
 <script>
 'use strict';
-const VERSION = '1.13.5';
+const VERSION = '1.14';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -428,6 +467,194 @@ const todosDB = async n => req((await almacen(n)).getAll());
 const CONF0 = {token: '', dueno: 'diazepamina-creator', repo: 'originales', rama: 'main', opc: {}, catalogo: null, calendario: null, ultima: 0};
 async function conf(){ const c = Object.assign({}, CONF0); for (const k in CONF0){ const v = await leeDB('conf', k); if (v !== undefined) c[k] = v; } return c; }
 const ponConf = (k, v) => guardaDB('conf', v, k);
+
+/* ── LA APP DE ANDROID (1.14) ──
+   El mismo index.html va dentro de una APK (Capacitor, carpeta apk/), como el cuaderno de aula.
+   En la web capacitor.js no hace nada (nativa() es falso) y todo sigue como estaba. En la APK:
+   - los archivos salen por el sistema: «Compartir» (Bluetooth a la pizarra, OneDrive, correo)
+     con Filesystem + Share, y «Abrir con…» otra app con FileViewer. El WebView de Android no
+     sabe descargar ni tiene navigator.share con archivos;
+   - «Compartir con Utilidades» desde Gmail, Aules o WhatsApp: los PDF y las imágenes entran
+     en «Mis archivos» (@capgo/capacitor-share-target; «Abrir con» un PDF, también);
+   - avisos antes de cada clase con material (LocalNotifications), con la hora de clase de
+     herramientas/calendario.json (franjas y horas de cada grupo);
+   - el escáner de documentos de Android (ML Kit, en el móvil) para hacer las fotos;
+   - el botón atrás cierra la capa abierta, vuelve a Hoy y, en Hoy, deja la app en segundo plano.
+   Los datos de la APK y los de la web son independientes: cada una tiene su IndexedDB. */
+const nativa = () => !!(window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform());
+const capP = n => ((window._capP ||= {})[n] ||= Capacitor.registerPlugin(n));
+const aBase64 = b => new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => mal(r.error); r.readAsDataURL(b); });
+const deBase64 = t => { const x = atob(t), u = new Uint8Array(x.length); for (let i = 0; i < x.length; i++) u[i] = x.charCodeAt(i); return u; };
+const nombreSeguro = n => String(n || '').replace(/[\\/:*?"<>|]/g, '-').trim() || 'archivo';
+/* sacar archivos: se escriben en la caché de la app (carpeta «salida», se vacía al abrir la
+   app) y salen por el menú de compartir; con abrir, se abren con otra app (lector de PDF,
+   galería) y, si no hay ninguna, al menú de compartir. Devuelve si ha salido. */
+async function sacaNativo(files, {abrir = false, titulo = ''} = {}){
+  try {
+    const uris = [];
+    for (const f of files){ const r = await capP('Filesystem').writeFile({path: 'salida/' + nombreSeguro(f.name), data: await aBase64(f), directory: 'CACHE', recursive: true}); uris.push(r.uri); }
+    if (abrir && uris.length === 1){ try { await capP('FileViewer').openDocumentFromLocalPath({path: uris[0]}); return true; } catch (e) {} }
+    await capP('Share').share({title: titulo || files[0].name, files: uris, dialogTitle: files.length === 1 ? 'Enviar «' + files[0].name + '»' : 'Enviar ' + files.length + ' archivos'});
+    return true;
+  } catch (e) { if (!/cancel/i.test((e && e.message) || '')) aviso('No se ha podido compartir: ' + ((e && e.message) || e), 4000); return false; }
+}
+/* un archivo del móvil (ruta o file://) como Blob: por el servidor local del WebView, sin
+   pasar por base64; si no se puede, con Filesystem */
+async function leeNativo(uri, tipo){
+  const ruta = /^[a-z]+:\/\//i.test(uri) ? uri : 'file://' + uri;
+  try { if (!Capacitor.convertFileSrc) throw 0; const r = await fetch(Capacitor.convertFileSrc(ruta)); if (!r.ok) throw 0; return new Blob([await r.blob()], {type: tipo}); }
+  catch (e) { const r = await capP('Filesystem').readFile({path: ruta}); return new Blob([typeof r.data === 'string' ? deBase64(r.data) : r.data], {type: tipo}); }
+}
+
+/* «Compartir con Utilidades»: los PDF y las imágenes, a «Mis archivos» */
+async function recibe(ev){
+  const fs = (ev && ev.files) || []; let n = 0, otros = 0, fallos = 0;
+  if (!fs.length) return aviso('Utilidades recoge PDF e imágenes; lo compartido no traía ninguno', 4000);
+  for (const f of fs){
+    const tipo = String(f.mimeType || '').toLowerCase(), nom = String(f.name || 'archivo');
+    const pdf = tipo === 'application/pdf' || /\.pdf$/i.test(nom), img = !pdf && (/^image\//.test(tipo) || /\.(jpe?g|png|webp)$/i.test(nom));
+    if (!pdf && !img){ otros++; continue; }
+    try {
+      const blob = await leeNativo(f.uri, pdf ? 'application/pdf' : (/^image\//.test(tipo) ? tipo : 'image/jpeg'));
+      await guardaDB('docs', {id: 'loc:' + Date.now() + ':r' + n, origen: 'local', nombre: pdf ? nom.replace(/\.pdf$/i, '') : nom, carpeta: 'Mis archivos', tam: blob.size, fecha: Date.now(), hoy: false, blob});
+      n++; capP('Filesystem').deleteFile({path: /^[a-z]+:\/\//i.test(f.uri) ? f.uri : 'file://' + f.uri}).catch(() => {});
+    } catch (e) { fallos++; }
+  }
+  await recarga(); if (n){ ve('biblio'); }
+  aviso((n ? (n === 1 ? 'Recibido en «Mis archivos»' : n + ' archivos recibidos en «Mis archivos»') : 'No se ha guardado nada')
+    + (otros ? ' · ' + otros + ' no ' + (otros === 1 ? 'era' : 'eran') + ' PDF ni imagen' : '') + (fallos ? ' · ' + fallos + ' no se ' + (fallos === 1 ? 'ha' : 'han') + ' podido leer' : ''), 4500);
+}
+
+/* ── AVISOS antes de cada clase con material (solo en la APK) ──
+   De Hoy: para cada día de los próximos 14, cada grupo con clase ese día y PDF puestos para
+   él (los del día y, si se quiere, los de «esta semana»), un aviso a la hora de su clase
+   menos la antelación. El texto sale en la pantalla de bloqueo: solo la hora, el grupo y el
+   nombre de los PDF (vienen de los originales), nunca el texto del evento (lo escribo yo y
+   podría nombrar a alguien) ni nada de alumnos; textoAviso() lo comprueba y, si duda, pone
+   un texto genérico. Se rehacen al abrir la app, al volver a ella, al actualizar y al
+   cambiar los avisos o lo apuntado en Hoy. Id = aammdd·10 + hora de clase (1 = la prueba). */
+const AV0 = {on: false, antes: 10, semana: true};
+let AV = Object.assign({}, AV0);
+const AV_PRUEBA = 1;
+const ordinal = n => n + '.ª';
+const minutosDe = hm => { const [h, m] = String(hm).split(':').map(Number); return h * 60 + (m || 0); };
+const horasDe = (g, dia) => { const h = CAL && CAL.grupos && CAL.grupos[g] && CAL.grupos[g].horas, f = h && h[diaSem(dia)]; return f == null ? [] : [].concat(f).map(Number); };
+/* lo que puede señalar a un alumno: un número de lista o un nombre de la lista cargada */
+function textoConAlumnos(t){
+  if (/\bn\.?\s*[ºo°]\s*\d|\bnúm(ero)?\.?\s*\d|de lista\b|#\s*\d/i.test(t)) return true;
+  const l = llano(t);
+  for (const g in LISTA) for (const n in LISTA[g]) for (const w0 of llano(String(LISTA[g][n])).split(/[\s,;]+/)){
+    const w = w0.replace(/[^a-z]/g, ''); if (w.length >= 4 && new RegExp('(^|[^a-z])' + w + '([^a-z]|$)').test(l)) return true; }
+  return false;
+}
+function textoAviso(hora, grupo, nombres){
+  const cab = ordinal(hora) + ' hora · ' + grupo;
+  let title = cab + ': ' + nombres[0] + (nombres.length > 1 ? ' y ' + (nombres.length - 1) + ' más' : '');
+  let body = (nombres.length > 1 ? nombres.join(' · ') + '. Toca para abrir el primero.' : 'Toca para abrir el PDF.');
+  if (textoConAlumnos(title + ' ' + body)){ title = cab; body = 'Hay material para esta clase. Toca para verlo.'; }
+  return {title, body};
+}
+function planAvisos(desde = Date.now(), dias = 14){
+  if (!CAL || !CAL.franjas || !CAL.grupos) return [];
+  const L = [], hoy = iso(new Date(desde));
+  for (let k = 0; k < dias; k++){ const dia = suma(hoy, k);
+    for (const g of Object.keys(CAL.grupos)){ if (!(CAL.grupos[g].dias || []).includes(diaSem(dia))) continue;
+      const {delDia, semana} = eventosDe(dia, g);
+      const rutas = [...new Set(delDia.concat(AV.semana ? semana : []).flatMap(e => e.docs || []))];
+      if (!rutas.length) continue;
+      const nombres = rutas.map(p => { const d = docDe(p); return bonito(d ? d.nombre : p.split('/').pop().replace(/\.pdf$/i, '')); });
+      for (const h of horasDe(g, dia)){ const fr = CAL.franjas[h]; if (!fr) continue;
+        const at = deISO(dia); at.setHours(0, minutosDe(fr[0]) - (Number(AV.antes) || 0), 0, 0);
+        if (at.getTime() <= desde) continue;
+        L.push(Object.assign({id: Number(dia.replace(/-/g, '').slice(2)) * 10 + h, schedule: {at, allowWhileIdle: true}, extra: {dia, g, rutas}, smallIcon: 'ic_stat_utilidades'}, textoAviso(h, CAL.grupos[g].nombre || g, nombres)));
+      } } }
+  return L.sort((a, b) => a.schedule.at - b.schedule.at).slice(0, 60);
+}
+let avT = null, avEsc = false, AV_PEND = null;
+function avProgramar(){ if (!nativa()) return; clearTimeout(avT); avT = setTimeout(avHaz, 600); }
+async function avHaz(){
+  let ln; try { ln = capP('LocalNotifications'); } catch (e) { return; }
+  try {
+    if (!avEsc){ avEsc = true; ln.addListener('localNotificationActionPerformed', ev => abreAviso(((ev && ev.notification) || {}).extra)); }
+    const pend = ((await ln.getPending()) || {}).notifications || [], nuestros = pend.filter(n => Number(n.id) !== AV_PRUEBA);
+    if (nuestros.length) await ln.cancel({notifications: nuestros.map(n => ({id: Number(n.id)}))});
+    AV_PEND = [];
+    if (AV.on && (await ln.checkPermissions()).display === 'granted'){ AV_PEND = planAvisos(); if (AV_PEND.length) await ln.schedule({notifications: AV_PEND}); }
+    if (!$('#v-ajustes').hidden) pintaAndroid();
+  } catch (e) { console.warn('avisos', e); }
+}
+/* al tocar un aviso: Hoy en ese día y, encima, el primer PDF de esa clase */
+function abreAviso(x){
+  if (!x || !x.dia) return;
+  while (pila.length){ const id = pila.pop(); $('#' + id).hidden = true; (AL_CERRAR[id] || (() => {}))(); }
+  DIA = x.dia; SEMANA = false; ve('hoy');
+  const d = (x.rutas || []).map(docDe).find(Boolean);
+  if (d){ abreCapa('visor'); verDoc(d); } else if ((x.rutas || []).length) aviso('Ese PDF aún no está en tu biblioteca: pulsa Actualizar', 4500);
+}
+async function avActivar(on){
+  if (on){
+    try { const ln = capP('LocalNotifications'); let p = await ln.checkPermissions(); if (p.display !== 'granted') p = await ln.requestPermissions();
+      if (p.display !== 'granted'){ aviso('Android no deja avisar: actívalo en Ajustes del móvil → Apps → Utilidades → Notificaciones', 5500); return false; } }
+    catch (e) { aviso('No se han podido activar los avisos'); return false; }
+  }
+  AV.on = on; await ponConf('avisos', AV); avProgramar(); return true;
+}
+async function pintaAndroid(){
+  if (!nativa()) return;
+  $('#avOn').checked = AV.on; $('#avSemana').checked = AV.semana; $('#avAntes').value = String(AV.antes);
+  const E = $('#avEstado');
+  if (!CAL || !CAL.franjas) E.textContent = 'Para los avisos hace falta el calendario con las horas de clase: pulsa Actualizar en la Biblioteca.';
+  else if (!AV.on) E.textContent = 'Avisos desactivados.';
+  else if (AV_PEND){ const p = AV_PEND[0]; E.textContent = AV_PEND.length ? AV_PEND.length + ' avisos en las dos próximas semanas · el próximo: ' + largaFecha(p.extra.dia).split(' de ')[0] + ', ' + new Date(p.schedule.at).toTimeString().slice(0, 5) + ' · ' + p.title : 'No hay clases con material en las dos próximas semanas.'; }
+  try { const e = await capP('LocalNotifications').checkExactNotificationSetting(); $('#avExactaFila').hidden = !AV.on || !e || e.exact_alarm === 'granted'; } catch (e) { $('#avExactaFila').hidden = true; }
+}
+$('#avOn').onchange = async e => { if (!await avActivar(e.target.checked)) e.target.checked = AV.on; aviso(AV.on ? 'Avisos activados' : 'Avisos desactivados'); pintaAndroid(); };
+$('#avSemana').onchange = async e => { AV.semana = e.target.checked; await ponConf('avisos', AV); avProgramar(); };
+$('#avAntes').onchange = async e => { AV.antes = Number(e.target.value); await ponConf('avisos', AV); avProgramar(); };
+$('#avExacta').onclick = () => capP('LocalNotifications').changeExactNotificationSetting().catch(() => aviso('Búscalo en Ajustes → Aplicaciones → Permisos → Alarmas y recordatorios', 5000));
+$('#avPrueba').onclick = async () => {
+  if (!AV.on && !await avActivar(true)) return;
+  await capP('LocalNotifications').schedule({notifications: [{id: AV_PRUEBA, title: ordinal(3) + ' hora · grupo de prueba: Ficha de prueba', body: 'Así llegan los avisos de clase. Este no abre nada.', schedule: {at: new Date(Date.now() + 10000), allowWhileIdle: true}, smallIcon: 'ic_stat_utilidades'}]});
+  aviso('Aviso de prueba en 10 segundos: bloquea el móvil y espera', 4000); pintaAndroid();
+};
+
+/* el escáner de documentos de Android (ML Kit): la cámara, el recorte y el enderezado los hace
+   Google Play services EN EL MÓVIL (las fotos no salen); la primera vez baja el módulo. Las
+   páginas que devuelve entran en el escáner de siempre ya recortadas: después, Crear PDF,
+   tapar el nombre o imagen para la pizarra, igual que con «Hacer foto». */
+async function escanerAndroid(){
+  const ds = capP('DocumentScanner');
+  try {
+    const {available} = await ds.isGoogleDocumentScannerModuleAvailable();
+    if (!available){
+      aviso('Preparando el escáner de Android (solo la primera vez, con conexión)…', 6000);
+      await new Promise((ok, mal) => { ds.addListener('googleDocumentScannerModuleInstallProgress', e => { if (e.state === 4) ok(); else if (e.state === 3 || e.state === 5) mal(new Error('no se ha podido instalar el módulo')); }); ds.installGoogleDocumentScannerModule().catch(mal); });
+    }
+    await trasEscaner(await ds.scanDocument({galleryImportAllowed: true, pageLimit: 30, resultFormats: 'JPEG', scannerMode: 'FULL'}));
+  } catch (e) { if (!/cancel/i.test((e && e.message) || '')) aviso('El escáner de Android no ha podido (' + ((e && e.message) || e) + '). Usa «Hacer foto».', 5000); }
+}
+async function trasEscaner(r){
+  const imgs = (r && r.scannedImages) || [], bs = [];
+  for (const u of imgs) bs.push(await leeNativo(u, 'image/jpeg'));
+  if (bs.length){ await anadeFotos(bs, true); aviso(bs.length === 1 ? 'Una página escaneada' : bs.length + ' páginas escaneadas'); }
+}
+
+function iniciaNativa(){
+  document.body.classList.add('nativa');
+  $('#hoja [data-a="descargar"]').lastChild.textContent = 'Abrir con otra app';
+  $('#bResBaja').textContent = 'Abrir con…'; $('#bCopiaNotas').hidden = true; $('#ajPasar').hidden = true; $('#ajAndroid').hidden = false;
+  $('#bMlkit').hidden = false; $('#bFoto').classList.remove('acento');
+  $('#bMlkit').onclick = escanerAndroid;
+  capP('Filesystem').rmdir({path: 'salida', directory: 'CACHE', recursive: true}).catch(() => {});
+  const app = capP('App');
+  app.addListener('backButton', () => { if (pila.length) return history.back(); if ($('#v-hoy').hidden) return ve('hoy'); app.minimizeApp(); });
+  app.addListener('resume', avProgramar);
+  /* si Android cerró la app mientras el escáner estaba abierto, el resultado llega aquí */
+  app.addListener('appRestoredResult', ev => { if (ev && ev.pluginId === 'DocumentScanner' && ev.success && ev.data){ ve('escaner'); trasEscaner(ev.data); } });
+  capP('CapacitorShareTarget').addListener('shareReceived', recibe);
+  avProgramar();
+}
+
 
 /* ── NAVEGACIÓN: cuatro vistas abajo y capas encima. Cada capa abierta es una
    entrada del historial: el botón atrás de Android la cierra en vez de salir ── */
@@ -556,6 +783,7 @@ const nombreArch = d => esImg(d) ? (/\.(jpe?g|png)$/i.test(d.nombre) ? d.nombre 
 const tipoArch = d => esImg(d) ? ((d.blob && d.blob.type) || 'image/jpeg') : 'application/pdf';
 async function comparte(d){
   const f = new File([d.blob], nombreArch(d), {type: tipoArch(d)});
+  if (nativa()) return sacaNativo([f], {titulo: d.nombre});
   if (navigator.canShare && navigator.canShare({files: [f]})){
     try { await navigator.share({files: [f], title: d.nombre}); } catch (e) { if (e.name !== 'AbortError') aviso('No se ha podido compartir: ' + e.message); }
   } else { descarga(d.blob, f.name); aviso('Este navegador no comparte archivos: lo tienes en Descargas.'); }
@@ -564,11 +792,15 @@ async function comparte(d){
 async function comparteVarios(ds){
   if (!ds.length) return aviso('No hay nada que compartir');
   const fs = ds.map(d => new File([d.blob], nombreArch(d), {type: tipoArch(d)}));
+  if (nativa()) return sacaNativo(fs, {titulo: ds.length + ' documentos'});
   if (navigator.canShare && navigator.canShare({files: fs})){
     try { await navigator.share({files: fs, title: ds.length + ' documentos'}); } catch (e) { if (e.name !== 'AbortError') aviso('No se ha podido compartir: ' + e.message); }
   } else { for (const f of fs) descarga(f, f.name); aviso('Este navegador no comparte archivos: los tienes en Descargas.'); }
 }
-function descarga(blob, nombre){ const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = nombre; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
+/* en la APK no hay descargas: un PDF o una imagen se abre con otra app; lo demás, al menú de compartir */
+function descarga(blob, nombre){
+  if (nativa()) return sacaNativo([new File([blob], nombre, {type: blob.type || ''})], {abrir: /pdf|image/.test(blob.type || '') || /\.(pdf|jpe?g|png)$/i.test(nombre)});
+  const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = nombre; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
 
 /* añadir PDF del móvil */
 $('#bImporta').onclick = () => $('#fImporta').click();
@@ -651,7 +883,7 @@ async function sincroniza(){
     N.textContent = (bajar.length ? bajar.length + (bajar.length === 1 ? ' archivo nuevo o cambiado' : ' archivos nuevos o cambiados') : 'Todo estaba al día')
       + (fuera ? ' · ' + fuera + ' ya no está' + (fuera === 1 ? '' : 'n') + ' en los originales y se ha' + (fuera === 1 ? '' : 'n') + ' quitado' : '') + ' · ' + remotos.length + ' en total.';
   } catch (e) { N.innerHTML = '<span class="mal">No se ha podido actualizar: ' + esc(e.message) + '.</span>'; }
-  finally { await recarga(); pintaLista(); if (!$('#v-hoy').hidden) pintaHoy(); sincronizando = false; $('#bSync').disabled = false; P.hidden = true; }
+  finally { await recarga(); pintaLista(); if (!$('#v-hoy').hidden) pintaHoy(); avProgramar(); sincronizando = false; $('#bSync').disabled = false; P.hidden = true; }
 }
 $('#bSync').onclick = sincroniza;
 
@@ -1104,6 +1336,7 @@ $('#bResVer').onclick = () => { if (!resDoc) return; abreCapa('visor'); verDoc(r
 
 $('#qrPantalla').onclick = () => { const v = $('#qrVista'); if (document.fullscreenElement) document.exitFullscreen(); else if (v.requestFullscreen) v.requestFullscreen().catch(() => aviso('Pantalla completa no disponible')); };
 $('#qrComparte').onclick = () => $('#qrLienzo').toBlob(async b => { const f = new File([b], 'qr.png', {type: 'image/png'});
+  if (nativa()) return sacaNativo([f], {titulo: (QRACT && QRACT.titulo) || 'QR'});
   if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: (QRACT && QRACT.titulo) || 'QR'}); } catch (e) {} } else descarga(b, 'qr.png'); });
 AL_CERRAR.qrVista = () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); };
 
@@ -1118,13 +1351,13 @@ $('#bFoto').onclick = () => $('#fFoto').click();
 $('#bGaleria').onclick = () => $('#fGaleria').click();
 $('#fFoto').onchange = e => { anadeFotos(e.target.files); e.target.value = ''; };
 $('#fGaleria').onchange = e => { anadeFotos(e.target.files); e.target.value = ''; };
-async function anadeFotos(files){
+async function anadeFotos(files, enteras){
   for (const f of files){
     let bm; try { bm = await createImageBitmap(f, {imageOrientation: 'from-image'}); } catch (e) { bm = await createImageBitmap(f); }
     const k = Math.min(1, MAXFOTO / Math.max(bm.width, bm.height));
     const cv = document.createElement('canvas'); cv.width = Math.round(bm.width * k); cv.height = Math.round(bm.height * k);
     cv.getContext('2d').drawImage(bm, 0, 0, cv.width, cv.height); bm.close && bm.close();
-    ESC.fotos.push({cv, esq: buscaEsquinas(cv)}); ESC.actual = ESC.fotos.length - 1;
+    ESC.fotos.push({cv, esq: enteras ? [[0, 0], [1, 0], [1, 1], [0, 1]] : buscaEsquinas(cv)}); ESC.actual = ESC.fotos.length - 1;
   }
   pintaEscaner();
 }
@@ -1347,10 +1580,10 @@ $('#bEscImg').onclick = async () => {
     let k = 0; for (const x of ESC_IMG) await guardaDB('docs', {id: 'cap:' + Date.now() + ':' + (k++), origen: 'captura', nombre: x.name.replace(/\.(jpg|png)$/i, ''), carpeta: 'Capturas', tam: x.size, fecha: Date.now(), hoy: false, blob: x});
     await recarga();
     R.innerHTML = `<div class="caja res"><p style="margin-top:0"><b>${ESC_IMG.length === 1 ? 'Una imagen' : ESC_IMG.length + ' imágenes'}</b> · ${tam(total)} en total · guardada${ESC_IMG.length === 1 ? '' : 's'} en <b>Capturas</b> (Biblioteca)</p>
-      <div class="fila"><button class="btn acento" id="bEscImgComp">Compartir (Bluetooth)</button><button class="btn" id="bEscImgBaja">Descargar</button></div></div>`;
-    $('#bEscImgComp').onclick = async () => { try { if (navigator.canShare && navigator.canShare({files: ESC_IMG})) await navigator.share({files: ESC_IMG}); else throw new Error('no'); }
+      <div class="fila"><button class="btn acento" id="bEscImgComp">Compartir (Bluetooth)</button>${nativa() ? '' : '<button class="btn" id="bEscImgBaja">Descargar</button>'}</div></div>`;
+    $('#bEscImgComp').onclick = async () => { if (nativa()) return sacaNativo(ESC_IMG, {titulo: ESC_IMG.length === 1 ? ESC_IMG[0].name : ESC_IMG.length + ' imágenes'}); try { if (navigator.canShare && navigator.canShare({files: ESC_IMG})) await navigator.share({files: ESC_IMG}); else throw new Error('no'); }
       catch (e) { if (e.name !== 'AbortError') { ESC_IMG.forEach(x => descarga(x, x.name)); aviso('Este móvil no deja compartir imágenes desde aquí: se han descargado'); } } };
-    $('#bEscImgBaja').onclick = () => ESC_IMG.forEach(x => descarga(x, x.name));
+    if ($('#bEscImgBaja')) $('#bEscImgBaja').onclick = () => ESC_IMG.forEach(x => descarga(x, x.name));
   } catch (e) { R.innerHTML = ''; aviso('Error: ' + e.message); }
   finally { b.disabled = false; }
 };
@@ -1397,6 +1630,7 @@ async function pintaAjustes(){
   if (navigator.storage && navigator.storage.estimate){ try { const e = await navigator.storage.estimate(); t += ' · ocupado ' + tam(e.usage || 0) + ' de ' + tam(e.quota || 0) + ' disponibles'; } catch (e) {} }
   $('#ajEspacio').textContent = t;
   $('#ajNomCopia').value = nombreCopia();
+  pintaAndroid();
   $('#ajNotas').textContent = resumenNotas() + ' · ' + (NT.ultimaCopia ? 'última copia: ' + new Date(NT.ultimaCopia).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) : 'sin ninguna copia todavía');
 }
 $('#bCompNotas').onclick = () => copiaNotas('compartir', $('#ajNomCopia').value);
@@ -1413,6 +1647,8 @@ $('#bBorraCap').onclick = async () => { const cs = DOCS.filter(d => d.origen ===
   if (!confirm('¿Borrar las ' + cs.length + ' capturas?')) return; for (const d of cs) await borraDB('docs', d.id); await recarga(); pintaAjustes(); aviso('Vaciada'); };
 $('#bBorraMios').onclick = async () => { const mios = DOCS.filter(d => d.origen === 'local'); if (!mios.length) return aviso('«Mis archivos» ya está vacío');
   if (!confirm('¿Borrar los ' + mios.length + ' archivos de «Mis archivos»?')) return; for (const d of mios) await borraDB('docs', d.id); await recarga(); pintaAjustes(); aviso('Vaciado'); };
+$('#bPasaMios').onclick = () => comparteVarios(DOCS.filter(d => d.origen === 'local'));
+$('#bPasaCap').onclick = () => comparteVarios(DOCS.filter(d => d.origen === 'captura'));
 $('#bBorraTodo').onclick = async () => { if (!confirm('¿Borrar todo: lo traído, «Mis archivos» y el token? Las notas se quedan.')) return; for (const d of DOCS) await borraDB('docs', d.id); await ponConf('token', ''); await recarga(); pintaAjustes(); };
 
 /* ── HOY: lo que toca cada día, de herramientas/calendario.json ── */
@@ -2003,8 +2239,8 @@ function pintaAules(C){
   C.querySelectorAll('[data-cp]').forEach(b => b.onclick = async () => { const v = camposAules(A)[+b.dataset.cp].v;
     try { await navigator.clipboard.writeText(v); b.textContent = 'Copiado ✓'; setTimeout(() => b.textContent = 'Copiar', 1500); } catch (e) { aviso('No se ha podido copiar'); } });
   if ($('#auHoy')) $('#auHoy').onclick = async () => { const n = eventosAules(A); for (const e of n){ LOCALES = LOCALES.filter(x => !(x.fecha === e.fecha && x.texto === e.texto && x.grupos[0] === e.grupos[0])); LOCALES.push(e); }
-    await ponConf('eventosLocales', LOCALES); aviso('Apuntado en Hoy'); otra(); };
-  C.querySelectorAll('[data-lq]').forEach(b => b.onclick = async () => { LOCALES = LOCALES.filter(x => x.id !== b.dataset.lq); await ponConf('eventosLocales', LOCALES); otra(); });
+    await ponConf('eventosLocales', LOCALES); avProgramar(); aviso('Apuntado en Hoy'); otra(); };
+  C.querySelectorAll('[data-lq]').forEach(b => b.onclick = async () => { LOCALES = LOCALES.filter(x => x.id !== b.dataset.lq); await ponConf('eventosLocales', LOCALES); avProgramar(); otra(); });
 }
 /* las sesiones del cuaderno del grupo: se marcan y pasan a la lista */
 function pintaCuad(A){
@@ -2196,7 +2432,8 @@ function pintaListaEd(C){
     let nom = ($('#leNom').value || '').trim().replace(/[\\/:*?"<>|]/g, '-') || 'lista.csv'; if (!/\.csv$/i.test(nom)) nom += '.csv';
     const blob = new Blob([bytes], {type: 'text/csv'}), file = new File([blob], nom, {type: 'text/csv'});
     try {
-      if (navigator.canShare && navigator.canShare({files: [file]})) await navigator.share({files: [file], title: nom}); else descarga(blob, nom);
+      if (nativa()){ if (!await sacaNativo([file], {titulo: nom})) return aviso('No se ha guardado nada'); }
+      else if (navigator.canShare && navigator.canShare({files: [file]})) await navigator.share({files: [file], title: nom}); else descarga(blob, nom);
     } catch (e) { if (e.name === 'AbortError') return aviso('No se ha guardado nada'); descarga(blob, nom); }
     if (LE.correr && !confirm('¿Se ha guardado la lista nueva en OneDrive? Solo entonces muevo tus notas a los números nuevos. Si no se ha guardado, pulsa Cancelar y vuelve a intentarlo.')) return aviso('No he movido nada: la lista y las notas siguen como estaban', 5000);
     if (LE.correr) mueveNotas(mapas);
@@ -2418,7 +2655,8 @@ const hechaCopia = async () => { NT.ultimaCopia = Date.now(); await guardaDB('co
 const nombreCopia = () => { const d = new Date(); return 'notas-' + hoyISO() + '-' + String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0') + '.json'; };
 async function copiaNotas(modo = 'compartir', nombre){
   nombre = (nombre || nombreCopia()).trim().replace(/[\\/:*?"<>|]/g, '-'); if (!/\.json$/i.test(nombre)) nombre += '.json';
-  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
+  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT, locales: LOCALES})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
+  if (nativa()){ if (await sacaNativo([f], {titulo: nombre})){ await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); } return; }
   if (modo === 'compartir'){
     if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); return; } catch (e) { if (e.name === 'AbortError') return; } }
     aviso('Este móvil no deja compartir desde aquí: la descargo', 3000); }
@@ -2426,7 +2664,10 @@ async function copiaNotas(modo = 'compartir', nombre){
 async function recuperaNotas(file){
   try { const o = JSON.parse(await file.text()); if (o.app !== 'utilidades-notas' || !o.notas) throw new Error('no es una copia de notas');
     if (!confirm('¿Cambiar las notas de este móvil (' + resumenNotas() + ') por las de la copia del ' + new Date(o.fecha).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '?')) return;
-    NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, o.notas); await guardaDB('conf', NT, 'notas'); aviso('Notas recuperadas'); pintaAjustes(); }
+    NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, o.notas); await guardaDB('conf', NT, 'notas');
+    /* lo apuntado en Hoy (desde 1.14): se suma a lo que ya haya, sin repetir */
+    if (Array.isArray(o.locales)){ const ya = new Set(LOCALES.map(x => x.id)); LOCALES = LOCALES.concat(o.locales.filter(x => x && !ya.has(x.id))); await ponConf('eventosLocales', LOCALES); avProgramar(); }
+    aviso('Notas recuperadas'); pintaAjustes(); }
   catch (e) { aviso('No se puede leer: ' + e.message, 4000); }
 }
 
@@ -2435,7 +2676,8 @@ async function recuperaNotas(file){
   await recarga(); pintaLista();
   NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB = (await leeDB('conf', 'rubricas')) || null; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || []; ESC.modo = (await leeDB('conf', 'escModo')) || 'rect';
   const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (nativa()){ AV = Object.assign({}, AV0, (await leeDB('conf', 'avisos')) || {}); iniciaNativa(); }
+  else if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
 </body>

@@ -1,0 +1,9 @@
+{
+  "appId": "com.diazepamina.utilidades",
+  "appName": "Utilidades",
+  "webDir": "www",
+  "android": { "backgroundColor": "#FBF8F1" },
+  "plugins": {
+    "LocalNotifications": { "smallIcon": "ic_stat_utilidades", "iconColor": "#D9661A" }
+  }
+}

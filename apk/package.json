@@ -1,0 +1,22 @@
+{
+  "name": "utilidades-android",
+  "private": true,
+  "description": "Envoltorio de Capacitor para compilar Utilidades como APK de Android",
+  "scripts": {
+    "www": "rm -rf www && mkdir www && cp -r ../index.html ../manifest.webmanifest ../*.png ../lib www/ && cp node_modules/@capacitor/core/dist/capacitor.js www/capacitor.js"
+  },
+  "dependencies": {
+    "@capacitor-mlkit/document-scanner": "8.2.2",
+    "@capacitor/android": "8.6.0",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/file-viewer": "2.0.4",
+    "@capacitor/filesystem": "8.1.5",
+    "@capacitor/local-notifications": "8.3.1",
+    "@capacitor/share": "8.0.3",
+    "@capgo/capacitor-share-target": "8.0.65"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}

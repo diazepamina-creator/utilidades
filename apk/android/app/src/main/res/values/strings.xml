@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Utilidades</string>
+    <string name="title_activity_main">Utilidades</string>
+    <string name="package_name">com.diazepamina.utilidades</string>
+    <string name="custom_url_scheme">com.diazepamina.utilidades</string>
+</resources>

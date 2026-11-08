@@ -1,0 +1,108 @@
+name: APK de Android
+
+on:
+  push:
+    branches: [main]
+    paths: ["index.html", "manifest.webmanifest", "*.png", "lib/**", "apk/**", ".github/workflows/apk.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Descargar Gradle
+        run: |
+          set +e
+          for u in https://services.gradle.org/distributions/gradle-8.14.3-bin.zip \
+                   https://github.com/gradle/gradle-distributions/releases/download/v8.14.3/gradle-8.14.3-bin.zip \
+                   https://mirrors.cloud.tencent.com/gradle/gradle-8.14.3-bin.zip; do
+            curl -fL --retry 4 --retry-delay 10 --connect-timeout 30 -o /tmp/gradle.zip "$u" && unzip -tq /tmp/gradle.zip && echo "Gradle desde $u" && break
+            rm -f /tmp/gradle.zip
+          done
+          test -f /tmp/gradle.zip
+          sed -i 's#^distributionUrl=.*#distributionUrl=file\\:///tmp/gradle.zip#' apk/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i '/^validateDistributionUrl/d' apk/android/gradle/wrapper/gradle-wrapper.properties
+          cat apk/android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Espejo de Maven Central
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/espejo.gradle <<'G'
+          def espejo = "https://maven-central.storage-download.googleapis.com/maven2/"
+          allprojects {
+            buildscript { repositories { maven { url espejo } } }
+            repositories { maven { url espejo } }
+          }
+          G
+
+      - name: Versión de la app
+        id: v
+        run: echo "version=$(grep -oP "^const VERSION = '\K[0-9.]+" index.html)" >> "$GITHUB_OUTPUT"
+
+      - name: Firma (secretos APK_FIRMA y APK_CLAVE)
+        env:
+          APK_FIRMA: ${{ secrets.APK_FIRMA }}
+          APK_CLAVE: ${{ secrets.APK_CLAVE }}
+        run: |
+          if [ -z "$APK_FIRMA" ] || [ -z "$APK_CLAVE" ]; then
+            echo "::error title=Falta la firma::Pon los secretos APK_FIRMA y APK_CLAVE en Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "$APK_FIRMA" | tr -d ' \r\n' | base64 -d > apk/firma.p12
+          keytool -list -storetype pkcs12 -keystore apk/firma.p12 -storepass "$APK_CLAVE" > /dev/null || { echo "::error title=Firma::La firma o la contraseña no son correctas"; exit 1; }
+
+      - name: Preparar el proyecto
+        working-directory: apk
+        run: |
+          npm install --no-audit --no-fund
+          npm run www
+          npx cap sync android
+
+      - name: Compilar
+        working-directory: apk/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          APK_CLAVE: ${{ secrets.APK_CLAVE }}
+          VERSION_NAME: ${{ steps.v.outputs.version }}
+        run: |
+          chmod +x gradlew
+          for i in 1 2 3; do
+            ./gradlew --no-daemon assembleRelease 2>&1 | tee /tmp/build.log || true
+            [ -f app/build/outputs/apk/release/app-release.apk ] && break
+            echo "Reintento $i"; sleep 20
+          done
+          if [ ! -f app/build/outputs/apk/release/app-release.apk ]; then
+            msg=$(grep -A25 -E "What went wrong|FAILURE:|error:|e: " /tmp/build.log | head -60 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error title=Gradle::$msg"
+            exit 1
+          fi
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/utilidades-${{ steps.v.outputs.version }}.apk"
+
+      - name: Publicar en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.version }}
+          name: Utilidades ${{ steps.v.outputs.version }}
+          make_latest: true
+          files: utilidades-${{ steps.v.outputs.version }}.apk
+          body: |
+            Descarga el archivo `.apk` desde el móvil e instálalo encima de la versión anterior: los datos se mantienen.
+            La primera vez, Android pedirá permiso para instalar apps de esta fuente.
