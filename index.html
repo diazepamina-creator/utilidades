@@ -193,6 +193,9 @@ label.cuad{display:flex;gap:10px;align-items:flex-start;border-top:1px solid var
 .errs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.errs button{border:1.5px dashed var(--mal);background:none;color:var(--mal);border-radius:16px;padding:4px 10px;font-size:13px}
 .errs button.si{background:var(--mal);color:#fff;border-style:solid}
 #crNota{font-size:18px;white-space:nowrap}
+/* el candado (1.15.2): cerrado, lo corregido no se puede tocar sin querer */
+#corrige .cab #crCandado{font-size:22px;line-height:1;padding:6px 4px 6px 8px;margin-left:2px}
+#crCuerpo.cerrado .seg button,#crCuerpo.cerrado .errs button,#crCuerpo.cerrado .todoP,#crCuerpo.cerrado [data-menos],#crCuerpo.cerrado [data-quitamenos],#crCuerpo.cerrado #crTodo,#crCuerpo.cerrado #crLimpia,#crCuerpo.cerrado #fTodo2,#crCuerpo.cerrado [data-mod],#crCuerpo.cerrado label{opacity:.6}
 .barra{flex:1;position:relative;height:22px;background:#EFEAE0;border-radius:6px;overflow:hidden;min-width:60px}
 .barra i{position:absolute;inset:0 auto 0 0;background:#9DBFAE}.barra span{position:relative;font-size:13px;font-weight:700;padding-left:6px;line-height:22px}
 details.pr{border-top:1px solid var(--linea);padding:6px 0}details.pr>summary{display:flex;gap:8px;align-items:center;cursor:pointer;list-style:none}
@@ -437,7 +440,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 </section>
 
 <section class="capa" id="corrige" hidden>
-  <header class="cab"><button data-cierra>‹ Lista</button><h1 id="crTit"></h1><b id="crNota"></b></header>
+  <header class="cab"><button data-cierra>‹ Lista</button><h1 id="crTit"></h1><b id="crNota"></b><button id="crCandado" aria-label="Candado"></button></header>
   <div class="cuerpo" id="crCuerpo"></div>
 </section>
 
@@ -462,7 +465,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.15.1';
+const VERSION = '1.15.2';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1993,6 +1996,23 @@ function montaSinCorregir(n, N, falta, ve){
 /* ── EL CORRECTOR: el examen de un alumno ── */
 let CR = null;
 function abreCorrige(n){ CR = {n}; pintaCorrige(); abreCapa('corrige'); }
+/* EL CANDADO (1.15.2). Al entrar en un alumno ya corregido entero (o NP / no entregada), sale
+   cerrado: los toques en casillas, errores, NP y botones de marcar no hacen nada (vibra y
+   avisa), para que repasando lo que ha fallado no se cambie nada sin querer. Un toque en el
+   candado lo abre; al pasar a otro alumno o salir, se vuelve a cerrar. Mientras se corrige
+   uno a medias está abierto, y no se cierra solo al acabar: se cierra al volver a entrar.
+   Anterior, siguiente y «Siguiente sin corregir» funcionan siempre. No se guarda nada:
+   es solo de la pantalla. */
+function candado(n, completo){ if (CR.visto !== n){ CR.visto = n; CR.cerrado = completo; } pintaCandado(); }
+function pintaCandado(){ const b = $('#crCandado'), c = !!(CR && CR.cerrado);
+  b.textContent = c ? '🔒' : '🔓'; b.setAttribute('aria-label', c ? 'Cerrado: toca para poder cambiar las notas' : 'Abierto: toca para cerrar'); $('#crCuerpo').classList.toggle('cerrado', c); }
+$('#crCandado').onclick = () => { if (!CR) return; CR.cerrado = !CR.cerrado; pintaCandado(); if (navigator.vibrate) navigator.vibrate(15); aviso(CR.cerrado ? 'Cerrado' : 'Abierto: ya puedes cambiar las notas', 1800); };
+$('#crCuerpo').addEventListener('click', e => {
+  if (!CR || !CR.cerrado) return;
+  const t = e.target.closest('button, input, label'); if (!t || t.closest('#crAnt, #crSig, #crSinC, summary, details')) return;
+  e.preventDefault(); e.stopPropagation();
+  if (navigator.vibrate) navigator.vibrate([30, 40, 30]); aviso('Bloqueado: toca el candado 🔒 de arriba para cambiar algo', 2500);
+}, true);
 function pintaCorrige(){
   const ex = examenDe(H.ex), R = corr(H.ex, H.g), N = nAlumnos(H.g), n = CR.n;
   let a = R.al[n];
@@ -2000,6 +2020,7 @@ function pintaCorrige(){
   const m = ex.modelos.find(x => x.modelo === modelo) || ex.modelos[0];
   const ver = a || {m: m.modelo, x: {}, c: {}, e: {}};
   const r = notaExamen(ex, ver);
+  candado(n, !!a && (a.np || (Object.keys(a.x || {}).length > 0 && r.faltan === 0)));
   const nom = (LISTA[H.g] || {})[n];
   $('#crTit').textContent = 'n.º ' + n + ' · ' + (nom ? corto(nom) : etqGrupo(H.g));
   $('#crNota').innerHTML = ver.np ? 'NP' : coma(r.nota) + (r.faltan ? ' <small style="opacity:.7">(' + r.faltan + ' sin marcar)</small>' : '');
@@ -2184,6 +2205,7 @@ function tablaResumen(fs, g, N, taller){
 function abreCorrigeFicha(n){ CR = {n, modo: 'ficha'}; pintaCorrigeFicha(); abreCapa('corrige'); }
 function pintaCorrigeFicha(){
   const f = fichaDe(H.f), R = corrF(H.f, H.g), N = nAlumnos(H.g), n = CR.n, a0 = R.al[n] || {v1: [], ar: [], b: []}, r = notaFicha(a0), nom = (LISTA[H.g] || {})[n];
+  candado(n, !!R.al[n] && (a0.ne || r.v1 != null));
   $('#crTit').textContent = 'n.º ' + n + ' · ' + (nom ? corto(nom) : etqGrupo(H.g));
   $('#crNota').innerHTML = a0.ne ? 'NE' : r.v1 == null ? (r.faltan < 5 ? '<small style="opacity:.7">faltan ' + r.faltan + '</small>' : '') : coma(r.v1) + (r.v2 != null ? ' → ' + coma(r.v2) : '');
   let h = `<p class="nota" style="margin-top:0">${esc(f.unidad)} · ${esc(f.nombre)} · ${esc(f.titulo)}</p>
