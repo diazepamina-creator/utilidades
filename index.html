@@ -470,7 +470,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.15.4';
+const VERSION = '1.15.5';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1990,46 +1990,48 @@ function creaXlsx(hojas){
     .concat(hojas.map((h, i) => ['xl/worksheets/sheet' + (i + 1) + '.xml', hoja(h)]));
   return zipSinComprimir(A.map(([nombre, t]) => ({nombre, datos: enc.encode(t)})));
 }
-/* la pestaña de un grupo: una fila por número de lista y, por examen corregido en ese grupo, su nota
-   (con el detalle por pregunta si se pide); abajo, la media y los aprobados de cada uno */
-function hojaGrupo(g, {detalle, nombres}){
-  const N = nAlumnos(g), exs = (RUB ? RUB.examenes : []).filter(e => gruposDe(e.curso).includes(g) && Object.keys((NT.corr[claveCorr(e.id, g)] || {al: {}}).al).length);
-  const lista = nombres && LISTA[g], cab = ['N.º'].concat(lista ? ['Nombre'] : []), anchos = [6].concat(lista ? [28] : []);
-  /* con el detalle, el nombre del examen va en una fila encima de su bloque y debajo P1, P2… y Nota */
-  const sobre = cab.map(() => null), tema = e => e.tema + (e.propia ? ' (tuya)' : '');
-  for (const e of exs){ const m0 = e.modelos[0];
-    if (detalle){ sobre.push(tema(e)); for (const p of m0.preguntas){ if (cab.length >= sobre.length) sobre.push(null); cab.push('P' + p.n + ' (' + coma(p.puntos) + ')'); anchos.push(8); } cab.push('Nota'); sobre.push(null); anchos.push(8); }
-    else { cab.push(tema(e)); anchos.push(Math.max(12, Math.min(26, e.tema.length + 4))); } }
-  cab.push('Observaciones'); anchos.push(30);
-  const filas = [[{v: etqGrupo(g) + ' · notas de los exámenes · ' + new Date().toLocaleDateString('es-ES'), b: true}], []];
-  if (detalle && exs.length) filas.push(sobre.slice(0, cab.length).map(v => v == null ? null : {v, b: true}));
-  filas.push(cab.map(v => ({v, b: true})));
-  const notas = exs.map(() => []);
-  for (let n = 1; n <= N; n++){ const f = [n].concat(lista ? [lista[n] || ''] : []), obs = [];
-    exs.forEach((e, ie) => { const a = (NT.corr[claveCorr(e.id, g)] || {al: {}}).al[n], m0 = e.modelos[0];
-      if (!a || (!a.np && !Object.keys(a.x || {}).length)){ if (detalle) m0.preguntas.forEach(() => f.push(null)); f.push(null); return; }
-      if (a.np){ if (detalle) m0.preguntas.forEach(() => f.push(null)); f.push('NP'); return; }
-      const r = notaExamen(e, a);
-      if (detalle) r.modelo.preguntas.forEach(p => f.push({v: Math.round(r.porP[p.n] * 100) / 100, n: true}));
-      f.push({v: r.nota, n: true}); notas[ie].push(r.nota);
-      if (r.faltan) obs.push(e.tema + ': ' + r.faltan + (r.faltan === 1 ? ' casilla sin marcar (cuenta 0)' : ' casillas sin marcar (cuentan 0)'));
-      /* el modelo solo si no es el primero (A): «Prueba adaptada», «Con apoyos»… es lo que interesa a la PT */
-      if (r.modelo !== e.modelos[0]) obs.push(e.tema + ': ' + r.modelo.nombre); });
-    f.push(obs.length ? {v: obs.join('; '), w: true} : null); filas.push(f); }
-  const pie = (titulo, fn) => { const f = [{v: titulo, b: true}].concat(lista ? [null] : []); exs.forEach((e, ie) => { if (detalle) e.modelos[0].preguntas.forEach(() => f.push(null)); f.push(fn(notas[ie])); }); return f; };
-  filas.push([], pie('Media', v => v.length ? {v: Math.round(v.reduce((s, x) => s + x, 0) / v.length * 100) / 100, n: true, b: true} : null),
-    pie('Aprobados', v => v.length ? v.filter(x => x >= 5).length + ' de ' + v.length : null));
-  if (!exs.length) filas.push([], ['Aún no hay exámenes corregidos en este grupo.']);
-  return {nombre: etqGrupo(g), filas, anchos, congela: detalle && exs.length ? 4 : 3};
+/* 1.15.5: UNA PESTAÑA POR EXAMEN Y GRUPO, cada una en una página apaisada (con varios exámenes
+   juntos no cabía): 1.º A · examen 1, 1.º A · examen 2…, 1.º B · examen 1… Cada pestaña repite
+   números y nombres. Una fila por alumno: el modelo (A, B, adaptada…: lo quiere ver la PT), los
+   puntos de cada pregunta si se pide el detalle, la nota y las observaciones; abajo, la media
+   (de cada pregunta y de la nota) y los aprobados. */
+const exsGrupo = g => (RUB ? RUB.examenes : []).filter(e => gruposDe(e.curso).includes(g) && Object.keys((NT.corr[claveCorr(e.id, g)] || {al: {}}).al).length);
+function hojasGrupo(g, {detalle, nombres}){
+  const exs = exsGrupo(g), fecha = new Date().toLocaleDateString('es-ES');
+  if (!exs.length) return [{nombre: etqGrupo(g), filas: [[{v: etqGrupo(g) + ' · ' + fecha, b: true}], [], ['Aún no hay exámenes corregidos en este grupo.']], anchos: [50]}];
+  return exs.map(e => hojaExamen(g, e, {detalle, nombres, fecha}));
+}
+function hojaExamen(g, e, {detalle, nombres, fecha}){
+  const N = nAlumnos(g), R = (NT.corr[claveCorr(e.id, g)] || {al: {}}).al, lista = nombres && LISTA[g], m0 = e.modelos[0];
+  const ns = m0.preguntas.map(p => p.n), varios = e.modelos.length > 1;
+  /* los puntos de una pregunta en la cabecera solo si valen lo mismo en todos los modelos (la adaptada suele cambiarlos) */
+  const pts = n => { const v = e.modelos.map(m => (m.preguntas.find(p => p.n === n) || {}).puntos); return v.every(x => x === v[0]) ? ' (' + coma(v[0]) + ')' : ''; };
+  const cab = ['N.º'].concat(lista ? ['Nombre'] : [], varios ? ['Modelo'] : [], detalle ? ns.map(n => 'P' + n + pts(n)) : [], ['Nota', 'Observaciones']);
+  const anchos = [6].concat(lista ? [30] : [], varios ? [16] : [], detalle ? ns.map(() => 8) : [], [8, 34]);
+  const filas = [[{v: etqGrupo(g) + ' · ' + e.tema + (e.propia ? ' (tuya)' : '') + ' · ' + e.curso + ' · ' + fecha, b: true}], [], cab.map(v => ({v, b: true}))];
+  const notas = [], porP = ns.map(() => []);
+  for (let n = 1; n <= N; n++){ const a = R[n], f = [n].concat(lista ? [lista[n] || ''] : []), hecho = a && !a.np && Object.keys(a.x || {}).length;
+    const r = hecho ? notaExamen(e, a) : null;
+    if (varios) f.push(r ? r.modelo.nombre : a && a.np ? '' : null);
+    if (detalle) ns.forEach((k, i) => { if (!r || r.porP[k] == null){ f.push(null); return; } const v = Math.round(r.porP[k] * 100) / 100; f.push({v, n: true}); porP[i].push(v); });
+    f.push(r ? {v: r.nota, n: true} : a && a.np ? 'NP' : null);
+    if (r) notas.push(r.nota);
+    f.push(r && r.faltan ? {v: r.faltan + (r.faltan === 1 ? ' casilla sin marcar (cuenta 0)' : ' casillas sin marcar (cuentan 0)'), w: true} : null);
+    filas.push(f); }
+  const media = v => v.length ? {v: Math.round(v.reduce((s, x) => s + x, 0) / v.length * 100) / 100, n: true, b: true} : null, hueco = (lista ? 1 : 0) + (varios ? 1 : 0);
+  filas.push([], [{v: 'Media', b: true}].concat(Array(hueco).fill(null), detalle ? porP.map(media) : [], [media(notas)]),
+    [{v: 'Aprobados', b: true}].concat(Array(hueco).fill(null), detalle ? ns.map(() => null) : [], [notas.length ? notas.filter(x => x >= 5).length + ' de ' + notas.length : null]));
+  /* el nombre de la pestaña: «1.º A · Potencias y raíces», recortado a lo que deja Excel (31) */
+  return {nombre: etqGrupo(g) + ' · ' + e.tema, filas, anchos, congela: 3};
 }
 function pintaHojaCalc(){
   const gs = gruposDe(''), hechos = g => (RUB ? RUB.examenes : []).filter(e => gruposDe(e.curso).includes(g) && Object.keys((NT.corr[claveCorr(e.id, g)] || {al: {}}).al).length).length;
   const C = $('#xlsCuerpo'), d = new Date();
-  C.innerHTML = `<div class="caja"><h2>Qué grupos</h2><p class="nota" style="margin-top:0">Cada uno sale en su pestaña.</p><div class="opc">
-      ${gs.map(g => `<label><input type="checkbox" data-xg="${g}"${g === (H && H.g) || (!gs.includes(H && H.g) && hechos(g)) ? ' checked' : ''}><span>${etqGrupo(g)}<small>${hechos(g) ? hechos(g) + ' examen' + (hechos(g) === 1 ? '' : 'es') + ' con notas' : 'sin exámenes corregidos'}</small></span></label>`).join('')}</div>
+  C.innerHTML = `<div class="caja"><h2>Qué grupos</h2><p class="nota" style="margin-top:0">Cada examen de cada grupo, en su pestaña: una página apaisada, con los números y los nombres.</p><div class="opc">
+      ${gs.map(g => `<label><input type="checkbox" data-xg="${g}"${g === (H && H.g) || (!gs.includes(H && H.g) && hechos(g)) ? ' checked' : ''}><span>${etqGrupo(g)}<small>${hechos(g) ? hechos(g) + ' examen' + (hechos(g) === 1 ? '' : 'es') + ' con notas: ' + hechos(g) + ' pestaña' + (hechos(g) === 1 ? '' : 's') : 'sin exámenes corregidos'}</small></span></label>`).join('')}</div>
       <div class="fila"><button class="btn peq" id="xlsTodos">Todos</button><button class="btn peq" id="xlsNinguno">Ninguno</button></div></div>
     <div class="caja"><div class="opc">
-      <label><input type="checkbox" id="xlsDet"><span>Con el detalle por pregunta<small>Una columna por pregunta, además de la nota.</small></span></label>
+      <label><input type="checkbox" id="xlsDet" checked><span>Con el detalle por pregunta<small>Los puntos de cada pregunta, además de la nota y el modelo.</small></span></label>
       <label><input type="checkbox" id="xlsNom"${Object.keys(LISTA).length ? ' checked' : ''}><span>Con los nombres<small>${Object.keys(LISTA).length ? 'Los de la lista cargada (' + Object.keys(LISTA).map(etqGrupo).join(', ') + ')' : 'Carga la lista en el corrector para que salgan; si no, solo el número'}.</small></span></label></div>
       <label class="nota">Nombre del archivo</label><input type="text" id="xlsNombre" style="width:100%" value="notas-examenes-${iso(d)}.xlsx"></div>
     <div class="fila"><button class="btn acento" id="xlsComparte">Compartir</button><button class="btn" id="xlsBaja">${nativa() ? 'Abrir con…' : 'Descargar'}</button></div>
@@ -2038,7 +2040,7 @@ function pintaHojaCalc(){
   C.querySelector('#xlsNinguno').onclick = () => C.querySelectorAll('[data-xg]').forEach(x => x.checked = false);
   const crea = () => { const gsel = [...C.querySelectorAll('[data-xg]:checked')].map(x => x.dataset.xg); if (!gsel.length){ aviso('Elige al menos un grupo'); return null; }
     let nom = ($('#xlsNombre').value || '').trim().replace(/[\\/:*?"<>|]/g, '-') || 'notas.xlsx'; if (!/\.xlsx$/i.test(nom)) nom += '.xlsx';
-    const blob = creaXlsx(gsel.map(g => hojaGrupo(g, {detalle: $('#xlsDet').checked, nombres: $('#xlsNom').checked})));
+    const blob = creaXlsx(gsel.flatMap(g => hojasGrupo(g, {detalle: $('#xlsDet').checked, nombres: $('#xlsNom').checked})));
     return new File([blob], nom, {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); };
   C.querySelector('#xlsComparte').onclick = async () => { const f = crea(); if (!f) return;
     if (nativa()) return sacaNativo([f], {titulo: f.name});
