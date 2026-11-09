@@ -341,6 +341,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <p class="nota" style="margin-top:0">La API de Claude, con tu clave (la creas en la Consola de Anthropic). La clave se queda solo en este móvil, en su propia entrada: no va en la copia de las notas ni en la app publicada. Puede salir: el catálogo de tu biblioteca, el calendario, el texto de tus fichas, exámenes <b>en blanco</b> y sus claves, tu programación y recuentos sin números ni nombres. <b>Nunca</b> salen el escáner, las fotos de trabajos, las actas tal cual, las notas por alumno, los nombres ni el token.</p>
       <div class="fila"><input type="password" id="iaClave" placeholder="Clave de la API (sk-ant-…)" style="flex:1" autocomplete="off"><button class="btn prim" id="bIaClave">Guardar y probar</button></div>
       <div class="fila" style="margin-top:8px"><label class="nota">Modelo <select id="iaModelo"></select></label><label class="nota">Intensidad <select id="iaEsfuerzo"></select></label></div>
+      <div class="fila" style="margin-top:8px"><label class="nota">Modelo para las rúbricas <select id="iaModeloRub"></select></label><span class="nota">(el primer vistazo, siempre con Haiku)</span></div>
       <div class="fila" style="margin-top:8px"><button class="btn peq" id="bIaProbar">Probar la conexión</button><button class="btn peq peligro" id="bIaQuita">Quitar la clave</button></div>
       <p class="nota" id="iaGasto" style="margin-bottom:4px"></p>
       <div class="fila"><span class="nota">Tope al mes</span><input type="text" id="iaTope" inputmode="decimal" placeholder="sin tope" style="width:90px"><span class="nota">$</span><button class="btn peq" id="bIaTope">Poner</button><button class="btn peq" id="bIaCero">A cero</button></div>
@@ -470,7 +471,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.15.5';
+const VERSION = '1.16';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1883,7 +1884,8 @@ function pintaCorregir(C){
   if (!RUB){ C.innerHTML = `<div class="vacio"><p><b>Aún no están las rúbricas.</b></p><p>Pulsa <b>Actualizar</b> en la Biblioteca: vienen de tus originales (<code>herramientas/rubricas.json</code>).</p></div>`; return; }
   const ult = NT.ultima || {};
   const ex = examenDe(H.ex || ult.ex) || RUB.examenes[0]; H.ex = ex.id;
-  const gs = gruposDe(ex.curso); H.g = gs.includes(H.g) ? H.g : gs.includes(ult.g) ? ult.g : gs[0];
+  const gs0 = gruposDe(ex.curso), gs = gs0.length ? gs0 : gruposDe('');   /* un curso «Otro» (1.16) no casa con ningún grupo: todos */
+  H.g = gs.includes(H.g) ? H.g : gs.includes(ult.g) ? ult.g : gs[0];
   NT.ultima = {ex: H.ex, g: H.g};
   const R = corr(ex.id, H.g), N = nAlumnos(H.g);
   let h = `<div class="caja"><div class="fila"><select id="cEx" style="flex:1">${RUB.examenes.map(e => `<option value="${e.id}"${e.id === ex.id ? ' selected' : ''}>${esc(e.tema)} (${esc(e.curso.replace(' ESO', ''))})${e.propia ? ' · tuya' + (e.sinRevisar ? ', sin revisar' : '') : ''}</option>`).join('')}</select>
@@ -3016,7 +3018,7 @@ const LSIA = 'utilidades.ia';
 const API_IA = 'https://api.anthropic.com/v1/messages';
 const MODELOS_IA = [['claude-opus-5-5', 'Opus · el más fino'], ['claude-sonnet-5-5', 'Sonnet · equilibrado'], ['claude-haiku-5-5', 'Haiku · rápido y barato']];
 const INTENSIDAD_IA = [['low', 'Baja'], ['medium', 'Media'], ['high', 'Alta']];
-const IA0 = {clave: '', modelo: 'claude-opus-5-5', esfuerzo: 'medium'};
+const IA0 = {clave: '', modelo: 'claude-opus-5-5', esfuerzo: 'medium', modeloRub: 'claude-sonnet-5-5'};
 const iaCfg = () => { try { return Object.assign({}, IA0, JSON.parse(localStorage.getItem(LSIA) || '{}')); } catch (e) { return Object.assign({}, IA0); } };
 const iaGuarda = c => { try { localStorage.setItem(LSIA, JSON.stringify(c)); } catch (e) {} };
 const iaLista = () => !!iaCfg().clave;
@@ -3041,26 +3043,66 @@ const APROBADOS = new Set();   /* las huellas de los adjuntos comprobados como m
 const nombresCargados = () => Object.values(LISTA).flatMap(g => Object.values(g));
 function errorIA(st, d){ const m = (d && d.error && d.error.message) || '';
   return st === 401 ? 'la clave no vale (¿copiada entera?)' : st === 403 ? 'la clave no tiene permiso para este modelo' : st === 429 ? 'demasiadas peticiones o sin saldo en la Consola' : st === 529 || st === 503 ? 'la API está saturada: prueba en un rato' : m || 'error ' + st; }
-async function iaLlama({system, contenido, esquema, maxTokens = 8000, esfuerzo, prueba}){
+/* LA LLAMADA (1.16: en streaming). Hasta 1.15.5 era un fetch sin streaming y sin límite de tiempo:
+   con Opus, 16 000 tokens y un examen largo tardaba minutos y, si el móvil se bloqueaba o la red
+   parpadeaba, la conexión moría en silencio y se quedaba en «Preguntando a la IA…» para siempre.
+   Ahora llegan los eventos de la API según se generan: la espera dice si está pensando o cuántas
+   palabras lleva escritas, el gasto y el stop_reason salen de message_start / message_delta, y si
+   pasan IA_SIN_DATOS_MS sin recibir nada (ni un «ping») se corta con un error claro. Con el
+   pensamiento resumido (display: summarized) también llegan datos mientras piensa. */
+const IA_SIN_DATOS_MS = 90000;
+const corteIA = () => new Error('la conexión se ha cortado (¿se bloqueó el móvil?): vuelve a pedirla');
+function avanceIA(t){ const e = $('#iaEspera'); if (e) e.textContent = t; }
+async function iaLlama({system, contenido, esquema, maxTokens = 8000, esfuerzo, prueba, modelo, alAvanzar}){
   const c = iaCfg(); if (!c.clave) throw new Error('Falta la clave de la API (Ajustes → La IA).');
   const g = gastoIA(); if (!prueba && g.tope > 0 && g.usd >= g.tope) throw new Error('has llegado al tope de este mes (' + dolares(g.tope) + '): cámbialo en Ajustes → La IA');
-  const body = {model: c.modelo, max_tokens: maxTokens, output_config: {effort: esfuerzo || c.esfuerzo}, messages: [{role: 'user', content: contenido}]};
+  const mod = modelo || c.modelo;
+  const body = {model: mod, max_tokens: maxTokens, stream: true, thinking: {type: 'adaptive', display: 'summarized'}, output_config: {effort: esfuerzo || c.esfuerzo}, messages: [{role: 'user', content: contenido}]};
   if (system) body.system = system;
   if (esquema) body.output_config.format = {type: 'json_schema', schema: esquema};
   /* si los filtros de seguridad de Opus o Sonnet rechazan algo, la API lo repite con otro modelo */
-  const respaldo = /opus|sonnet/.test(c.modelo); if (respaldo) body.fallbacks = 'default';
+  const respaldo = /opus|sonnet/.test(mod); if (respaldo) body.fallbacks = 'default';
   vigilaSalida(body, {token: (await conf()).token, nombres: nombresCargados(), aprobados: APROBADOS});
   const cab = {'content-type': 'application/json', 'x-api-key': c.clave, 'anthropic-version': '2026-10-21', 'anthropic-dangerous-direct-browser-access': 'true'};
   if (respaldo) cab['anthropic-beta'] = 'server-side-fallback-2026-07-01';
-  let r; try { r = await fetch(API_IA, {method: 'POST', headers: cab, body: JSON.stringify(body)}); } catch (e) { throw new Error('sin conexión con la API'); }
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(errorIA(r.status, d));
-  apuntaGasto(d.model || c.modelo, d.usage);
-  if (d.stop_reason === 'refusal') throw new Error('la IA no ha querido responder a esto');
-  if (d.stop_reason === 'max_tokens') throw new Error('la respuesta se ha cortado: prueba con menos material o con intensidad baja');
-  const txt = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-  if (!esquema) return {o: txt, uso: d.usage || {}};
-  try { return {o: JSON.parse(txt), uso: d.usage || {}}; } catch (e) { throw new Error('la respuesta no se ha podido leer'); }
+  const ctrl = new AbortController(), espera = window.__iaSinDatosMs || IA_SIN_DATOS_MS;
+  let cortado = false, lector = null, reloj = null;
+  const vigila = () => { clearTimeout(reloj); reloj = setTimeout(() => { cortado = true; ctrl.abort(); if (lector) lector.cancel().catch(() => {}); }, espera); };
+  const avisa = alAvanzar || avanceIA;
+  vigila(); avisa('Preguntando a la IA…', {palabras: 0});
+  let r; try { r = await fetch(API_IA, {method: 'POST', headers: cab, body: JSON.stringify(body), signal: ctrl.signal}); }
+  catch (e) { clearTimeout(reloj); throw cortado ? corteIA() : new Error('sin conexión con la API'); }
+  if (!r.ok){ clearTimeout(reloj); const d = await r.json().catch(() => ({})); throw new Error(errorIA(r.status, d)); }
+  /* los eventos: «event: …\ndata: {json}\n\n» */
+  let usado = mod, uso = {}, stop = null, txt = '', pensado = 0, fin = false, fallo = null, buf = '';
+  const evento = d => {
+    if (d.type === 'message_start'){ usado = (d.message && d.message.model) || mod; Object.assign(uso, (d.message && d.message.usage) || {}); }
+    else if (d.type === 'content_block_delta' && d.delta){ if (d.delta.type === 'text_delta') txt += d.delta.text || ''; else if (d.delta.type === 'thinking_delta') pensado += (d.delta.thinking || '').length + 1; }
+    else if (d.type === 'message_delta'){ if (d.delta && d.delta.stop_reason) stop = d.delta.stop_reason; if (d.usage) Object.assign(uso, d.usage); }
+    else if (d.type === 'message_stop') fin = true;
+    else if (d.type === 'error') fallo = d.error || {message: 'error de la API'};
+  };
+  try {
+    lector = r.body.getReader(); const dec = new TextDecoder();
+    for (;;){
+      const {done, value} = await lector.read(); if (done) break;
+      vigila(); buf += dec.decode(value, {stream: true}).replace(/\r\n/g, '\n');
+      let k; while ((k = buf.indexOf('\n\n')) >= 0){ const bloque = buf.slice(0, k); buf = buf.slice(k + 2);
+        const datos = bloque.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).trim()).join('\n');
+        if (datos) try { evento(JSON.parse(datos)); } catch (e) {} }
+      const pal = txt.trim() ? txt.trim().split(/\s+/).length : 0;
+      avisa(pal ? 'Escribiendo… ' + pal.toLocaleString('es-ES') + (pal === 1 ? ' palabra' : ' palabras') : pensado ? 'Pensando…' : 'Preguntando a la IA…', {palabras: pal});
+    }
+  } catch (e) { throw corteIA(); }
+  finally { clearTimeout(reloj); }
+  const coste = (uso.input_tokens != null || uso.output_tokens) ? apuntaGasto(usado, uso) : 0;
+  if (cortado) throw corteIA();
+  if (fallo) throw new Error(/overloaded/.test(fallo.type || '') ? 'la API está saturada: prueba en un rato' : 'la API ha dado un error: ' + (fallo.message || fallo.type));
+  if (!fin) throw corteIA();
+  if (stop === 'refusal') throw new Error('la IA no ha querido responder a esto');
+  if (stop === 'max_tokens') throw new Error('la respuesta se ha cortado: prueba con menos material o con intensidad baja');
+  if (!esquema) return {o: txt, uso, coste, modelo: usado};
+  try { return {o: JSON.parse(txt), uso, coste, modelo: usado}; } catch (e) { throw new Error('la respuesta no se ha podido leer'); }
 }
 /* la prueba de conexión: una llamada mínima, sin nada de la app */
 async function iaPrueba(){
@@ -3085,6 +3127,7 @@ function pintaIA(){
   $('#iaClave').value = ''; $('#iaClave').placeholder = c.clave ? 'Clave guardada (…' + c.clave.slice(-4) + '). Pega otra para cambiarla' : 'Clave de la API (sk-ant-…)';
   $('#iaModelo').innerHTML = MODELOS_IA.map(([v, t]) => `<option value="${v}"${v === c.modelo ? ' selected' : ''}>${t}</option>`).join('');
   $('#iaEsfuerzo').innerHTML = INTENSIDAD_IA.map(([v, t]) => `<option value="${v}"${v === c.esfuerzo ? ' selected' : ''}>${t}</option>`).join('');
+  $('#iaModeloRub').innerHTML = MODELOS_IA.map(([v, t]) => `<option value="${v}"${v === c.modeloRub ? ' selected' : ''}>${t}</option>`).join('');
   $('#bIaQuita').hidden = $('#bIaProbar').hidden = !c.clave;
   $('#iaProg').textContent = PROG ? '✓ Programación: ' + (PROG.nombre || 'cargada') + (PROG.curso ? ' · ' + PROG.curso : '') + ' · ' + Object.values(PROG.niveles).reduce((s, L) => s + L.length, 0) + ' situaciones' : 'Programación: sin cargar (el mismo archivo que en el cuaderno). La usa «¿Qué toca hoy?».';
   $('#bIaProgQuita').hidden = !PROG;
@@ -3106,6 +3149,7 @@ $('#bIaClave').onclick = async () => {
 };
 $('#bIaProbar').onclick = async () => { $('#iaEstado').innerHTML = '<span class="nota">Probando la conexión…</span>'; const r = await iaPrueba(); pintaIA(); aviso(r.ok ? 'Conecta' : 'No conecta: ' + r.msg, 4000); };
 $('#iaModelo').onchange = $('#iaEsfuerzo').onchange = () => { const c = iaCfg(); c.modelo = $('#iaModelo').value; c.esfuerzo = $('#iaEsfuerzo').value; c.ok = false; c.probado = 0; iaGuarda(c); pintaIA(); if (c.clave) $('#bIaProbar').click(); };
+$('#iaModeloRub').onchange = () => { const c = iaCfg(); c.modeloRub = $('#iaModeloRub').value; iaGuarda(c); aviso('Rúbricas con ' + nombreModelo(c.modeloRub)); };
 $('#bIaQuita').onclick = () => { if (!confirm('¿Quitar la clave de la API de este móvil?')) return; try { localStorage.removeItem(LSIA); } catch (e) {} pintaIA(); };
 $('#bIaTope').onclick = () => { const v = leeNum($('#iaTope').value), g = gastoIA(); g.tope = v > 0 ? v : 0; guardaGasto(g); pintaIA(); aviso(g.tope ? 'Tope: ' + dolares(g.tope) + ' al mes' : 'Sin tope'); };
 $('#bIaCero').onclick = () => { if (!confirm('¿Poner a cero el gasto de este mes en la app? (La factura de la Consola no cambia.)')) return; const g = gastoIA(); g.usd = 0; g.n = 0; guardaGasto(g); pintaIA(); };
@@ -3208,7 +3252,13 @@ const SYS_RUB = `Haces la rúbrica de corrección de un examen (o una ficha) de 
 El formato: preguntas con lo que vale cada una; cada pregunta partida en casillas (cada apartado o cada paso que se corrige por separado) que él marcará ✓ (vale entera), ½ (la mitad) o ✗ (nada). Las casillas de una pregunta suman exactamente lo que vale la pregunta, y el examen suma 10: respeta los valores que diga el examen o la clave y, si no suman 10, dilo en «avisos». Usa múltiplos de 0,25.
 Para cada pregunta: un título corto; la puntuación como la diría la clave («0,25 cada una»); «medio», el criterio del ½ (cuándo una casilla vale la mitad); la solución, de la clave; si no hay clave o no se lee, propónla tú y pon sin_revisar: true; los errores con nombre típicos (nombre corto y en qué apartado se ve: «sumar los exponentes al clonar» → «c) g^5»); y termometro: true en la casilla que mejor dice si se ha entendido lo esencial (una o dos en todo el examen).
 «reglas»: las reglas generales de corrección si la clave las da (proceso visible, error de cálculo aislado…); si no, vacío. tema, curso («1.º ESO»…) y unidad, del examen.
-Todo en castellano y con la notación del examen. Si alguna imagen tuviera respuestas escritas a mano de un alumno, no las uses: dilo en «avisos» y trabaja solo con lo impreso.`;
+Todo en castellano y con la notación del examen. Si alguna imagen tuviera respuestas escritas a mano de un alumno, no las uses: dilo en «avisos» y trabaja solo con lo impreso.
+Si te paso un PRIMER VISTAZO y las RESPUESTAS DEL PROFESOR a sus dudas, síguelas: mandan sobre lo que tú interpretes.`;
+/* el primer vistazo (1.16): con Haiku siempre, barato y rápido, antes de la rúbrica de verdad */
+const ESQ_VISTAZO = obj({curso: S, nivel: S, preguntas: NUM, puntos: lista(NUM), suman: NUM, clave: {type: 'string', enum: ['legible', 'dudosa', 'no hay']}, modelos: NUM, dudas: lista(obj({pregunta: S, opciones: lista(S)}))});
+const SYS_VISTAZO = `Echa un PRIMER VISTAZO rápido a un examen (o una ficha) de matemáticas EN BLANCO y, si viene, a su clave, antes de que otro modelo haga su rúbrica de corrección. No hagas la rúbrica.
+Dime: el curso y el nivel (ESO, Bachillerato u otro; si no lo pone, lo que parezca); cuántas preguntas tiene; los puntos de cada pregunta tal como los ves, en orden (0 si no se ve); cuánto suman; si la clave se lee bien («legible»), con dudas («dudosa») o no hay («no hay»); y cuántos modelos distintos hay (A, B…; 1 si solo uno).
+Y como mucho 4 dudas concretas que el profesor deba resolver antes de hacer la rúbrica (puntos que no se ven o no suman 10, apartados ambiguos, una clave con varias soluciones…), cada una con 2 a 4 opciones cortas para elegir. Si no hay dudas, lista vacía. En castellano y breve.`;
 /* convierte lo que devuelve la IA al formato de rubricas.json (un único modelo) */
 function rubricaDeIA(o, meta){
   const sinClave = !meta.conClave, t = meta.tema || o.tema || 'Rúbrica nueva';
@@ -3228,7 +3278,8 @@ const datosDe = cv => cv.getContext('2d').getImageData(0, 0, cv.width, cv.height
 async function preparaAdjunto(fuente){
   if (fuente.doc){   /* de los originales: en blanco por definición */
     const data = await aBase64(fuente.doc.blob); APROBADOS.add(huellaAdjunto(data));
-    return {bloque: {type: 'document', source: {type: 'base64', media_type: 'application/pdf', data}}, desc: bonito(fuente.doc.nombre) + ' (de tus originales)'}; }
+    const paginas = await abrePdf(fuente.doc.blob).then(x => x.numPages, () => 1);
+    return {bloque: {type: 'document', source: {type: 'base64', media_type: 'application/pdf', data}}, desc: bonito(fuente.doc.nombre) + ' (de tus originales)', paginas}; }
   const f = fuente.file;
   if (/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)){
     const pdf = await abrePdf(f), N = Math.min(pdf.numPages, 6); let letras = 0;
@@ -3237,12 +3288,12 @@ async function preparaAdjunto(fuente){
       for (let i = 1; i <= N; i++){ const m = pareceManuscrito(datosDe(await reduceImagen((await pintaPagina(pdf, i, 110)).cv, 1100)));
         if (m.manuscrito) return {error: `la página ${i} parece tener letra a mano (${m.motivo}). No se envía: usa el PDF de tus originales o una foto del examen sin hacer.`}; } }
     const data = await aBase64(f); APROBADOS.add(huellaAdjunto(data));
-    return {bloque: {type: 'document', source: {type: 'base64', media_type: 'application/pdf', data}}, desc: f.name + (letras < 60 * N ? ' (escaneado, sin letra a mano)' : '')}; }
+    return {bloque: {type: 'document', source: {type: 'base64', media_type: 'application/pdf', data}}, desc: f.name + (letras < 60 * N ? ' (escaneado, sin letra a mano)' : ''), paginas: pdf.numPages}; }
   if (!/^image\//.test(f.type)) return {error: 'solo PDF o fotos'};
   const m = pareceManuscrito(datosDe(await reduceImagen(f, 1100)));
   if (m.manuscrito) return {error: `la foto parece tener letra a mano (${m.motivo}). Si es un examen hecho por un alumno, no puede salir. Haz la foto del examen sin hacer o usa el PDF de tus originales.`};
   const cv = await reduceImagen(f, 1600), data = (await aBase64(new Blob([await jpeg(cv, .82)]))); APROBADOS.add(huellaAdjunto(data));
-  return {bloque: {type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data}}, desc: f.name + ' (foto, sin letra a mano)'};
+  return {bloque: {type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data}}, desc: f.name + ' (foto, sin letra a mano)', paginas: 1};
 }
 let NR = null;   /* la rúbrica nueva en preparación */
 function nuevaRubrica(){
@@ -3256,13 +3307,16 @@ function pintaNuevaRubrica(){
     ${k === 'clave' && !NR.clave.length ? '<p class="nota">Sin clave, la IA propone las soluciones y salen marcadas «sin revisar».</p>' : ''}</div>`;
   capaIA('Nueva rúbrica', `${sale('el examen en blanco y su clave (comprobados antes: si una foto o un PDF escaneado parece tener letra a mano, no sale)')}
     <div class="caja"><div class="fila"><select id="nrTipo"><option value="examen"${NR.tipo === 'examen' ? ' selected' : ''}>Examen</option><option value="ficha"${NR.tipo === 'ficha' ? ' selected' : ''}>Ficha</option></select>
-      <select id="nrCurso">${['', '1.º ESO', '2.º ESO', '3.º ESO', '4.º ESO', 'Taller 4.º'].map(c => `<option value="${c}"${c === NR.curso ? ' selected' : ''}>${c || 'curso (lo dice el examen)'}</option>`).join('')}</select></div>
+      <select id="nrCurso">${['', '1.º ESO', '2.º ESO', '3.º ESO', '4.º ESO', 'Taller 4.º', '1.º Bach', '2.º Bach'].map(c => `<option value="${c}"${c === NR.curso && !NR.otro ? ' selected' : ''}>${c || 'curso (lo dice el examen)'}</option>`).join('')}<option value="otro"${NR.otro ? ' selected' : ''}>Otro (escríbelo)</option></select>
+      ${NR.otro ? `<input type="text" id="nrOtro" placeholder="¿Qué curso?" value="${esc(NR.curso)}" style="flex:1">` : ''}</div>
       <div class="fila" style="margin-top:8px"><input type="text" id="nrTema" style="flex:1" placeholder="Tema (si no, lo saca del examen)" value="${esc(NR.tema)}"><input type="text" id="nrUnidad" style="flex:1" placeholder="Unidad" value="${esc(NR.unidad)}"></div></div>
     ${lado('examen')}${lado('clave')}
     <div class="opc"><label><input type="checkbox" id="nrBlanco"><span>Es material en blanco<small>Sin nombres ni respuestas de alumnos. Las fotos y los PDF del móvil se miran antes por si llevan letra a mano.</small></span></label></div>
-    <div class="fila"><button class="btn acento" id="nrPide">Pedir la rúbrica</button></div><div id="iaRes"></div>
+    <div class="fila"><button class="btn acento" id="nrPide">Mirar el examen</button><span class="nota">Paso 1 de 2: un primer vistazo rápido (Haiku) y tus dudas; luego, la rúbrica.</span></div><div id="iaRes"></div>
     <input type="file" id="nrFile" hidden>`);
-  $('#nrTipo').onchange = e => NR.tipo = e.target.value; $('#nrCurso').onchange = e => NR.curso = e.target.value;
+  $('#nrTipo').onchange = e => NR.tipo = e.target.value;
+  $('#nrCurso').onchange = e => { const v = e.target.value; NR.otro = v === 'otro'; NR.curso = NR.otro ? '' : v; if (NR.otro) pintaNuevaRubrica(); else if ($('#nrOtro')) pintaNuevaRubrica(); };
+  if ($('#nrOtro')){ $('#nrOtro').oninput = e => NR.curso = e.target.value; if (!NR.curso) $('#nrOtro').focus(); }
   $('#nrTema').oninput = e => NR.tema = e.target.value; $('#nrUnidad').oninput = e => NR.unidad = e.target.value;
   $$('#iaCuerpo [data-quita]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.quita.split(':'); NR[k].splice(+i, 1); pintaNuevaRubrica(); });
   $$('#iaCuerpo [data-de]').forEach(b => b.onclick = () => { const [k, de] = b.dataset.de.split(':');
@@ -3275,11 +3329,42 @@ function pintaNuevaRubrica(){
     if (NR.examen.some(a => a.error) || NR.clave.some(a => a.error)) throw new Error('Quita primero lo marcado con ✗: eso no puede salir');
     if (!ex.length) throw new Error('Falta el examen en blanco');
     if (!$('#nrBlanco').checked) throw new Error('Marca «Es material en blanco»');
+    /* más de 4 páginas: se avisa antes de gastar */
+    const pags = ex.concat(cl).reduce((s, a) => s + (a.paginas || 1), 0);
+    if (pags > 4 && !confirm('Son ' + pags + ' páginas entre el examen y la clave: tardará más y costará más (con Opus, quizá más de 0,50 $). ¿Seguimos?')) return;
+    NR.bloques = [{type: 'text', text: 'EXAMEN EN BLANCO:'}].concat(ex.map(a => a.bloque), cl.length ? [{type: 'text', text: 'SU CLAVE:'}].concat(cl.map(a => a.bloque)) : []);
+    NR.conClave = cl.length > 0; NR.vistazo = null; NR.costes = [];
     $('#iaRes').innerHTML = esperaIA;
-    const contenido = [{type: 'text', text: 'EXAMEN EN BLANCO:'}].concat(ex.map(a => a.bloque), cl.length ? [{type: 'text', text: 'SU CLAVE:'}].concat(cl.map(a => a.bloque)) : [],
-      [{type: 'text', text: (NR.tipo === 'ficha' ? 'Es una ficha.' : 'Es un examen.') + (NR.tema ? ' Tema: ' + NR.tema + '.' : '') + (NR.curso ? ' Curso: ' + NR.curso + '.' : '') + (cl.length ? '' : ' No hay clave: propón las soluciones y márcalas sin_revisar.') + ' Haz la rúbrica.'}]);
-    const {o} = await iaLlama({system: SYS_RUB, esquema: ESQ_RUB, maxTokens: 16000, contenido});
-    editaRubrica(rubricaDeIA(o, {tipo: NR.tipo, tema: NR.tema.trim(), curso: NR.curso, unidad: NR.unidad.trim(), conClave: cl.length > 0}), true); });
+    const pista = (NR.tipo === 'ficha' ? 'Es una ficha.' : 'Es un examen.') + (NR.tema ? ' Tema: ' + NR.tema + '.' : '') + (NR.curso ? ' Curso: ' + NR.curso + '.' : '');
+    const r = await iaLlama({modelo: 'claude-haiku-5-5', esfuerzo: 'low', maxTokens: 3000, system: SYS_VISTAZO, esquema: ESQ_VISTAZO, contenido: NR.bloques.concat([{type: 'text', text: pista + ' Echa el primer vistazo.'}])});
+    NR.vistazo = r.o; NR.vistazo.dudas = (NR.vistazo.dudas || []).slice(0, 4); NR.respuestas = NR.vistazo.dudas.map(() => '');
+    NR.costes.push({paso: 'primer vistazo', modelo: r.modelo, coste: r.coste});
+    pintaVistazo();
+  });
+}
+/* la tarjeta del primer vistazo: lo que ha visto, sus dudas con respuestas rápidas y «Hacer la rúbrica» */
+function pintaVistazo(){
+  const v = NR.vistazo, c = iaCfg(), c2 = x => String(x).replace('.', ',');
+  const cuadra = Math.abs((v.suman || 0) - 10) < 1e-9;
+  $('#iaRes').innerHTML = `<div class="caja" id="nrVistazo"><h2>Primer vistazo</h2>
+    <p style="margin:4px 0">${esc(v.curso || '¿curso?')}${v.nivel ? ' · ' + esc(v.nivel) : ''} · ${v.preguntas} ${v.preguntas === 1 ? 'pregunta' : 'preguntas'}${v.modelos > 1 ? ' · ' + v.modelos + ' modelos' : ''}</p>
+    <p style="margin:4px 0">Puntos: ${(v.puntos || []).map(c2).join(' + ') || '—'} = <b class="${cuadra ? 'ok' : 'mal'}">${c2(v.suman)}</b>${cuadra ? ' ✓' : ' (no suma 10)'}</p>
+    <p style="margin:4px 0">Clave: ${v.clave === 'legible' ? '<b class="ok">se lee bien</b>' : v.clave === 'dudosa' ? '<b class="mal">se lee con dudas</b>' : NR.conClave ? '<b class="mal">no la encuentra</b>' : 'no hay (las soluciones saldrán «sin revisar»)'}</p>
+    ${v.dudas.length ? '<h2 style="margin-top:12px">Sus dudas</h2>' + v.dudas.map((d, i) => `<div class="duda" data-duda="${i}" style="margin:8px 0"><p style="margin:0 0 4px"><b>${i + 1}.</b> ${esc(d.pregunta)}</p>
+      <div class="fila">${(d.opciones || []).map((o, j) => `<button class="btn peq${NR.respuestas[i] === o ? ' prim' : ''}" data-op="${j}">${esc(o)}</button>`).join('')}</div>
+      <input type="text" data-otra="${i}" placeholder="u otra respuesta…" value="${esc((d.opciones || []).includes(NR.respuestas[i]) ? '' : NR.respuestas[i])}" style="width:100%;margin-top:4px"></div>`).join('') : '<p class="nota">Sin dudas.</p>'}
+    <p class="nota">${NR.costes.map(x => esc(x.paso) + ' (' + esc(nombreModelo(x.modelo)) + '): ' + dolares(x.coste)).join(' · ')}</p>
+    <div class="fila"><button class="btn acento" id="nrHaz">Hacer la rúbrica</button><span class="nota">Paso 2 de 2, con ${esc(nombreModelo(c.modeloRub))} (se cambia en Ajustes → La IA).</span></div></div><div id="nrRes"></div>`;
+  $$('#nrVistazo [data-op]').forEach(b => b.onclick = () => { const i = +b.closest('[data-duda]').dataset.duda, o = NR.vistazo.dudas[i].opciones[+b.dataset.op]; NR.respuestas[i] = NR.respuestas[i] === o ? '' : o; pintaVistazo(); });
+  $$('#nrVistazo [data-otra]').forEach(x => x.oninput = () => { NR.respuestas[+x.dataset.otra] = x.value; $$(`[data-duda="${x.dataset.otra}"] [data-op]`).forEach(b => b.classList.remove('prim')); });
+  $('#nrHaz').onclick = () => conIA('#nrHaz', async () => {
+    const dudas = NR.vistazo.dudas.map((d, i) => ({duda: d.pregunta, respuesta: (NR.respuestas[i] || '').trim() || 'sin responder: decide tú y dilo en «avisos»'}));
+    $('#nrRes').innerHTML = esperaIA;
+    const texto = 'PRIMER VISTAZO (JSON):\n' + JSON.stringify(Object.assign({}, NR.vistazo, {dudas: undefined})) + '\n\nRESPUESTAS DEL PROFESOR A SUS DUDAS (JSON):\n' + JSON.stringify(dudas) + '\n\n'
+      + (NR.tipo === 'ficha' ? 'Es una ficha.' : 'Es un examen.') + (NR.tema ? ' Tema: ' + NR.tema + '.' : '') + (NR.curso ? ' Curso: ' + NR.curso + '.' : '') + (NR.conClave ? '' : ' No hay clave: propón las soluciones y márcalas sin_revisar.') + ' Haz la rúbrica.';
+    const r = await iaLlama({modelo: iaCfg().modeloRub, system: SYS_RUB, esquema: ESQ_RUB, maxTokens: 16000, contenido: NR.bloques.concat([{type: 'text', text: texto}])});
+    NR.costes.push({paso: 'rúbrica', modelo: r.modelo, coste: r.coste});
+    editaRubrica(rubricaDeIA(r.o, {tipo: NR.tipo, tema: NR.tema.trim(), curso: NR.curso.trim(), unidad: NR.unidad.trim(), conClave: NR.conClave}), true, NR.costes); });
 }
 function eligeOriginal(k){
   const ds = DOCS.filter(d => d.origen === 'github' && !esImg(d));   /* solo lo de los originales: nunca «Mis archivos» ni «Capturas» */
@@ -3292,10 +3377,12 @@ function eligeOriginal(k){
 }
 /* el editor: lo que ha devuelto la IA, para revisarlo antes de usarlo; no se guarda si no cuadra */
 let ER = null;
-function editaRubrica(ex, nueva){ ER = {ex: JSON.parse(JSON.stringify(ex)), nueva}; pintaEditor(); }
-function pintaEditor(){
+/* (hasta 1.15.5 se llamaba pintaEditor, como el editor de esquinas del escáner, y lo pisaba: el escáner
+   dejaba de pintar las fotos. Ahora cada uno con su nombre; pruebas/frontera.test.mjs vigila que no se repita) */
+function editaRubrica(ex, nueva, costes){ ER = {ex: JSON.parse(JSON.stringify(ex)), nueva, costes: costes || []}; pintaEditorRubrica(); }
+function pintaEditorRubrica(){
   const ex = ER.ex, m = ex.modelos[0], errs = compruebaRubrica(ex), c3 = x => String(x).replace('.', ',');
-  capaIA(ER.nueva ? 'Revisa la rúbrica' : 'Editar la rúbrica', `${ex.sinClave ? '<p class="mal" style="margin-top:0"><b>Sin clave:</b> las soluciones las ha propuesto la IA y salen «sin revisar» hasta que las marques.</p>' : ''}
+  capaIA(ER.nueva ? 'Revisa la rúbrica' : 'Editar la rúbrica', `${ER.costes.length ? '<p class="nota" style="margin-top:0">Ha costado: ' + ER.costes.map(x => esc(x.paso) + ' (' + esc(nombreModelo(x.modelo)) + ') ' + dolares(x.coste)).join(' · ') + ' · total ' + dolares(ER.costes.reduce((t, x) => t + x.coste, 0)) + '</p>' : ''}${ex.sinClave ? '<p class="mal" style="margin-top:0"><b>Sin clave:</b> las soluciones las ha propuesto la IA y salen «sin revisar» hasta que las marques.</p>' : ''}
     ${(ex.avisos || []).length ? '<div class="caja"><b>Avisos de la IA</b>' + ex.avisos.map(a => '<p class="nota" style="margin:4px 0">' + esc(a) + '</p>').join('') + '</div>' : ''}
     <div class="caja"><div class="fila"><input type="text" data-ed="tema" value="${esc(ex.tema)}" style="flex:1" placeholder="Tema"><input type="text" data-ed="curso" value="${esc(ex.curso)}" style="width:96px" placeholder="Curso"></div>
       <div class="fila" style="margin-top:6px"><input type="text" data-ed="unidad" value="${esc(ex.unidad)}" style="flex:1" placeholder="Unidad"></div>
@@ -3315,7 +3402,7 @@ function pintaEditor(){
       <button class="btn peq peligro" data-pq="${ip}" style="margin-top:6px">Quitar la pregunta</button></div></details>`).join('')}
     <div class="fila"><button class="btn peq" id="erMas">+ pregunta</button></div>
     <div class="fila" style="margin-top:12px"><button class="btn acento" id="erGuarda"${errs.length ? ' disabled' : ''}>Guardar y usar en el corrector</button>${ER.nueva ? '' : '<button class="btn peq peligro" id="erBorra">Borrar esta rúbrica</button>'}</div>`);
-  const C = $('#iaCuerpo'), rehaz = () => { const y = $('#iaCapa').scrollTop, ab = [...C.querySelectorAll('details')].map(d => d.open); pintaEditor(); [...C.querySelectorAll('details')].forEach((d, i) => { if (ab[i] != null) d.open = ab[i]; }); $('#iaCapa').scrollTop = y; };
+  const C = $('#iaCuerpo'), rehaz = () => { const y = $('#iaCapa').scrollTop, ab = [...C.querySelectorAll('details')].map(d => d.open); pintaEditorRubrica(); [...C.querySelectorAll('details')].forEach((d, i) => { if (ab[i] != null) d.open = ab[i]; }); $('#iaCapa').scrollTop = y; };
   const num = v => { const x = Number(String(v).replace(',', '.')); return isFinite(x) ? x : 0; };
   C.querySelectorAll('[data-ed]').forEach(x => x.onchange = () => { const k = x.dataset.ed; if (k === 'reglas') m.reglas = x.value; else { ex[k] = x.value; if (k === 'tema') m.titulo = x.value; } rehaz(); });
   C.querySelectorAll('[data-p]').forEach(x => x.onchange = () => { const [ip, k] = x.dataset.p.split(':'), p = m.preguntas[+ip];
