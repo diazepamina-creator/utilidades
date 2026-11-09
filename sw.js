@@ -3,7 +3,7 @@
 // Con red, pide primero la versión nueva; sin red, abre la guardada.
 // Los PDF NO pasan por aquí: están en IndexedDB. Las llamadas a GitHub
 // (api.github.com) tampoco: van siempre a la red.
-const VERSION = 'utilidades-v38';
+const VERSION = 'utilidades-v39';
 const BASE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './lib/pdf.min.js', './lib/pdf.worker.min.js', './lib/pdf-lib.min.js', './lib/qrcode.js', './capacitor.js'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(BASE))); self.skipWaiting(); });

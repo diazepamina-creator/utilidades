@@ -343,6 +343,9 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <div class="fila" style="margin-top:8px"><label class="nota">Modelo <select id="iaModelo"></select></label><label class="nota">Intensidad <select id="iaEsfuerzo"></select></label></div>
       <div class="fila" style="margin-top:8px"><label class="nota">Modelo para las rúbricas <select id="iaModeloRub"></select></label><span class="nota">(el primer vistazo, siempre con Haiku)</span></div>
       <div class="fila" style="margin-top:8px"><button class="btn peq" id="bIaProbar">Probar la conexión</button><button class="btn peq peligro" id="bIaQuita">Quitar la clave</button></div>
+      <label class="nota" style="display:block;margin-top:10px"><b>Mis criterios para la IA</b></label>
+      <textarea id="iaCriterios" rows="4" style="width:100%" placeholder="Con tus palabras, una regla por línea. Por ejemplo: «En mis rúbricas, el ½ es para el método bien y el resultado mal.» «Los errores con nombre, cortos y en castellano.» «En 2.º, los ejercicios de Nicoleta son de proporcionalidad.»"></textarea>
+      <div class="fila"><button class="btn peq" id="bIaCriterios">Guardar mis criterios</button><span class="nota">Se añaden a las instrucciones de las cinco funciones. Van en la copia de las notas. Nada de alumnos.</span></div>
       <p class="nota" id="iaGasto" style="margin-bottom:4px"></p>
       <div class="fila"><span class="nota">Tope al mes</span><input type="text" id="iaTope" inputmode="decimal" placeholder="sin tope" style="width:90px"><span class="nota">$</span><button class="btn peq" id="bIaTope">Poner</button><button class="btn peq" id="bIaCero">A cero</button></div>
       <p class="nota" style="margin-top:4px">La cuenta de verdad, en la Consola de Anthropic (Settings → Billing / Limits).</p>
@@ -471,7 +474,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.16';
+const VERSION = '1.16.1';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -2828,7 +2831,7 @@ const hechaCopia = async () => { NT.ultimaCopia = Date.now(); await guardaDB('co
 const nombreCopia = () => { const d = new Date(); return 'notas-' + hoyISO() + '-' + String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0') + '.json'; };
 async function copiaNotas(modo = 'compartir', nombre){
   nombre = (nombre || nombreCopia()).trim().replace(/[\\/:*?"<>|]/g, '-'); if (!/\.json$/i.test(nombre)) nombre += '.json';
-  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT, locales: LOCALES, rubricas: PROPIAS})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
+  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT, locales: LOCALES, rubricas: PROPIAS, criteriosIA: CRIT})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
   if (nativa()){ if (await sacaNativo([f], {titulo: nombre})){ await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); } return; }
   if (modo === 'compartir'){
     if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); return; } catch (e) { if (e.name === 'AbortError') return; } }
@@ -2840,6 +2843,7 @@ async function recuperaNotas(file){
     NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, o.notas); await guardaDB('conf', NT, 'notas');
     /* lo apuntado en Hoy (desde 1.14): se suma a lo que ya haya, sin repetir */
     if (Array.isArray(o.locales)){ const ya = new Set(LOCALES.map(x => x.id)); LOCALES = LOCALES.concat(o.locales.filter(x => x && !ya.has(x.id))); await ponConf('eventosLocales', LOCALES); avProgramar(); }
+    if (typeof o.criteriosIA === 'string' && o.criteriosIA && !CRIT){ CRIT = o.criteriosIA; await ponConf('criteriosIA', CRIT); }
     if (Array.isArray(o.rubricas)){ const ya = new Set(PROPIAS.map(x => x.id)); PROPIAS = PROPIAS.concat(o.rubricas.filter(x => x && x.id && !ya.has(x.id))); await guardaPropias(); }
     aviso('Notas recuperadas'); pintaAjustes(); }
   catch (e) { aviso('No se puede leer: ' + e.message, 4000); }
@@ -3022,6 +3026,7 @@ const IA0 = {clave: '', modelo: 'claude-opus-5-5', esfuerzo: 'medium', modeloRub
 const iaCfg = () => { try { return Object.assign({}, IA0, JSON.parse(localStorage.getItem(LSIA) || '{}')); } catch (e) { return Object.assign({}, IA0); } };
 const iaGuarda = c => { try { localStorage.setItem(LSIA, JSON.stringify(c)); } catch (e) {} };
 const iaLista = () => !!iaCfg().clave;
+let CRIT = '';   /* «Mis criterios para la IA» (1.16.1): en IndexedDB (conf/criteriosIA) y en la copia de las notas */
 /* el gasto (1.15.1): cada respuesta dice cuántos tokens ha usado; se multiplican por el precio
    del modelo (dólares por millón de tokens, nov 2026) y se suman por mes. Es una cuenta
    aproximada de este móvil: la factura de verdad está en la Consola. Con «tope», al llegar
@@ -3058,7 +3063,11 @@ async function iaLlama({system, contenido, esquema, maxTokens = 8000, esfuerzo, 
   const g = gastoIA(); if (!prueba && g.tope > 0 && g.usd >= g.tope) throw new Error('has llegado al tope de este mes (' + dolares(g.tope) + '): cámbialo en Ajustes → La IA');
   const mod = modelo || c.modelo;
   const body = {model: mod, max_tokens: maxTokens, stream: true, thinking: {type: 'adaptive', display: 'summarized'}, output_config: {effort: esfuerzo || c.esfuerzo}, messages: [{role: 'user', content: contenido}]};
-  if (system) body.system = system;
+  /* «Mis criterios»: detrás de las instrucciones fijas; pasan por la misma frontera que lo demás */
+  const crit = prueba ? '' : (CRIT || '').trim();
+  if (crit) vigilaSalida({messages: [{role: 'user', content: crit}]}, {token: (await conf()).token, nombres: nombresCargados(), aprobados: APROBADOS});
+  const sistema = (system || '') + (crit ? (system ? '\n\n' : '') + 'CRITERIOS DEL PROFESOR (síguelos; si chocan con lo de arriba, mandan ellos, salvo lo de los alumnos, que no se toca):\n' + crit : '');
+  if (sistema) body.system = sistema;
   if (esquema) body.output_config.format = {type: 'json_schema', schema: esquema};
   /* si los filtros de seguridad de Opus o Sonnet rechazan algo, la API lo repite con otro modelo */
   const respaldo = /opus|sonnet/.test(mod); if (respaldo) body.fallbacks = 'default';
@@ -3135,6 +3144,7 @@ function pintaIA(){
   $('#iaGasto').innerHTML = `Gasto de ${new Date().toLocaleDateString('es-ES', {month: 'long'})} (aprox., en este móvil): <b>${dolares(g.usd)}</b> en ${g.n} ${g.n === 1 ? 'petición' : 'peticiones'}`
     + (g.tope > 0 ? ` · tope ${dolares(g.tope)}${g.usd >= g.tope ? ' <b class="mal">alcanzado</b>' : ''}` : ' · sin tope');
   $('#iaTope').value = g.tope > 0 ? String(g.tope).replace('.', ',') : '';
+  if (document.activeElement !== $('#iaCriterios')) $('#iaCriterios').value = CRIT;
   pintaBotonesIA();
 }
 function pintaBotonesIA(){ const s = iaLista(); $('#bIaBusca').hidden = !s; $('#hoyIa').hidden = !s; }
@@ -3151,6 +3161,10 @@ $('#bIaProbar').onclick = async () => { $('#iaEstado').innerHTML = '<span class=
 $('#iaModelo').onchange = $('#iaEsfuerzo').onchange = () => { const c = iaCfg(); c.modelo = $('#iaModelo').value; c.esfuerzo = $('#iaEsfuerzo').value; c.ok = false; c.probado = 0; iaGuarda(c); pintaIA(); if (c.clave) $('#bIaProbar').click(); };
 $('#iaModeloRub').onchange = () => { const c = iaCfg(); c.modeloRub = $('#iaModeloRub').value; iaGuarda(c); aviso('Rúbricas con ' + nombreModelo(c.modeloRub)); };
 $('#bIaQuita').onclick = () => { if (!confirm('¿Quitar la clave de la API de este móvil?')) return; try { localStorage.removeItem(LSIA); } catch (e) {} pintaIA(); };
+$('#bIaCriterios').onclick = async () => { const t = $('#iaCriterios').value.trim();
+  try { if (t) vigilaSalida({messages: [{role: 'user', content: t}]}, {token: (await conf()).token, nombres: nombresCargados(), aprobados: APROBADOS}); }
+  catch (e) { return aviso('No se guardan: ' + e.message.replace(/^No se envía: /, ''), 5000); }
+  CRIT = t; await ponConf('criteriosIA', CRIT); aviso(t ? 'Criterios guardados: se usan en cada petición' : 'Sin criterios'); };
 $('#bIaTope').onclick = () => { const v = leeNum($('#iaTope').value), g = gastoIA(); g.tope = v > 0 ? v : 0; guardaGasto(g); pintaIA(); aviso(g.tope ? 'Tope: ' + dolares(g.tope) + ' al mes' : 'Sin tope'); };
 $('#bIaCero').onclick = () => { if (!confirm('¿Poner a cero el gasto de este mes en la app? (La factura de la Consola no cambia.)')) return; const g = gastoIA(); g.usd = 0; g.n = 0; guardaGasto(g); pintaIA(); };
 $('#bIaProg').onclick = () => $('#fIaProg').click();
@@ -3428,7 +3442,7 @@ function pintaEditorRubrica(){
 /* ── ARRANQUE ── */
 (async () => {
   await recarga(); pintaLista();
-  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB_GH = (await leeDB('conf', 'rubricas')) || null; PROPIAS = (await leeDB('conf', 'rubricasPropias')) || []; mezclaRubricas(); PROG = (await leeDB('conf', 'programacion')) || null; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || []; ESC.modo = (await leeDB('conf', 'escModo')) || 'rect';
+  NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB_GH = (await leeDB('conf', 'rubricas')) || null; PROPIAS = (await leeDB('conf', 'rubricasPropias')) || []; mezclaRubricas(); PROG = (await leeDB('conf', 'programacion')) || null; CRIT = (await leeDB('conf', 'criteriosIA')) || ''; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || []; ESC.modo = (await leeDB('conf', 'escModo')) || 'rect';
   const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
   pintaBotonesIA();
   if (nativa()){ AV = Object.assign({}, AV0, (await leeDB('conf', 'avisos')) || {}); iniciaNativa(); }
