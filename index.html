@@ -474,7 +474,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.16.1';
+const VERSION = '1.16.2';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -2928,6 +2928,33 @@ function agregaActas(rs, estado){
 function huellaAdjunto(b64){ let h = 2166136261; const s = String(b64 || ''), paso = Math.max(1, Math.floor(s.length / 4096));
   for (let i = 0; i < s.length; i += paso){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return s.length + ':' + h.toString(16); }
 /* la última puerta: la petición entera, justo antes de salir. Lanza un error si algo no puede salir */
+/* 1.16.2 (como el cuaderno 1.15.4) · UN NÚMERO DE LISTA, escrito como sea. Devuelve {bloquea, avisa} (el trozo, o null).
+   BLOQUEA: «n.º 12», «nº12», «n° 12» (el signo de grados: el que sale en muchos teclados), «n. 12»,
+   «núm. 12», «nro 12», «número (de lista) 12», «#12», «alumno 12», «la 7 de la lista», y «el 12» /
+   «la 7» / «al 12» cuando lo que sigue es cosa de una persona: «el 12 va aquí o allá», «la 7 no la
+   traía», «al 12 le he cambiado de sitio», «el 12 se sienta delante», «el 3 y el 15 hablan».
+   AVISA (se puede enviar igualmente): «el 12» / «la 7» sin más, que puede ser un ejercicio
+   («hemos corregido la 12»); no avisa si cerca, antes, dice de qué es (ejercicio, ficha, página…),
+   si es una fecha u hora («el 12 de noviembre», «a las 12:30») o si es cuenta («el 12 es múltiplo
+   de 3»). Para que no haya duda: «el ejercicio 12». */
+const NL_PERSONA = '(?:de la lista|(?:le|les)(?! (?:sum|rest|multiplic|divid|quit|anad|aplic|pon|da |sale|falta para|corresponde))|me|nos|no (?:la|lo|las|los) (?:trae|traia|trajo|ha traido|tiene|tenia|lleva|llevaba|entrega|entrego|ha entregado)|traia|trae|trajo|ha traido|falta|faltaba|falto|ha faltado|viene|venia|vino|llega|llegaba|llego|ha llegado|se sienta|se sentaba|se sento|se ha sentado|sentad[oa]|se porta|se ha portado|se levanta|se levantaba|se queja|se ha ido|se fue|habla|hablaba|ha hablado|molesta|molestaba|interrumpe|contesta|contesto|copia|copiaba|copio|ha copiado|entrega|entrego|suspende|suspendio|aprueba|aprobo|saco|ha sacado|pide|pidio|dice|dijo|quiere|queria|necesita|juega|jugaba|grita|gritaba|llora|lloraba|lloro|pega|pego|insulta|insulto|duerme|dormia|se duerme|va (?:aqui|alli|alla|ahi|delante|detras|al lado|junto|con|sentad[oa]|al bano|a la (?:fila|mesa|pizarra|ventana|puerta))|esta (?:enferm|castigad|expulsad|ausente|malit|nervios|sentad)[a-z]*|y (?:el|la) \\d{1,2} (?:se|no|han|hablan|hablaban|van|iban|estan|estaban|juegan|jugaban|molestan|copian|copiaron))';
+const NL_ART = '(?:el|la|al|del|a la)';
+function numeroLista(t){
+  const p = String(t == null ? '' : t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[ \t\r\n]+/g, ' ');
+  const b = [/(?<![a-z\d])n ?(?:\. ?[º°o]?|[º°]) ?\d{1,2}(?!\d)/, /(?<![a-z\d])(?:num|nro|numero)\.? ?(?:de lista ?:? ?)?\d{1,2}(?!\d)/,
+    /#\s?\d{1,2}(?!\d)/, /(?<![a-z\d])(?:alumn[oa]|chic[oa]|nin[oa]) (?:numero |n ?[.º°]+ ?)?\d{1,2}(?!\d)/,
+    new RegExp('(?<![a-z\\d])' + NL_ART + ' \\d{1,2}(?!\\d) ' + NL_PERSONA + '(?![a-z])')];
+  for (const re of b){ const m = re.exec(p); if (m) return {bloquea: m[0], avisa: null}; }
+  const re = new RegExp('(?<![a-z\\d])' + NL_ART + ' (\\d{1,2})(?![\\d:./,%º°ª])', 'g');
+  for (let m; (m = re.exec(p)); ){
+    const antes = p.slice(Math.max(0, m.index - 60), m.index), despues = p.slice(m.index + m[0].length, m.index + m[0].length + 40);
+    if (/(?:ejercicio|pregunta|ficha|pagina|actividad|problema|apartado|hoja|tema|unidad|sesion|carril|parte|caso|cromo|nivel|mision|reto)s?\b[^.;]*$/.test(antes)) continue;
+    if (/^ ?(?:de (?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre|la pagina|cada)|(?:h|horas?|minutos?|anos?|euros?|veces|por ciento|y media|y cuarto|menos cuarto)\b|(?:es|son|no es|era) (?:primo|par|impar|multiplo|divisor|mayor|menor|igual|positivo|negativo|el doble|la mitad)|(?:entre|por|mas|menos|elevado|al cuadrado|al cubo)\b|(?:le|les) (?:sum|rest|multiplic|divid|quit|anad|aplic|pon|falta para|corresponde)|[=+*x·×÷<>-])/.test(despues)) continue;
+    if (/(?:a las|las|desde las|hasta las|del dia|el dia|dia)\s*$/.test(antes + ' ' + m[0].split(' ')[0])) continue;
+    return {bloquea: null, avisa: m[0]};
+  }
+  return {bloquea: null, avisa: null};
+}
 function vigilaSalida(body, {token = '', nombres = [], aprobados = new Set()} = {}){
   const fallos = new Set(), textos = [];
   const recorre = x => {
@@ -2944,7 +2971,7 @@ function vigilaSalida(body, {token = '', nombres = [], aprobados = new Set()} = 
   if (/sk-ant-[A-Za-z0-9_-]{10,}/.test(t)) fallos.add('una clave de la API');
   /* lo mismo dentro del texto: los datos salen como JSON escrito en el mensaje */
   if (/"(?:al|corr|porP|np)"\s*:/.test(t) || /"\d+[a-z]?·\d+"\s*:\s*(?:0|1|0?\.5)\s*[,}]/.test(t)) fallos.add('notas por alumno');
-  if (/(?<![\p{L}\d])n\.?\s?º\s?\d+|\bnº\s*\d+|n[uú]mero\s+de\s+lista\s*:?\s*\d+/iu.test(t)) fallos.add('un número de lista');
+  if (numeroLista(t).bloquea) fallos.add('un número de lista');
   /* un alumno de la lista cargada: dos palabras suyas seguidas («María García», «García, María») */
   const l = ' ' + iaLlano(t).replace(/[^a-z0-9ñ]+/g, ' ') + ' ';
   for (const nom of nombres){ const w = iaLlano(nom).replace(/[^a-z0-9ñ]+/g, ' ').trim().split(' ').filter(x => x.length >= 3);
