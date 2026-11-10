@@ -62,6 +62,7 @@
 <script src="lib/pdf.min.js"></script>
 <script src="lib/pdf-lib.min.js"></script>
 <script src="lib/qrcode.js"></script>
+<script src="lib/cartucho.js"></script>
 <script src="capacitor.js"></script>
 <style>
 :root{--papel:#FBF8F1;--blanco:#FFFFFF;--tinta:#1D2B45;--suave:#6B6F7B;--acento:#D9661A;--linea:#E5DDCD;--ok:#2E7D5B;--mal:#B3261E;--tapa:#2B2B2B;
@@ -215,6 +216,24 @@ details.pr>div{margin:4px 0 0 10px}
 .recu input{width:52px;padding:4px;text-align:center;border:1.5px solid var(--linea);border-radius:7px}
 /* en la APK, la pantalla completa del navegador no existe (el WebView la cierra al momento) */
 body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #tmPant{display:none}
+.pieza{background:var(--blanco);border:1px solid var(--linea);border-radius:12px;margin:6px 0;box-shadow:var(--sombra)}
+.pieza.oculta{background:#F4F1EA}.pieza.mov{opacity:.75;border-color:var(--acento)}
+.pz-cab{display:flex;align-items:center;gap:2px}
+.pz-cab .asa{touch-action:none;cursor:grab;font-size:22px;color:var(--suave);padding:10px 8px 10px 12px;user-select:none}
+.pz-tit{flex:1;min-width:0;display:flex;gap:10px;align-items:center;border:0;background:none;text-align:left;padding:9px 4px}
+.pz-tit i{font-style:normal;font-size:13px;font-weight:700;color:var(--acento);min-width:28px;text-align:center}
+.pz-tit span{min-width:0;display:flex;flex-direction:column}.pz-tit small{color:var(--suave);font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pz-b{border:0;background:none;font-size:17px;padding:8px 9px;color:var(--suave)}
+.pz-cuerpo{padding:0 12px 12px;border-top:1px solid var(--linea)}
+.pz-cuerpo textarea,.caja textarea{border:1.5px solid var(--linea);border-radius:10px;padding:9px 12px;font:inherit;background:var(--blanco)}
+.pz-cuerpo input[type=date],#blInicio{border:1.5px solid var(--linea);border-radius:10px;padding:7px 9px;background:var(--blanco)}
+.au-marca{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin-top:8px}
+.au-vista{background:#fff;border:1px solid var(--linea);border-radius:12px;padding:14px;margin-top:12px;font-size:15px}
+.au-vista h3{margin:0 0 8px;font-size:18px;font-weight:500}.au-vista img{width:100%;height:auto;border-radius:6px}
+.au-vista p{margin:6px 0}.au-vista ul{margin:6px 0;padding-left:20px}.au-vista blockquote{margin:6px 0;padding-left:10px;border-left:3px solid var(--linea)}
+.au-act{padding:8px 0;border-top:1px solid #F0EBDF}.au-act.oculta{opacity:.6}
+.au-rec{display:flex;gap:10px;align-items:center}.au-des{color:var(--suave);font-size:13.5px}
+.au-oc{display:inline-block;font-size:11.5px;background:#EDE9DF;border-radius:20px;padding:1px 8px;color:var(--suave);font-weight:400;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -255,6 +274,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <button data-h="azar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></svg><b>Al azar</b><span>Quién sale a la pizarra, sin repetir</span></button>
       <button data-h="reloj"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg><b>Temporizador</b><span>Cuenta atrás grande, con aviso</span></button>
       <button data-h="aules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="15" rx="2"/><path d="M3 8h18M7 12h6M7 15h10"/><path d="M15 21l2-2 2 2"/></svg><b>Tarea de Aules</b><span>Los campos de la tarea, listos para copiar y pegar</span></button>
+      <button data-h="bloques"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="6" rx="1.5"/><rect x="3" y="11" width="18" height="4" rx="1.5"/><rect x="3" y="17" width="11" height="4" rx="1.5"/><path d="M18 17v4M16 19h4"/></svg><b>Bloques de Aules</b><span>Monta un tema con piezas y genera el archivo que Aules restaura</span></button>
       <button data-h="corregir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l1.5 1.5L12 8M8 15l1.5 1.5L12 14M14 9h3M14 15h3"/></svg><b>Corregir examen</b><span>Con la rúbrica, casilla a casilla: nota y estadísticas</span></button>
       <button data-h="fichas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="10" cy="12" r="1.6"/><path d="M13 12h3M9 16.5l1.3 1.3 2.4-2.6M14 17h2"/></svg><b>Corregir fichas</b><span>La rúbrica de las dos vueltas; en el taller, 0-1-2</span></button>
       <button data-h="evaluacion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h8"/></svg><b>Nota de la evaluación</b><span>80/10/10, para Itaca, y quién recupera qué</span></button>
@@ -477,7 +497,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.17';
+const VERSION = '1.18';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1026,7 +1046,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', azar: 'Al azar', reloj: 'Temporizador', aules: 'Tarea de Aules', lista: 'Lista de nombres', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', azar: 'Al azar', reloj: 'Temporizador', aules: 'Tarea de Aules', bloques: 'Bloques de Aules', lista: 'Lista de nombres', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -1043,6 +1063,7 @@ function pintaHerramienta(){
   if (H.tipo === 'qr') return pintaQR(C);
   if (H.tipo === 'actas') return pintaActas(C);
   if (H.tipo === 'aules') return pintaAules(C);
+  if (H.tipo === 'bloques') return pintaBloques(C);
   if (H.tipo === 'azar') return pintaAzar(C);
   if (H.tipo === 'reloj') return pintaReloj(C);
   if (H.tipo === 'lista') return pintaListaEd(C);
@@ -1111,6 +1132,7 @@ function pintaSelector(){
 }
 $('#selBusca').addEventListener('input', pintaSelector);
 $('#selLista').addEventListener('click', e => { const b = e.target.closest('.doc'); if (!b) return; const d = DOCS.find(x => x.id === b.dataset.id);
+  if (H.tipo === 'bloques'){ cierraCapa(); setTimeout(() => auEligeDoc(d), 50); return; }
   if (H.tipo === 'unir') H.docs.push(d); else { H.docs = [d]; H.paginas = null; H.marcadas.clear(); H.extra = {}; }
   cierraCapa(); setTimeout(pintaHerramienta, 50); });
 
@@ -2869,7 +2891,7 @@ const hechaCopia = async () => { NT.ultimaCopia = Date.now(); await guardaDB('co
 const nombreCopia = () => { const d = new Date(); return 'notas-' + hoyISO() + '-' + String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0') + '.json'; };
 async function copiaNotas(modo = 'compartir', nombre){
   nombre = (nombre || nombreCopia()).trim().replace(/[\\/:*?"<>|]/g, '-'); if (!/\.json$/i.test(nombre)) nombre += '.json';
-  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT, locales: LOCALES, rubricas: PROPIAS, criteriosIA: CRIT})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
+  const b = new Blob([JSON.stringify({app: 'utilidades-notas', fecha: new Date().toISOString(), notas: NT, locales: LOCALES, rubricas: PROPIAS, criteriosIA: CRIT, aules: {plantillas: AU.plantillas.map(auLimpia), cursos: AU.cursos}})], {type: 'application/json'}), f = new File([b], nombre, {type: 'application/json'});
   if (nativa()){ if (await sacaNativo([f], {titulo: nombre})){ await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); } return; }
   if (modo === 'compartir'){
     if (navigator.canShare && navigator.canShare({files: [f]})) { try { await navigator.share({files: [f], title: nombre}); await hechaCopia(); aviso('Copia «' + nombre + '» enviada'); return; } catch (e) { if (e.name === 'AbortError') return; } }
@@ -2882,6 +2904,7 @@ async function recuperaNotas(file){
     /* lo apuntado en Hoy (desde 1.14): se suma a lo que ya haya, sin repetir */
     if (Array.isArray(o.locales)){ const ya = new Set(LOCALES.map(x => x.id)); LOCALES = LOCALES.concat(o.locales.filter(x => x && !ya.has(x.id))); await ponConf('eventosLocales', LOCALES); avProgramar(); }
     if (typeof o.criteriosIA === 'string' && o.criteriosIA && !CRIT){ CRIT = o.criteriosIA; await ponConf('criteriosIA', CRIT); }
+    if (o.aules && Array.isArray(o.aules.plantillas)){ auImporta(o); for (const g in (o.aules.cursos || {})) if (!AU.cursos[g] || !AU.cursos[g].inicio) AU.cursos[g] = Object.assign({}, o.aules.cursos[g], AU.cursos[g] || {}); AU.sembrado = true; await guardaAU(); }
     if (Array.isArray(o.rubricas)){ const ya = new Set(PROPIAS.map(x => x.id)); PROPIAS = PROPIAS.concat(o.rubricas.filter(x => x && x.id && !ya.has(x.id))); await guardaPropias(); }
     aviso('Notas recuperadas'); pintaAjustes(); }
   catch (e) { aviso('No se puede leer: ' + e.message, 4000); }
@@ -3504,11 +3527,299 @@ function pintaEditorRubrica(){
     PROPIAS = PROPIAS.filter(x => x.id !== ex.id); await guardaPropias(); if (H && H.ex === ex.id) H.ex = null; cierraCapa(); if (H && H.tipo === 'corregir') pintaHerramienta(); };
 }
 
+/* ══ BLOQUES DE AULES (1.18) ═════════════════════════════════════════════════
+   En vez de montar Aules a mano, archivo a archivo: aquí se monta un BLOQUE (una sección
+   del curso) con piezas —cabecera, texto, enlace, PDF, tarea de fotos, aviso de examen—,
+   se ve cómo quedará y «Generar» saca una copia de seguridad de Moodle (.mbz, la hace
+   lib/cartucho.js) que se restaura en el curso con «Fusiona». Probado en Aules el 9 nov 2026
+   (herramientas/aules-mbz.md y aules-bloques.md, en originales).
+   - Un bloque se guarda como PLANTILLA (conf/aules, y en la copia de las notas): se duplica
+     para otro grupo, otras fechas u otro curso. Nada está atado a un curso concreto.
+   - Nada de alumnos: el archivo va sin usuarios, entregas ni notas (cartucho.js) y los textos
+     pasan por numeroLista y por los nombres de la lista cargada. Un PDF de «Mis archivos» se
+     avisa (puede ser un escaneo); una captura o una imagen no entra.
+   - Nada de soluciones ni claves salvo marcadas a mano en esa pieza (lo exige cartucho.js).
+   - Lo nuevo entra OCULTO por defecto: se prueba, se mira y se muestra desde Aules.
+   - Los textos se escriben llanos: **negrita**, renglones con «- » = lista, renglón en blanco =
+     párrafo aparte (auHtml).
+   - La fecha de inicio del curso de Aules (por grupo, se pide una vez): Moodle mueve las fechas
+     si la del archivo y la del curso distan un día o más; sin fecha, el archivo no declara
+     ninguna y no se mueve nada. */
+let AU = {plantillas: [], cursos: {'2B': {inicio: '2026-09-09'}}, sembrado: false};
+const guardaAU = () => ponConf('aules', AU);
+const auId = () => 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const AU_TIPOS = {texto: 'Texto', enlace: 'Enlace', pdf: 'PDF', fotos: 'Tarea de fotos', examen: 'Aviso de examen'};
+const AU_ICONO = {texto: '¶', enlace: '🔗', pdf: 'PDF', fotos: '📤', examen: '📝'};
+const AU_SOLUCION = /soluci|clave|corrector|respuestas/i;
+/* la primera plantilla: el tema de Racionales de 2.º B, como está en Aules (herramientas/cartucho/temas) */
+const auSemilla = () => ({id: auId(), nombre: 'Racionales · 2.º B', grupo: '2B', seccion: 5, oculta: true,
+  titulo: 'Números racionales · La grapadora de Nick', resumen: 'Fracciones, decimales y racionales negativos: qué son, cómo se comparan y cómo se opera con ellos.',
+  cabecera: {ruta: 'latex/aules/Cabecera tema Racionales 2ESO.png'},
+  piezas: [
+    {tipo: 'texto', texto: '**Esta semana: fracciones equivalentes y comparar fracciones.** La ficha 1 (Servir) la hicimos juntos en la pizarra: la tienes aquí abajo por si faltaste. En clase: la ficha 2 (Comparar). En casa: practica con La grapadora de Nick. El martes, a última hora, billete de salida.'},
+    {tipo: 'texto', texto: '- **El cuadernillo** es la teoría del tema. No se escribe en él: lo que se escribe va en la libreta.\n- **En el examen habrá alguna pregunta de teoría.** Las definiciones y los «por qué» del cuadernillo hay que saber decirlos.\n- **Las fichas** se entregan en papel, en clase.\n- **Las dos apps** sirven para practicar en casa: La grapadora, para fracciones equivalentes y comparar; La ciudad, para operar.'},
+    {tipo: 'enlace', nombre: 'La grapadora de Nick (app)', url: 'https://diazepamina-creator.github.io/grapadora-de-nick/', descripcion: 'Los códigos QR de las fichas abren aquí el ejercicio.'},
+    {tipo: 'enlace', nombre: 'La ciudad (app)', url: 'https://diazepamina-creator.github.io/numeros-partidos/', descripcion: 'Los casos de los números partidos, para operar con fracciones.'},
+    {tipo: 'pdf', doc: 'gh:latex/aules/2ESO-3-racionales/Cuadernillo de teoria - Racionales.pdf', nombre: 'Cuadernillo de teoría', descripcion: 'El cuadernillo de racionales, por si lo pierdes o te lo dejas en clase.'},
+    {tipo: 'pdf', doc: 'gh:latex/aules/2ESO-3-racionales/Ficha 1 - Servir.pdf', nombre: 'Ficha 1 · Servir'},
+    {tipo: 'pdf', doc: 'gh:latex/aules/2ESO-3-racionales/Ficha 2 - Comparar.pdf', nombre: 'Ficha 2 · Comparar'},
+    {tipo: 'pdf', doc: 'gh:latex/aules/2ESO-3-racionales/Ficha 3 - Por telefono.pdf', nombre: 'Ficha 3 · Por teléfono', oculta: true},
+    {tipo: 'fotos', nombre: 'Fotos de tu libreta', texto: 'Sube 4 fotos de tu libreta de estas sesiones: martes 10 (ficha 2, comparar), jueves 12 y martes 17. Una o dos fotos por sesión, como mucho 4 en total. Que se lea bien y que se vea la fecha. **Plazo: domingo 22 de noviembre, a las 23:59.**', desde: '2026-11-19', hasta: '2026-11-22', maxFotos: 4, nota: 10},
+    {tipo: 'examen', tema: 'números racionales', fecha: '2026-11-19', texto: 'Entra todo el cuadernillo y las fichas 1 a 3, con alguna pregunta de teoría. Sin calculadora.', oculta: true}
+  ].map(z => Object.assign({id: auId()}, z))});
+const auNueva = g => ({id: auId(), nombre: 'Bloque nuevo', grupo: g, seccion: ((AU.cursos[g] || {}).secciones || 0) + 1, oculta: true, titulo: '', resumen: '', cabecera: null, piezas: []});
+const auPieza = tipo => Object.assign({id: auId(), tipo}, {texto: {texto: ''}, enlace: {nombre: '', url: 'https://', descripcion: ''}, pdf: {doc: '', nombre: '', descripcion: ''},
+  fotos: {nombre: 'Fotos de tu libreta', texto: '', desde: suma(hoyISO(), 1), hasta: proxDomingo(suma(hoyISO(), 1)), maxFotos: 4, nota: 10}, examen: {tema: '', fecha: '', texto: '', oculta: true}}[tipo]);
+
+/* el texto llano → el HTML que guarda Aules */
+function auHtml(t){
+  const neg = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  let out = '', par = [], lista = [];
+  const cP = () => { if (par.length){ out += '<p>' + par.map(neg).join('<br>') + '</p>'; par = []; } };
+  const cL = () => { if (lista.length){ out += '<ul>' + lista.map(x => '<li>' + neg(x) + '</li>').join('') + '</ul>'; lista = []; } };
+  for (const l of String(t || '').replace(/\r/g, '').split('\n')){ const m = /^\s*[-·•]\s+(.*)$/.exec(l);
+    if (m){ cP(); lista.push(m[1].trim()); } else if (!l.trim()){ cP(); cL(); } else { cL(); par.push(l.trim()); } }
+  cP(); cL(); return out;
+}
+const auExamenHtml = z => '<blockquote><p><strong>Examen' + (z.tema.trim() ? ' de ' + esc(z.tema.trim()) : '') + (z.fecha ? ': ' + fechaEs(z.fecha) : '') + '.</strong>' + (z.texto.trim() ? ' ' + auHtml(z.texto).replace(/^<p>|<\/p>$/g, '').replace(/<\/p><p>/g, '<br>') : '') + '</p></blockquote>';
+const auResumen = z => z.tipo === 'texto' ? z.texto.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 70) : z.tipo === 'enlace' ? z.nombre : z.tipo === 'pdf' ? (z.nombre || ((DOCS.find(d => d.id === z.doc) || {}).nombre) || 'sin elegir') :
+  z.tipo === 'fotos' ? z.nombre + (z.hasta ? ' · hasta el ' + fechaEs(z.hasta) : '') : 'Examen' + (z.tema ? ' de ' + z.tema : '') + (z.fecha ? ' · ' + fechaEs(z.fecha) : ' · sin fecha');
+/* ¿nombra a un alumno? un número de lista o dos palabras seguidas de un nombre de la lista cargada */
+function auConAlumno(t){
+  if (numeroLista(t).bloquea) return 'un número de lista';
+  const l = ' ' + llano(String(t)).replace(/[^a-z0-9ñ]+/g, ' ') + ' ';
+  for (const g in LISTA) for (const n in LISTA[g]){ const w = llano(String(LISTA[g][n])).replace(/[^a-z0-9ñ]+/g, ' ').trim().split(' ').filter(x => x.length >= 3);
+    for (let i = 0; i < w.length; i++) for (let j = 0; j < w.length; j++) if (i !== j && l.includes(' ' + w[i] + ' ' + w[j] + ' ')) return 'el nombre de un alumno de la lista'; }
+  return '';
+}
+/* lo que impide generar (err) y lo que hay que confirmar (avisos) */
+function auRevisa(pl){
+  const err = [], avisos = [];
+  if (!pl.titulo.trim()) err.push('Falta el título de la sección.');
+  if (!Number.isInteger(+pl.seccion) || +pl.seccion < 1) err.push('El número de sección tiene que ser 1 o más: una sección nueva, detrás de las que ya tiene el curso.');
+  if (!pl.piezas.length && !pl.cabecera) err.push('El bloque está vacío: añade alguna pieza.');
+  const mira = (donde, t) => { const q = auConAlumno(t || ''); if (q) err.push(donde + ': lleva ' + q + '. En Aules no va nada de un alumno concreto.'); };
+  mira('El título', pl.titulo); mira('La línea de qué entra', pl.resumen);
+  pl.piezas.forEach((z, i) => { const q = 'Pieza ' + (i + 1) + ' (' + AU_TIPOS[z.tipo] + ')';
+    for (const k of ['texto', 'nombre', 'descripcion', 'tema']) if (z[k]) mira(q, z[k]);
+    if (z.tipo === 'texto' && !z.texto.trim()) err.push(q + ': está vacía.');
+    if (z.tipo === 'enlace'){ if (!z.nombre.trim()) err.push(q + ': falta el nombre.'); if (!/^https:\/\/\S+\.\S+/.test(z.url.trim())) err.push(q + ': el enlace tiene que empezar por https://'); }
+    if (z.tipo === 'pdf'){ const d = DOCS.find(x => x.id === z.doc);
+      if (!z.doc) err.push(q + ': falta elegir el PDF.');
+      else if (!d) err.push(q + ': «' + (z.nombre || z.doc.split('/').pop()) + '» no está en la biblioteca de este móvil (Biblioteca → Actualizar, o elígelo otra vez).');
+      else if (esImg(d)) err.push(q + ': es una imagen o una captura, no un PDF de material.');
+      else { if (d.origen === 'local') avisos.push('«' + d.nombre + '» es de «Mis archivos»: comprueba que no lleva nada de alumnos (ni nombres ni letra suya).');
+        if (AU_SOLUCION.test(d.nombre + ' ' + (z.nombre || '')) && z.soluciones !== true) err.push(q + ': parece de soluciones o claves. Si de verdad la quieres en Aules, márcalo en la pieza.'); } }
+    if (z.tipo === 'fotos'){ if (!z.nombre.trim()) err.push(q + ': falta el nombre.'); if (!z.hasta) err.push(q + ': falta el plazo.'); else if (z.desde && z.desde > z.hasta) err.push(q + ': se abre después del plazo.'); }
+    if (z.tipo === 'examen' && !z.fecha) err.push(q + ': falta la fecha del examen.'); });
+  return {err, avisos};
+}
+/* la cabecera: de originales (se trae con el token y se guarda en el móvil) o una imagen del móvil */
+async function auCabecera(pl){
+  const c = pl.cabecera; if (!c) return null;
+  let blob, nombre;
+  if (c.img){ blob = await leeDB('conf', c.img); nombre = c.nombre || 'cabecera.png'; if (!blob) throw new Error('La imagen de la cabecera ya no está en este móvil: elígela otra vez (o quítala).'); }
+  else { nombre = c.ruta.split('/').pop(); blob = await leeDB('conf', 'aulesCab:' + c.ruta);
+    if (!blob){ const cf = await conf(); if (!cf.token) throw new Error('Para traer la cabecera «' + nombre + '» hacen falta el token (Ajustes) y conexión. O elige una imagen del móvil.');
+      try { blob = await api(cf, '/contents/' + parte(c.ruta) + '?ref=' + encodeURIComponent(cf.rama), true); } catch (e) { throw new Error('No puedo traer la cabecera «' + nombre + '»: ' + e.message); }
+      await guardaDB('conf', blob, 'aulesCab:' + c.ruta); } }
+  let ancho, alto; try { const bm = await createImageBitmap(blob); ancho = bm.width; alto = bm.height; if (bm.close) bm.close(); } catch (e) {}
+  return {nombre: nombreSeguro(nombre), datos: new Uint8Array(await blob.arrayBuffer()), ancho, alto, blob};
+}
+/* la plantilla → lo que entiende cartucho.js */
+async function auTema(pl){
+  const cur = AU.cursos[pl.grupo] || {};
+  const tema = {seccion: +pl.seccion, nombre: pl.titulo.trim(), resumen: pl.resumen.trim(), visible: !pl.oculta, inicioCurso: cur.inicio ? Cartucho.hora(cur.inicio + ' 08:00') : 0, actividades: []};
+  const cab = await auCabecera(pl); if (cab) tema.cabecera = cab;
+  for (const z of pl.piezas){ const oculta = !!z.oculta;
+    if (z.tipo === 'texto') tema.actividades.push({tipo: 'etiqueta', html: auHtml(z.texto), oculta});
+    else if (z.tipo === 'examen') tema.actividades.push({tipo: 'etiqueta', html: auExamenHtml(z), oculta});
+    else if (z.tipo === 'enlace') tema.actividades.push({tipo: 'enlace', nombre: z.nombre.trim(), url: z.url.trim(), descripcion: (z.descripcion || '').trim(), oculta});
+    else if (z.tipo === 'fotos') tema.actividades.push({tipo: 'fotos', nombre: z.nombre.trim(), html: auHtml(z.texto), desde: z.desde ? z.desde + ' 00:00' : '', hasta: z.hasta + ' 23:59', maxFotos: +z.maxFotos || 4, nota: +z.nota || 10, oculta});
+    else if (z.tipo === 'pdf'){ const d = DOCS.find(x => x.id === z.doc);
+      tema.actividades.push({tipo: 'pdf', nombre: (z.nombre || '').trim() || bonito(d.nombre), archivo: nombreSeguro(archivo(d.path ? d.path.split('/').pop() : d.nombre)), datos: new Uint8Array(await d.blob.arrayBuffer()), descripcion: (z.descripcion || '').trim(), oculta, soluciones: z.soluciones === true}); } }
+  return tema;
+}
+const auSlug = t => llano(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48).replace(/-$/, '') || 'bloque';
+async function auGenera(pl){
+  const B = H.bl; B.errores = null; B.hecho = null;
+  const R = auRevisa(pl);
+  if (R.err.length){ B.errores = R.err; return pintaHerramienta(); }
+  if (R.avisos.length && !confirm(R.avisos.join('\n\n') + '\n\n¿Generar igualmente?')) return;
+  $('#blGenera').disabled = true; $('#blGenera').textContent = 'Generando…';
+  try {
+    const tema = await auTema(pl), r = await Cartucho.creaMbz(tema, {nombre: 'aules-' + pl.grupo + '-s' + pl.seccion + '-' + auSlug(pl.titulo) + '.mbz'});
+    const f = new File([r.mbz], r.nombre, {type: 'application/octet-stream'}), g = await guardaMovil([f], 'Aules');
+    if (g){ const c = AU.cursos[pl.grupo] = AU.cursos[pl.grupo] || {}; c.secciones = Math.max(c.secciones || 0, +pl.seccion);
+      pl.generado = {fecha: Date.now(), archivo: g.nombres[0], donde: g.donde}; await guardaAU();
+      B.hecho = {donde: g.donde, archivo: g.nombres[0], f, kb: Math.round(r.mbz.length / 1024), actividades: r.actividades, archivos: r.archivos}; }
+  } catch (e) { B.errores = e.errores || [(e && e.message) || String(e)]; }
+  pintaHerramienta();
+}
+/* cómo quedará en Aules (aproximado: el orden, lo oculto, las fechas) */
+function auVista(pl){
+  const oc = '<span class="au-oc">Oculto para los alumnos</span>';
+  const fila = (z, dentro) => `<div class="au-act${z.oculta || pl.oculta ? ' oculta' : ''}">${dentro}${z.oculta || pl.oculta ? oc : ''}</div>`;
+  return `<div class="au-vista"><h3>${esc(pl.titulo || 'Sin título')}${pl.oculta ? ' ' + oc : ''}</h3>${pl.cabecera ? '<img data-cab alt="">' : ''}${pl.resumen ? '<p>' + esc(pl.resumen) + '</p>' : ''}
+    ${pl.piezas.map(z => z.tipo === 'texto' ? fila(z, auHtml(z.texto)) : z.tipo === 'examen' ? fila(z, auExamenHtml(z)) :
+      z.tipo === 'enlace' ? fila(z, `<div class="au-rec"><span>🔗</span><b>${esc(z.nombre)}</b></div>${z.descripcion ? '<p class="au-des">' + esc(z.descripcion) + '</p>' : ''}`) :
+      z.tipo === 'pdf' ? fila(z, `<div class="au-rec"><span class="ico">PDF</span><b>${esc(z.nombre || auResumen(z))}</b></div>${z.descripcion ? '<p class="au-des">' + esc(z.descripcion) + '</p>' : ''}`) :
+      fila(z, `<div class="au-rec"><span>📤</span><b>${esc(z.nombre)}</b></div><p class="au-des"><b>Se abre:</b> ${z.desde ? fechaEs(z.desde) + ', 00:00' : 'ya'} · <b>Vence:</b> ${z.hasta ? fechaEs(z.hasta) + ', 23:59' : '—'}</p>${auHtml(z.texto)}`)).join('')}</div>`;
+}
+/* las fechas que ya están apuntadas para ese grupo (exámenes y entregas), para no teclearlas */
+function auFechas(g){
+  const ev = ((CAL && CAL.eventos) || []).concat(LOCALES).filter(e => e.fecha && e.fecha >= hoyISO() && ['examen', 'entrega'].includes(e.tipo) && (!(e.grupos || []).length || e.grupos.includes(g)));
+  return ev.sort((a, b) => a.fecha < b.fecha ? -1 : 1).slice(0, 4);
+}
+const auChips = (g, zid, k) => auFechas(g).map(e => `<button class="btn peq" data-fch="${e.fecha}" data-z="${zid}" data-k="${k}" title="${esc(e.texto || '')}">${ICONO[e.tipo] || ''} ${fechaEs(e.fecha)}</button>`).join('');
+
+function pintaBloques(C){
+  const B = H.bl = H.bl || {id: null, abierta: null, vista: false};
+  if (!AU.sembrado){ AU.plantillas.push(auSemilla()); AU.sembrado = true; guardaAU(); }
+  const pl = B.id && AU.plantillas.find(x => x.id === B.id);
+  if (!pl){ B.id = null; return pintaBloquesLista(C); }
+  const gs = gruposDe(''), cur = AU.cursos[pl.grupo] || {}, ab = B.abierta;
+  const campo = (z, k, ph, mas = '') => `<input type="text" data-z="${z.id}" data-k="${k}" value="${esc(z[k] || '')}" placeholder="${ph}" style="width:100%;margin-top:6px"${mas}>`;
+  const area = (z, k, ph, filas = 4) => `<textarea data-z="${z.id}" data-k="${k}" rows="${filas}" placeholder="${ph}" style="width:100%;margin-top:6px">${esc(z[k] || '')}</textarea>`;
+  const cuerpo = z => { const d = z.tipo === 'pdf' && DOCS.find(x => x.id === z.doc);
+    return z.tipo === 'texto' ? area(z, 'texto', 'El texto. **negrita**; renglones con «- » hacen una lista; un renglón en blanco, otro párrafo.', 6) :
+    z.tipo === 'enlace' ? campo(z, 'nombre', 'Nombre (La palestra (app))') + campo(z, 'url', 'https://…', ' inputmode="url"') + campo(z, 'descripcion', 'Una línea debajo (opcional)') :
+    z.tipo === 'pdf' ? `<p class="nota" style="margin:6px 0 0">${z.doc ? (d ? esc(d.carpeta + ' · ' + d.nombre) + ' · ' + tam(d.tam) : '<b style="color:var(--mal)">No está en la biblioteca de este móvil</b>') : 'Sin elegir'}</p>
+        <div class="fila" style="margin-top:6px"><button class="btn peq" data-elige="${z.id}">Elegir de la biblioteca</button><button class="btn peq" data-movil="${z.id}">Del móvil</button></div>`
+        + campo(z, 'nombre', 'Nombre en Aules (Ficha 1 · Servir)') + campo(z, 'descripcion', 'Una línea debajo (opcional)')
+        + (AU_SOLUCION.test(((d || {}).nombre || '') + ' ' + (z.nombre || '')) ? `<label class="au-marca"><input type="checkbox" data-z="${z.id}" data-k="soluciones"${z.soluciones ? ' checked' : ''}> Son soluciones o claves y las subo yo a propósito</label>` : '') :
+    z.tipo === 'fotos' ? campo(z, 'nombre', 'Nombre de la tarea') + area(z, 'texto', 'Qué tienen que subir (sesiones, cuántas fotos, plazo)…', 5)
+        + `<div class="fila nota" style="margin-top:8px">Se abre <input type="date" data-z="${z.id}" data-k="desde" value="${z.desde || ''}"> a las 00:00</div><div class="fila nota">Vence <input type="date" data-z="${z.id}" data-k="hasta" value="${z.hasta || ''}"> a las 23:59 (después no se puede entregar)</div>
+          <div class="fila">${auChips(pl.grupo, z.id, 'hasta')}</div>
+          <div class="fila nota">Fotos, como mucho <input type="number" data-z="${z.id}" data-k="maxFotos" value="${z.maxFotos || 4}" min="1" max="20"> · nota sobre <input type="number" data-z="${z.id}" data-k="nota" value="${z.nota || 10}" min="1" max="100"></div>` :
+    campo(z, 'tema', 'De qué (números racionales)') + `<div class="fila nota" style="margin-top:8px">El <input type="date" data-z="${z.id}" data-k="fecha" value="${z.fecha || ''}"></div><div class="fila">${auChips(pl.grupo, z.id, 'fecha')}</div>` + area(z, 'texto', 'Qué entra, sin calculadora…', 3); };
+  const R = auRevisa(pl);
+  C.innerHTML = `<div class="fila" style="margin-bottom:4px"><button class="btn peq" id="blVolver">‹ Plantillas</button><span class="nota" style="flex:1;text-align:right">Se guarda solo</span></div>
+    <div class="caja"><input type="text" data-p="nombre" value="${esc(pl.nombre)}" placeholder="Nombre de la plantilla" style="width:100%;font-weight:600">
+      <div class="fila" style="margin-top:8px"><span class="nota">Para</span><select data-p="grupo" data-re>${gs.concat(gs.includes(pl.grupo) ? [] : [pl.grupo]).map(g => `<option value="${g}"${g === pl.grupo ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select>
+        <span class="nota">· sección n.º</span><input type="number" data-p="seccion" value="${pl.seccion}" min="1" max="60"></div>
+      <p class="nota">Una sección <b>nueva</b>, detrás de las que ya tiene el curso (si tiene 4 temas, la 5)${cur.secciones ? '. El último bloque de ' + etqGrupo(pl.grupo) + ' fue a la ' + cur.secciones : ''}.</p>
+      <label class="au-marca"><input type="checkbox" data-p="oculta" data-re${pl.oculta ? ' checked' : ''}> Entra oculto para los alumnos (para probarlo; se muestra luego desde Aules)</label>
+      <details style="margin-top:6px"${cur.inicio ? '' : ''}><summary class="nota" style="cursor:pointer">Fecha de inicio del curso de ${etqGrupo(pl.grupo)} en Aules: ${cur.inicio ? fechaEs(cur.inicio) : 'sin poner'}</summary>
+        <p class="nota">Se pide una vez por curso. Está en Aules → Paràmetres → «Data d'inici del curs». Si no coincide (por un día o más), Moodle mueve las fechas de las tareas; sin fecha, el archivo no declara ninguna y no se mueve nada.</p>
+        <div class="fila"><input type="date" id="blInicio" value="${cur.inicio || ''}"><button class="btn peq" id="blInicioNo">Sin fecha</button></div></details></div>
+    <div class="caja"><h2>La sección</h2>
+      <input type="text" data-p="titulo" value="${esc(pl.titulo)}" placeholder="Título (Números racionales · La grapadora de Nick)" style="width:100%">
+      <input type="text" data-p="resumen" value="${esc(pl.resumen)}" placeholder="Una línea: qué entra en el tema" style="width:100%;margin-top:6px">
+      <div class="fila" style="margin-top:8px"><span class="nota" style="flex:1">Cabecera: ${pl.cabecera ? esc(pl.cabecera.ruta ? pl.cabecera.ruta.split('/').pop() : pl.cabecera.nombre) : 'ninguna'}</span>
+        <button class="btn peq" id="blCabGh">De originales</button><button class="btn peq" id="blCabMovil">Del móvil</button>${pl.cabecera ? '<button class="btn peq" id="blCabNo" aria-label="Quitar la cabecera">✕</button>' : ''}<input type="file" id="blCabF" accept="image/png,image/jpeg" hidden></div>
+      <div id="blCabLista"></div></div>
+    <h2 style="margin:16px 2px 6px;font-size:16px">Piezas <small class="nota">· arrastra ≡ para ordenarlas</small></h2>
+    <div id="blPiezas">${pl.piezas.map(z => `<div class="pieza${z.oculta ? ' oculta' : ''}" data-pz="${z.id}">
+      <div class="pz-cab"><span class="asa" data-asa aria-label="Arrastrar para ordenar">≡</span><button class="pz-tit" data-abre="${z.id}"><i>${AU_ICONO[z.tipo]}</i><span><b>${AU_TIPOS[z.tipo]}</b><small data-res>${esc(auResumen(z))}</small></span></button>
+        <button class="pz-b" data-ojo="${z.id}" aria-label="${z.oculta ? 'Mostrar' : 'Ocultar'}" title="${z.oculta ? 'Oculta para los alumnos' : 'Visible'}">${z.oculta ? '🚫' : '👁'}</button><button class="pz-b" data-quita="${z.id}" aria-label="Quitar">✕</button></div>
+      ${ab === z.id ? '<div class="pz-cuerpo">' + cuerpo(z) + '</div>' : ''}</div>`).join('') || '<p class="nota">Aún no hay piezas.</p>'}</div>
+    <div class="fila" style="margin-top:8px">${Object.entries(AU_TIPOS).map(([k, t]) => `<button class="btn peq" data-mas="${k}">+ ${t}</button>`).join('')}<input type="file" id="blPdfF" accept="application/pdf" hidden></div>
+    ${B.errores ? `<div class="caja" id="blErr" style="border-color:var(--mal)"><h2 style="color:var(--mal)">No se genera todavía</h2><ul class="pasos nota">${B.errores.map(e => '<li>' + esc(e) + '</li>').join('')}</ul></div>` : ''}
+    ${B.hecho ? `<div class="caja" id="blHecho" style="border-color:var(--ok)"><h2>Listo: ${esc(B.hecho.archivo)}</h2>
+      <p class="nota" style="margin-top:0">Guardado en <b>${esc(B.hecho.donde)}</b> · ${B.hecho.kb} KB · sección ${pl.seccion} · ${B.hecho.actividades} piezas, ${B.hecho.archivos} archivos${pl.oculta ? ' · entra oculto' : ''}.</p>
+      <ol class="pasos nota"><li>En Aules, en el curso de <b>${etqGrupo(pl.grupo)}</b> (mejor en el ordenador): <b>Més → Reutilització del curs → Restaura</b> y sube el archivo.</li>
+        <li><b>Destinació</b>: «<b>Fusiona</b> la còpia de seguretat amb aquest curs». Nunca «Esborra el contingut…».</li>
+        <li><b>Configuració</b>: «Sobreescriu la configuració del curs», en <b>No</b>.</li>
+        <li><b>Revisa</b>: que diga Fusiona y que solo haya una sección, la nueva. Entonces, <b>Processa</b>.</li>
+        <li>Mira que las fechas son las de aquí${pl.oculta ? ' y, si está bien, muestra la sección desde Aules (o bórrala)' : ''}.</li></ol>
+      <div class="fila"><button class="btn peq" id="blEnvia">Compartir el archivo (OneDrive, al ordenador…)</button></div></div>` : ''}
+    <div class="fila" style="margin-top:12px"><button class="btn" id="blVista">${B.vista ? 'Quitar la vista previa' : 'Vista previa'}</button><button class="btn prim" id="blGenera">Generar el archivo para Aules</button></div>
+    ${!B.errores && R.err.length ? `<p class="nota">Falta: ${esc(R.err[0])}${R.err.length > 1 ? ' (y ' + (R.err.length - 1) + ' más)' : ''}</p>` : ''}
+    ${B.vista ? '<div id="blVistaCaja">' + auVista(pl) + '</div>' : ''}`;
+
+  const re = () => pintaHerramienta(), z_ = id => pl.piezas.find(x => x.id === id);
+  let t; const guarda = () => { clearTimeout(t); t = setTimeout(guardaAU, 300); };
+  const limpia = () => { B.errores = null; B.hecho = null; };
+  $('#blVolver').onclick = () => { B.id = null; B.abierta = null; B.vista = false; limpia(); re(); };
+  C.querySelectorAll('[data-p]').forEach(x => x.onchange = () => { const k = x.dataset.p; pl[k] = x.type === 'checkbox' ? x.checked : x.type === 'number' ? +x.value : x.value; limpia(); guardaAU(); if ('re' in x.dataset || B.vista) re(); });
+  C.querySelectorAll('[data-z][data-k]:not([data-fch])').forEach(x => x.onchange = () => { const z = z_(x.dataset.z), k = x.dataset.k; z[k] = x.type === 'checkbox' ? x.checked : x.type === 'number' ? +x.value : x.value; limpia(); guardaAU();
+    const r = C.querySelector('[data-pz="' + z.id + '"] [data-res]'); if (r) r.textContent = auResumen(z); if (B.vista || x.type === 'checkbox') re(); });
+  C.querySelectorAll('[data-fch]').forEach(b => b.onclick = () => { z_(b.dataset.z)[b.dataset.k] = b.dataset.fch; limpia(); guardaAU(); re(); });
+  C.querySelectorAll('[data-abre]').forEach(b => b.onclick = () => { B.abierta = B.abierta === b.dataset.abre ? null : b.dataset.abre; re(); });
+  C.querySelectorAll('[data-ojo]').forEach(b => b.onclick = () => { const z = z_(b.dataset.ojo); z.oculta = !z.oculta; limpia(); guardaAU(); re(); });
+  C.querySelectorAll('[data-quita]').forEach(b => b.onclick = () => { const z = z_(b.dataset.quita); if (!confirm('¿Quitar esta pieza (' + AU_TIPOS[z.tipo] + ': ' + auResumen(z) + ')?')) return; pl.piezas = pl.piezas.filter(x => x !== z); limpia(); guardaAU(); re(); });
+  C.querySelectorAll('[data-mas]').forEach(b => b.onclick = () => { const z = auPieza(b.dataset.mas); pl.piezas.push(z); B.abierta = z.id; limpia(); guardaAU(); if (z.tipo === 'pdf'){ B.eligePara = z.id; abreSelector(); } re(); });
+  C.querySelectorAll('[data-elige]').forEach(b => b.onclick = () => { B.eligePara = b.dataset.elige; abreSelector(); });
+  C.querySelectorAll('[data-movil]').forEach(b => b.onclick = () => { B.eligePara = b.dataset.movil; $('#blPdfF').click(); });
+  $('#blPdfF').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) return aviso('Eso no es un PDF');
+    const id = 'loc:' + Date.now() + ':0'; await guardaDB('docs', {id, origen: 'local', nombre: f.name.replace(/\.pdf$/i, ''), carpeta: 'Mis archivos', tam: f.size, fecha: Date.now(), hoy: false, blob: f}); await recarga(); auEligeDoc(DOCS.find(d => d.id === id)); };
+  $('#blInicio').onchange = e => { (AU.cursos[pl.grupo] = AU.cursos[pl.grupo] || {}).inicio = e.target.value; guardaAU(); re(); };
+  $('#blInicioNo').onclick = () => { if (AU.cursos[pl.grupo]) delete AU.cursos[pl.grupo].inicio; guardaAU(); re(); };
+  $('#blCabMovil').onclick = () => $('#blCabF').click();
+  $('#blCabF').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; if (pl.cabecera && pl.cabecera.img) await borraDB('conf', pl.cabecera.img);
+    const k = 'aulesImg:' + auId(); await guardaDB('conf', f, k); pl.cabecera = {img: k, nombre: f.name}; limpia(); guardaAU(); re(); };
+  if ($('#blCabNo')) $('#blCabNo').onclick = async () => { if (pl.cabecera.img) await borraDB('conf', pl.cabecera.img); pl.cabecera = null; limpia(); guardaAU(); re(); };
+  $('#blCabGh').onclick = async () => { const L = $('#blCabLista'); L.innerHTML = '<p class="nota">Mirando las cabeceras de originales…</p>';
+    try { const cf = await conf(); if (!cf.token) throw new Error('hace falta el token (Ajustes)');
+      const fs = (await api(cf, '/contents/latex/aules?ref=' + encodeURIComponent(cf.rama))).filter(x => x.type === 'file' && /\.(png|jpe?g)$/i.test(x.name) && /cabecera/i.test(x.name));
+      L.innerHTML = fs.length ? '<div class="chips">' + fs.map(x => `<button class="chip" data-cab="${esc(x.path)}"><span>${esc(x.name.replace(/\.\w+$/, ''))}</span></button>`).join('') + '</div>' : '<p class="nota">No hay cabeceras en latex/aules.</p>';
+      L.querySelectorAll('[data-cab]').forEach(b => b.onclick = async () => { if (pl.cabecera && pl.cabecera.img) await borraDB('conf', pl.cabecera.img); pl.cabecera = {ruta: b.dataset.cab}; limpia(); guardaAU(); re(); });
+    } catch (er) { L.innerHTML = '<p class="nota" style="color:var(--mal)">No puedo mirar las cabeceras: ' + esc(er.message) + '. Puedes elegir una imagen del móvil.</p>'; } };
+  $('#blVista').onclick = () => { B.vista = !B.vista; re(); };
+  $('#blGenera').onclick = () => auGenera(pl);
+  if ($('#blEnvia')) $('#blEnvia').onclick = () => { const f = B.hecho.f; if (nativa()) sacaNativo([f], {titulo: f.name}); else descarga(f, f.name); };
+  const img = C.querySelector('[data-cab]:not(button)'); if (img) auCabecera(pl).then(c => { if (c && img.isConnected) img.src = URL.createObjectURL(c.blob); }).catch(() => { img.replaceWith(Object.assign(document.createElement('p'), {className: 'nota', textContent: '(la cabecera se traerá al generar)'})); });
+  if (B.errores && $('#blErr')) $('#blErr').scrollIntoView({block: 'center'}); else if (B.hecho && $('#blHecho')) $('#blHecho').scrollIntoView({block: 'start'});
+  /* ordenar con el dedo: se arrastra el asa y la pieza cambia de sitio al cruzar la mitad de otra */
+  C.querySelectorAll('[data-asa]').forEach(asa => asa.onpointerdown = e => { e.preventDefault(); const fila = asa.closest('.pieza'), lista = fila.parentNode; try { asa.setPointerCapture(e.pointerId); } catch (er) {} fila.classList.add('mov');
+    const capa = asa.closest('.capa');
+    const mueve = ev => { if (capa){ if (ev.clientY < 110) capa.scrollTop -= 14; else if (ev.clientY > innerHeight - 70) capa.scrollTop += 14; }
+      const sig = [...lista.querySelectorAll('.pieza')].filter(x => x !== fila).find(x => { const r = x.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; }); if (sig) lista.insertBefore(fila, sig); else lista.append(fila); };
+    let acabado = false; const fin = () => { if (acabado) return; acabado = true; removeEventListener('pointermove', mueve); removeEventListener('pointerup', fin); removeEventListener('pointercancel', fin); const orden = [...lista.querySelectorAll('.pieza')].map(x => x.dataset.pz); pl.piezas.sort((a, b) => orden.indexOf(a.id) - orden.indexOf(b.id)); limpia(); guardaAU(); re(); };
+    addEventListener('pointermove', mueve); addEventListener('pointerup', fin, {once: true}); addEventListener('pointercancel', fin, {once: true}); });
+}
+/* el PDF elegido (del selector de la biblioteca o del móvil) para la pieza que lo pidió */
+function auEligeDoc(d){
+  const B = H.bl, pl = AU.plantillas.find(x => x.id === B.id), z = pl && pl.piezas.find(x => x.id === B.eligePara); B.eligePara = null;
+  if (!z || !d) return;
+  z.doc = d.id; if (!z.nombre) z.nombre = bonito(d.nombre).replace(/ - /, ' · '); z.soluciones = false; B.abierta = z.id; B.errores = null; B.hecho = null; guardaAU(); pintaHerramienta();
+}
+function pintaBloquesLista(C){
+  C.innerHTML = `<div class="caja"><h2>Bloques de Aules</h2><p class="nota" style="margin-top:0">Monta una sección del curso con piezas, mira cómo quedará y genera el archivo que Aules restaura con «Fusiona» (no borra nada de lo que hay). Cada bloque se guarda como plantilla: duplícala para otro grupo u otras fechas.</p>
+      <div class="chips">${AU.plantillas.map(p => `<div class="chip"><span data-pl="${p.id}" style="cursor:pointer"><b>${esc(p.nombre)}</b><br><small class="nota">${etqGrupo(p.grupo)} · sección ${p.seccion} · ${p.piezas.length} piezas${p.generado ? ' · generado el ' + new Date(p.generado.fecha).toLocaleDateString('es-ES', {day: 'numeric', month: 'short'}) : ''}</small></span>
+        <button data-dup="${p.id}" aria-label="Duplicar" title="Duplicar">⧉</button><button data-exp="${p.id}" aria-label="Exportar" title="Exportar">⇪</button><button data-del="${p.id}" aria-label="Borrar" title="Borrar">✕</button></div>`).join('') || '<p class="nota">No hay ninguna plantilla.</p>'}</div>
+      <div class="fila"><button class="btn prim peq" id="blNuevo">Bloque nuevo</button><button class="btn peq" id="blImporta">Importar plantillas</button>${AU.plantillas.length > 1 ? '<button class="btn peq" id="blExpTodas">Exportar todas</button>' : ''}<input type="file" id="blImpF" accept=".json,application/json,text/plain" hidden></div></div>
+    <p class="nota">Las plantillas van en la copia de las notas (Ajustes). No llevan nada de alumnos: solo textos, enlaces, fechas y qué PDF de la biblioteca va en cada sitio.</p>`;
+  const B = H.bl, re = () => pintaHerramienta(), de = id => AU.plantillas.find(x => x.id === id);
+  C.querySelectorAll('[data-pl]').forEach(x => x.onclick = () => { B.id = x.dataset.pl; re(); });
+  C.querySelectorAll('[data-dup]').forEach(b => b.onclick = () => { const o = JSON.parse(JSON.stringify(de(b.dataset.dup))); o.id = auId(); o.nombre += ' (copia)'; delete o.generado; if (o.cabecera && o.cabecera.img) o.cabecera = null; o.piezas.forEach(z => z.id = auId());
+    AU.plantillas.push(o); guardaAU(); B.id = o.id; aviso('Duplicada: cambia el grupo, la sección y las fechas'); re(); });
+  C.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { const p = de(b.dataset.del); if (!confirm('¿Borrar la plantilla «' + p.nombre + '»?')) return; if (p.cabecera && p.cabecera.img) await borraDB('conf', p.cabecera.img); AU.plantillas = AU.plantillas.filter(x => x !== p); guardaAU(); re(); });
+  C.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => auExporta([de(b.dataset.exp)]));
+  if ($('#blExpTodas')) $('#blExpTodas').onclick = () => auExporta(AU.plantillas);
+  $('#blNuevo').onclick = () => { const g = (NT.ultimaEv || {}).g || gruposDe('')[0], p = auNueva(gruposDe('').includes(g) ? g : gruposDe('')[0]); AU.plantillas.push(p); guardaAU(); B.id = p.id; re(); };
+  $('#blImporta').onclick = () => $('#blImpF').click();
+  $('#blImpF').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try { const n = auImporta(JSON.parse(await f.text())); await guardaAU(); aviso(n === 1 ? 'Una plantilla importada' : n + ' plantillas importadas'); re(); } catch (er) { aviso('No puedo leerlo: ' + er.message, 4000); } };
+}
+/* exportar e importar plantillas (un .json): las imágenes del móvil no viajan, las de originales sí (por su ruta) */
+const auOrden = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+const auLimpia = p => { const o = JSON.parse(JSON.stringify(p)); delete o.generado; if (o.cabecera && o.cabecera.img) o.cabecera = null; return o; };
+function auExporta(ps){
+  const nombre = (ps.length === 1 ? 'aules-plantilla-' + auSlug(ps[0].nombre) : 'aules-plantillas') + '.json';
+  const f = new File([JSON.stringify({app: 'utilidades-aules', version: 1, fecha: new Date().toISOString(), plantillas: ps.map(auLimpia)}, null, 1)], nombre, {type: 'application/json'});
+  if (nativa()) sacaNativo([f], {titulo: nombre}); else descarga(f, nombre);
+}
+function auImporta(o){
+  const ps = o && o.app === 'utilidades-aules' ? o.plantillas : o && o.aules ? o.aules.plantillas : null;
+  if (!Array.isArray(ps)) throw new Error('no es un archivo de plantillas de Aules');
+  let n = 0;
+  for (const p0 of ps){ if (!p0 || typeof p0.titulo !== 'string' || !Array.isArray(p0.piezas)) continue;
+    const p = Object.assign(auNueva(String(p0.grupo || '')), auLimpia(p0)); p.piezas = p.piezas.filter(z => z && AU_TIPOS[z.tipo]).map(z => Object.assign(auPieza(z.tipo), z));
+    if (AU.plantillas.some(x => auOrden(auLimpia(x)) === auOrden(auLimpia(p0)))) continue;
+    if (AU.plantillas.some(x => x.id === p.id)){ p.id = auId(); p.nombre += ' (importada)'; }
+    p.piezas.forEach(z => { if (!z.id) z.id = auId(); }); AU.plantillas.push(p); n++; }
+  return n;
+}
+/* fin de los bloques de Aules */
+
 /* ── ARRANQUE ── */
 (async () => {
   await recarga(); pintaLista();
   NT = Object.assign({alumnos: {}, corr: {}, eval: {}, fichas: {}}, (await leeDB('conf', 'notas')) || {}); RUB_GH = (await leeDB('conf', 'rubricas')) || null; PROPIAS = (await leeDB('conf', 'rubricasPropias')) || []; mezclaRubricas(); PROG = (await leeDB('conf', 'programacion')) || null; CRIT = (await leeDB('conf', 'criteriosIA')) || ''; FIC = (await leeDB('conf', 'fichas')) || null; LOCALES = (await leeDB('conf', 'eventosLocales')) || []; ESC.modo = (await leeDB('conf', 'escModo')) || 'rect';
   const c = await conf(); CAL = c.calendario || (await leeDB('conf', 'calendario')) || null; pintaHoy(); if (c.ultima) $('#syncNota').textContent = 'Última actualización: ' + new Date(c.ultima).toLocaleString('es-ES', {dateStyle: 'short', timeStyle: 'short'}) + '.';
+  AU = Object.assign(AU, (await leeDB('conf', 'aules')) || {});
   pintaBotonesIA();
   if (nativa()){ AV = Object.assign({}, AV0, (await leeDB('conf', 'avisos')) || {}); iniciaNativa(); }
   else if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
