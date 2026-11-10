@@ -497,7 +497,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.20';
+const VERSION = '1.21';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -567,6 +567,8 @@ async function sacaNativo(files, {abrir = false, titulo = ''} = {}){
    Devuelve {n, donde, nombres} o null si no se ha podido. Ojo: esa carpeta la leen otras
    apps; lo de «Mis archivos» y «Capturas» puede llevar letra de alumnos: se vacía en Ajustes. */
 const CARPETA_MOVIL = 'Utilidades';
+/* cómo se llega a un archivo guardado, con las palabras del gestor de archivos del móvil (la carpeta se llama «Documents») */
+const dondeMovil = donde => nativa() ? 'En el móvil: app de Archivos → Almacenamiento interno → <b>Documents</b> → ' + esc(donde.replace(/^Documentos\//, '')).split('/').map(x => '<b>' + x + '</b>').join(' → ') + '. Desde el navegador (para subirlo a Aules), «Elegir archivo» → Documentos → las mismas carpetas.' : 'Está en la carpeta de <b>Descargas</b> del navegador.';
 async function guardaMovil(files, sub = ''){
   if (!files.length){ aviso('No hay nada que guardar'); return null; }
   if (!nativa()){ for (const f of files) descarga(f, f.name); const r = {n: files.length, donde: 'Descargas', nombres: files.map(f => f.name)}; aviso((r.n === 1 ? 'Descargado «' + r.nombres[0] + '»' : r.n + ' archivos descargados') + ': en Descargas', 5000); return r; }
@@ -3647,9 +3649,11 @@ async function auTema(pl){
     else if (z.tipo === 'fotos') tema.actividades.push({tipo: 'fotos', nombre: z.nombre.trim(), html: auHtml(z.texto), desde: z.desde ? z.desde + ' 00:00' : '', hasta: z.hasta + ' 23:59', maxFotos: +z.maxFotos || 4, nota: +z.nota || 10, oculta});
     else if (z.tipo === 'cuestionario'){ const b = AU.bancos.find(x => x.id === z.banco);
       tema.actividades.push({tipo: 'cuestionario', nombre: (z.nombre || '').trim() || b.nombre.trim(), html: auHtml(z.texto || ''), intentos: +z.intentos || 0, nota: 10, oculta,
-        preguntas: b.preguntas.map((q, i) => ({tipo: q.tipo, nombre: String(i + 1).padStart(2, '0') + ' · ' + auLlanoTexto(q.enunciado).slice(0, 50), html: auHtml(q.enunciado), retroHtml: auHtml(q.retro || ''),
+        preguntas: b.preguntas.map((q, i) => { const hu = q.tipo === 'huecos' ? auHuecos(q.enunciado) : null, ls = q.tipo === 'ordena' ? auLineas(q.elementos) : null; return ({tipo: q.tipo, nombre: String(i + 1).padStart(2, '0') + ' · ' + auLlanoTexto(q.enunciado).slice(0, 50), html: auHtml(hu ? hu.texto : q.enunciado), retroHtml: auHtml(q.retro || ''),
+          huecos: hu ? hu.huecos : undefined, pares: q.tipo === 'empareja' ? q.pares.filter(z => z.a.trim() && z.b.trim()).map(z => ({html: auHtml(z.a), respuesta: z.b.trim()})) : undefined,
+          elementos: ls ? ls.map(l => auHtml(l)) : undefined, horizontal: ls ? ls.every(l => l.length <= 8) : undefined,
           opciones: q.tipo === 'opcion' ? q.opciones.filter(o => o.t.trim()).map(o => ({html: auHtml(o.t), ok: !!o.ok})) : undefined, verdadero: q.respuesta !== 'falso',
-          respuesta: q.tipo === 'numerica' ? auNum(q.respuesta) : undefined, tolerancia: q.tipo === 'numerica' ? auNum(q.tolerancia || '0') || 0 : undefined, respuestas: q.tipo === 'corta' ? q.respuesta.split(';').map(x => x.trim()).filter(Boolean) : undefined}))}); }
+          respuesta: q.tipo === 'numerica' ? auNum(q.respuesta) : undefined, tolerancia: q.tipo === 'numerica' ? auNum(q.tolerancia || '0') || 0 : undefined, respuestas: q.tipo === 'corta' ? q.respuesta.split(';').map(x => x.trim()).filter(Boolean) : undefined}); })}); }
     else if (z.tipo === 'acta') tema.actividades.push({tipo: 'acta', nombre: auActaNombre(z), html: auHtml((z.texto || '').trim() || auActaTexto(z)), desde: z.desde ? z.desde + ' 00:00' : '', hasta: z.hasta + ' 23:59', modo: z.modo === 'archivo' ? 'archivo' : 'texto', nota: +z.nota || 10, oculta});
     else if (z.tipo === 'pdf'){ const d = DOCS.find(x => x.id === z.doc);
       tema.actividades.push({tipo: 'pdf', nombre: (z.nombre || '').trim() || bonito(d.nombre), archivo: nombreSeguro(archivo(d.path ? d.path.split('/').pop() : d.nombre)), datos: new Uint8Array(await d.blob.arrayBuffer()), descripcion: (z.descripcion || '').trim(), oculta, soluciones: z.soluciones === true}); } }
@@ -3746,7 +3750,7 @@ function pintaBloques(C){
     <div class="fila" style="margin-top:8px">${Object.entries(AU_TIPOS).map(([k, t]) => `<button class="btn peq" data-mas="${k}">+ ${t}</button>`).join('')}<input type="file" id="blPdfF" accept="application/pdf" hidden></div>
     ${B.errores ? `<div class="caja" id="blErr" style="border-color:var(--mal)"><h2 style="color:var(--mal)">No se genera todavía</h2><ul class="pasos nota">${B.errores.map(e => '<li>' + esc(e) + '</li>').join('')}</ul></div>` : ''}
     ${B.hecho ? `<div class="caja" id="blHecho" style="border-color:var(--ok)"><h2>Listo: ${esc(B.hecho.archivo)}</h2>
-      <p class="nota" style="margin-top:0">Guardado en <b>${esc(B.hecho.donde)}</b> · ${B.hecho.kb} KB · sección ${pl.seccion} · ${B.hecho.actividades} piezas, ${B.hecho.archivos} archivos${pl.oculta ? ' · entra oculto' : ''}.</p>
+      <p class="nota" style="margin-top:0">Guardado en <b>${esc(B.hecho.donde)}</b> · ${B.hecho.kb} KB · sección ${pl.seccion} · ${B.hecho.actividades} piezas, ${B.hecho.archivos} archivos${pl.oculta ? ' · entra oculto' : ''}.</p><p class="nota">${dondeMovil(B.hecho.donde)}</p>
       <ol class="pasos nota"><li>En Aules, en el curso de <b>${etqGrupo(pl.grupo)}</b> (mejor en el ordenador): <b>Més → Reutilització del curs → Restaura</b> y sube el archivo.</li>
         <li><b>Destinació</b>: «<b>Fusiona</b> la còpia de seguretat amb aquest curs». Nunca «Esborra el contingut…».</li>
         <li><b>Configuració</b>: «Sobreescriu la configuració del curs», en <b>No</b>.</li>
@@ -3816,8 +3820,9 @@ function pintaBloquesLista(C){
       <textarea id="blIaQ" rows="3" placeholder="«El tema de potencias, con las fichas 1 a 4, las fotos de la libreta del 24 al 29 y el examen el 3 de diciembre»" style="width:100%;margin-top:8px"></textarea>
       <div class="fila" style="margin-top:8px"><button class="btn acento" id="blIaBtn">Montar</button><span class="nota">Lo revisas tú antes de generar nada.</span></div><div id="iaRes"></div></details>` : ''}
     <div class="caja"><h2>Bancos de preguntas</h2><p class="nota" style="margin-top:0">Preguntas de práctica que Aules corrige solo. Se importan en «Bancs de preguntes» (XML de Moodle) y se usan en un cuestionario.</p>
-      <div class="chips">${(AU.bancos || []).map(b => `<div class="chip"><span data-bq="${b.id}" style="cursor:pointer"><b>${esc(b.nombre || 'Banco sin nombre')}</b><br><small class="nota">${b.preguntas.length} preguntas${b.preguntas.some(q => q.sinRevisar) ? ' · ' + b.preguntas.filter(q => q.sinRevisar).length + ' sin revisar' : ''}</small></span><button data-bqdel="${b.id}" aria-label="Borrar" title="Borrar">✕</button></div>`).join('') || '<p class="nota">No hay ningún banco.</p>'}</div>
+      <div class="chips">${(AU.bancos || []).map(b => `<div class="chip"><span data-bq="${b.id}" style="cursor:pointer"><b>${esc(b.nombre || 'Banco sin nombre')}</b><br><small class="nota">${b.preguntas.length} preguntas${b.preguntas.some(q => q.sinRevisar) ? ' · ' + b.preguntas.filter(q => q.sinRevisar).length + ' sin revisar' : ''}${b.archivo ? ' · ' + esc(b.archivo) : ''}</small></span><button data-bqdel="${b.id}" aria-label="Borrar" title="Borrar">✕</button></div>`).join('') || '<p class="nota">No hay ningún banco.</p>'}</div>
       <div class="fila"><button class="btn prim peq" id="bqNuevo">Banco nuevo</button></div></div>
+    <p class="nota">Lo que generas (bloques .mbz y bancos .xml) se guarda en <b>${nativa() ? 'Documentos → Utilidades → Aules' : 'Descargas'}</b>${nativa() ? ' (en la app de Archivos: Almacenamiento interno → Documents → Utilidades → Aules)' : ''}, y al generar hay un botón para compartirlo.</p>
     <p class="nota">Las plantillas y los bancos van en la copia de las notas (Ajustes) y en «Exportar todas». No llevan el listado ni nada de los matriculados: eso lo pone Aules.</p>`;
   const B = H.bl, re = () => pintaHerramienta(), de = id => AU.plantillas.find(x => x.id === id);
   C.querySelectorAll('[data-pl]').forEach(x => x.onclick = () => { B.id = x.dataset.pl; re(); });
@@ -3924,11 +3929,26 @@ async function auMontaIA(frase, g){
 }
 
 /* b) los bancos de preguntas */
-const AU_PREG = {opcion: 'Opción múltiple', vf: 'Verdadero o falso', numerica: 'Numérica', corta: 'Respuesta corta'};
-const auPregunta = tipo => Object.assign({id: auId(), tipo, enunciado: '', retro: ''}, {opcion: {opciones: [{t: '', ok: true}, {t: '', ok: false}, {t: '', ok: false}, {t: '', ok: false}]}, vf: {respuesta: 'verdadero'}, numerica: {respuesta: '', tolerancia: '0'}, corta: {respuesta: ''}}[tipo]);
+const AU_PREG = {opcion: 'Opción múltiple', vf: 'Verdadero o falso', numerica: 'Numérica', corta: 'Respuesta corta', empareja: 'Emparejar', ordena: 'Ordenar', huecos: 'Huecos'};
+const auPregunta = tipo => Object.assign({id: auId(), tipo, enunciado: '', retro: ''}, {opcion: {opciones: [{t: '', ok: true}, {t: '', ok: false}, {t: '', ok: false}, {t: '', ok: false}]}, vf: {respuesta: 'verdadero'}, numerica: {respuesta: '', tolerancia: '0'}, corta: {respuesta: ''}, empareja: {pares: [{a: '', b: ''}, {a: '', b: ''}, {a: '', b: ''}]}, ordena: {elementos: ''}, huecos: {}}[tipo]);
 const auNum = s => { const n = Number(String(s == null ? '' : s).trim().replace(/\s/g, '').replace(',', '.')); return String(s == null ? '' : s).trim() === '' || !isFinite(n) ? null : n; };
 const auLlanoTexto = t => String(t || '').replace(/\*\*/g, '').replace(/\\[()]/g, '').replace(/\s+/g, ' ').trim();
-const auRespuesta = q => q.tipo === 'opcion' ? ((q.opciones.find(o => o.ok) || {}).t || '—') : q.tipo === 'vf' ? (q.respuesta === 'falso' ? 'Falso' : 'Verdadero') : q.respuesta || '—';
+/* 1.21 · HUECOS: en el enunciado, cada hueco va entre dobles corchetes con su respuesta: «3/4 = [[6]]/8».
+   Un número = hueco numérico (con margen: [[3,14±0,01]]); un texto = respuesta corta; varias válidas con «|»:
+   [[tres cuartos|3 cuartos]]. Devuelve el texto con {#1}, {#2}… (como lo guarda Moodle) y los huecos con su
+   «token» de cloze ({1:NUMERICAL:=6:0}), que es el texto de cada pregunta hija y lo que va en el XML. */
+function auHuecos(t){
+  const huecos = [], cz = x => String(x).replace(/([\\}~#])/g, '\\$1');
+  const texto = String(t || '').replace(/\[\[(.+?)\]\]/g, (_, d) => { const alt = d.split('|').map(x => x.trim()).filter(Boolean); if (!alt.length) return '';
+    const m = /^(.*?)\s*±\s*(.*)$/.exec(alt[0]), v = auNum(m ? m[1] : alt[0]), tol = m ? auNum(m[2]) : 0;
+    if (alt.length === 1 && v != null && tol != null) huecos.push({tipo: 'numerica', respuestas: [String(v)], tolerancia: tol, token: '{1:NUMERICAL:=' + v + ':' + tol + '}'});
+    else huecos.push({tipo: 'corta', respuestas: alt, token: '{1:SHORTANSWER:' + alt.map(a => '=' + cz(a)).join('~') + '}'});
+    return '{#' + huecos.length + '}'; });
+  return {texto, huecos};
+}
+const auLineas = t => String(t || '').split('\n').map(x => x.trim()).filter(Boolean);
+const auRespuesta = q => q.tipo === 'empareja' ? q.pares.filter(x => x.a.trim()).length + ' parejas' : q.tipo === 'ordena' ? auLineas(q.elementos).join(' < ') : q.tipo === 'huecos' ? (n => n + (n === 1 ? ' hueco' : ' huecos'))(auHuecos(q.enunciado).huecos.length) :
+  q.tipo === 'opcion' && q.varias ? q.opciones.filter(o => o.ok && o.t.trim()).map(o => o.t).join(' · ') || '—' : q.tipo === 'opcion' ? ((q.opciones.find(o => o.ok) || {}).t || '—') : q.tipo === 'vf' ? (q.respuesta === 'falso' ? 'Falso' : 'Verdadero') : q.respuesta || '—';
 function auRevisaBanco(b){
   const err = [];
   if (!b.nombre.trim()) err.push('Falta el nombre del banco (será la categoría en Aules).');
@@ -3936,9 +3956,13 @@ function auRevisaBanco(b){
   b.preguntas.forEach((q, i) => { const d = 'Pregunta ' + (i + 1);
     if (!q.enunciado.trim()) err.push(d + ': falta el enunciado.');
     if (q.tipo === 'opcion'){ const ops = q.opciones.filter(o => o.t.trim());
-      if (ops.length < 2) err.push(d + ': hacen falta al menos dos opciones.'); if (ops.filter(o => o.ok).length !== 1) err.push(d + ': marca cuál es la correcta (una).');
+      if (ops.length < 2) err.push(d + ': hacen falta al menos dos opciones.');
+      if (q.varias ? (!ops.some(o => o.ok) || ops.every(o => o.ok)) : ops.filter(o => o.ok).length !== 1) err.push(d + (q.varias ? ': marca las correctas (alguna, pero no todas).' : ': marca cuál es la correcta (una).'));
       if (new Set(ops.map(o => llano(o.t.trim()))).size !== ops.length) err.push(d + ': hay dos opciones iguales.'); }
     if (q.tipo === 'numerica'){ if (auNum(q.respuesta) == null) err.push(d + ': la respuesta tiene que ser un número (12, −3, 0,75).'); if (auNum(q.tolerancia || '0') == null || auNum(q.tolerancia || '0') < 0) err.push(d + ': el margen tiene que ser un número (0 = exacto).'); }
+    if (q.tipo === 'empareja'){ const ps = q.pares.filter(x => x.a.trim() || x.b.trim()); if (ps.length < 3) err.push(d + ': hacen falta al menos tres parejas.'); if (ps.some(x => !x.a.trim() || !x.b.trim())) err.push(d + ': hay una pareja a medias.'); }
+    if (q.tipo === 'ordena' && auLineas(q.elementos).length < 3) err.push(d + ': hacen falta al menos tres cosas que ordenar, una por renglón.');
+    if (q.tipo === 'huecos' && !auHuecos(q.enunciado).huecos.length) err.push(d + ': no hay ningún hueco. Se escriben así: 3/4 = [[6]]/8');
     if (q.tipo === 'corta'){ if (!q.respuesta.split(';').some(x => x.trim())) err.push(d + ': falta la respuesta (varias válidas, separadas por «;»).'); } });
   return err;
 }
@@ -3947,24 +3971,33 @@ function auXmlBanco(b){
   const cd = h => '<![CDATA[' + String(h).replace(/\]\]>/g, ']]]]><![CDATA[>') + ']]>', x = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = t => `<text>${cd(auHtml(t))}</text>`, resp = (frac, t, mas = '') => `    <answer fraction="${frac}" format="moodle_auto_format">\n      <text>${x(t)}</text>\n      <feedback format="html"><text></text></feedback>${mas}\n    </answer>\n`;
   let o = `<?xml version="1.0" encoding="UTF-8"?>\n<quiz>\n  <question type="category">\n    <category><text>$course$/top/${x(b.nombre.trim().replace(/\//g, '-'))}</text></category>\n    <info format="html"><text></text></info>\n  </question>\n`;
-  b.preguntas.forEach((q, i) => { const tipo = {opcion: 'multichoice', vf: 'truefalse', numerica: 'numerical', corta: 'shortanswer'}[q.tipo];
-    o += `  <question type="${tipo}">\n    <name><text>${x(String(i + 1).padStart(2, '0') + ' · ' + auLlanoTexto(q.enunciado).slice(0, 50))}</text></name>\n    <questiontext format="html">${html(q.enunciado)}</questiontext>\n    <generalfeedback format="html">${html(q.retro || '')}</generalfeedback>\n    <defaultgrade>1</defaultgrade>\n    <penalty>${q.tipo === 'vf' ? 1 : '0.3333333'}</penalty>\n    <hidden>0</hidden>\n`;
-    if (q.tipo === 'opcion'){ o += '    <single>true</single>\n    <shuffleanswers>true</shuffleanswers>\n    <answernumbering>abc</answernumbering>\n';
-      for (const op of q.opciones.filter(z => z.t.trim())) o += `    <answer fraction="${op.ok ? 100 : 0}" format="html">\n      ${html(op.t)}\n      <feedback format="html"><text></text></feedback>\n    </answer>\n`; }
+  const FBX = '    <correctfeedback format="html"><text>Respuesta correcta.</text></correctfeedback>\n    <partiallycorrectfeedback format="html"><text>Respuesta parcialmente correcta.</text></partiallycorrectfeedback>\n    <incorrectfeedback format="html"><text>Respuesta incorrecta.</text></incorrectfeedback>\n    <shownumcorrect/>\n';
+  b.preguntas.forEach((q, i) => { const tipo = {opcion: 'multichoice', vf: 'truefalse', numerica: 'numerical', corta: 'shortanswer', empareja: 'matching', ordena: 'ordering', huecos: 'cloze'}[q.tipo];
+    const enun = q.tipo === 'huecos' ? (h => h.huecos.reduce((t, k, j) => t.replace('{#' + (j + 1) + '}', k.token), h.texto))(auHuecos(q.enunciado)) : q.enunciado;
+    o += `  <question type="${tipo}">\n    <name><text>${x(String(i + 1).padStart(2, '0') + ' · ' + auLlanoTexto(q.enunciado).slice(0, 50))}</text></name>\n    <questiontext format="html">${html(enun)}</questiontext>\n    <generalfeedback format="html">${html(q.retro || '')}</generalfeedback>\n    <defaultgrade>1</defaultgrade>\n    <penalty>${q.tipo === 'vf' ? 1 : '0.3333333'}</penalty>\n    <hidden>0</hidden>\n`;
+    if (q.tipo === 'opcion'){ const ops = q.opciones.filter(z => z.t.trim()), bu = ops.filter(z => z.ok).length, fr = op => bu === 1 ? (op.ok ? 100 : 0) : op.ok ? +(100 / bu).toFixed(5) : -(100 / (ops.length - bu)).toFixed(5);
+      o += '    <single>' + (bu === 1) + '</single>\n    <shuffleanswers>true</shuffleanswers>\n    <answernumbering>abc</answernumbering>\n';
+      for (const op of ops) o += `    <answer fraction="${fr(op)}" format="html">\n      ${html(op.t)}\n      <feedback format="html"><text></text></feedback>\n    </answer>\n`; }
+    if (q.tipo === 'empareja') o += '    <shuffleanswers>true</shuffleanswers>\n' + FBX + q.pares.filter(z => z.a.trim() && z.b.trim()).map(z => `    <subquestion format="html">\n      ${html(z.a)}\n      <answer><text>${x(z.b.trim())}</text></answer>\n    </subquestion>\n`).join('');
+    if (q.tipo === 'ordena'){ const ls = auLineas(q.elementos); o += `    <layouttype>${ls.every(l => l.length <= 8) ? 'HORIZONTAL' : 'VERTICAL'}</layouttype>\n    <selecttype>ALL</selecttype>\n    <selectcount>0</selectcount>\n    <gradingtype>ABSOLUTE_POSITION</gradingtype>\n    <showgrading>SHOW</showgrading>\n    <numberingstyle>none</numberingstyle>\n` + FBX + ls.map((l, j) => `    <answer fraction="${j + 1}" format="html">\n      ${html(l)}\n    </answer>\n`).join(''); }
     if (q.tipo === 'vf') o += resp(q.respuesta === 'falso' ? 0 : 100, 'true') + resp(q.respuesta === 'falso' ? 100 : 0, 'false');
     if (q.tipo === 'numerica') o += resp(100, auNum(q.respuesta), '\n      <tolerance>' + (auNum(q.tolerancia || '0') || 0) + '</tolerance>') + '    <unitgradingtype>0</unitgradingtype>\n    <unitpenalty>0.1</unitpenalty>\n    <showunits>3</showunits>\n    <unitsleft>0</unitsleft>\n';
     if (q.tipo === 'corta') o += '    <usecase>0</usecase>\n' + q.respuesta.split(';').map(z => z.trim()).filter(Boolean).map(z => resp(100, z)).join('');
     o += '  </question>\n'; });
   return o + '</quiz>\n';
 }
-const ESQ_PREG = obj({preguntas: lista(obj({tipo: {type: 'string', enum: Object.keys(AU_PREG)}, enunciado: S, opciones: lista(S), correcta: S, tolerancia: S, retro: S})), notas: S});
+const ESQ_PREG = obj({preguntas: lista(obj({tipo: {type: 'string', enum: Object.keys(AU_PREG)}, enunciado: S, opciones: lista(S), correcta: S, tolerancia: S, pares: lista(obj({a: S, b: S})), elementos: lista(S), retro: S})), notas: S});
 const SYS_PREG = `Escribes preguntas de práctica para un cuestionario de Moodle (Aules) de un profesor de matemáticas de ESO (Comunitat Valenciana). Se corrigen solas y el alumnado las hace en casa para practicar: no es un examen. Te da el tema o el texto de una ficha suya (sacado del PDF: se pierden dibujos y formato), cuántas quiere y de qué tipo.
-Tipos: «opcion» (4 opciones en «opciones»; «correcta» es el NÚMERO de la buena: 1, 2, 3 o 4; las otras tres, los errores típicos de verdad, no disparates), «vf» («correcta»: verdadero o falso), «numerica» («correcta»: el número, con punto decimal; «tolerancia»: el margen, casi siempre 0) y «corta» («correcta»: las respuestas válidas separadas por «;», cortas y sin ambigüedad).
-Cómo: el mismo nivel y la misma idea que la ficha o el tema, con números distintos; enunciados cortos, en castellano y de tú; una sola respuesta correcta sin discusión, comprobada haciendo la cuenta; nada que dependa de un dibujo. Las fórmulas, en TeX entre \\( y \\): \\( \\frac{3}{4} \\), \\( 2^{5} \\), \\( -3 \\cdot (-4) \\). En «numerica», di en el enunciado cómo se escribe la respuesta si puede haber duda. «retro»: una frase que explique el porqué de la buena (se enseña después de responder). En «opcion», «tolerancia» vacía; en las demás, «opciones» vacía. Nada de un alumno concreto. «notas»: algo que el profesor deba saber (una pregunta dudosa, algo de la ficha que no se podía preguntar); si no, cadena vacía.`;
+Tipos: «opcion» (4 opciones en «opciones»; «correcta» es el NÚMERO de la buena: 1, 2, 3 o 4; las otras tres, los errores típicos de verdad, no disparates), «vf» («correcta»: verdadero o falso), «numerica» («correcta»: el número, con punto decimal; «tolerancia»: el margen, casi siempre 0) «corta» («correcta»: las respuestas válidas separadas por «;», cortas y sin ambigüedad), «empareja» (en «pares», de 3 a 6 parejas: «a» lo que se ve y «b» lo que se elige en un desplegable, en texto sencillo sin TeX: una fracción con su decimal, una operación con su resultado), «ordena» (en «elementos», de 4 a 6 cosas YA EN EL ORDEN CORRECTO, de menor a mayor o los pasos de un procedimiento; el enunciado dice el criterio) y «huecos» (el enunciado lleva cada hueco entre dobles corchetes con su respuesta: «3/4 = [[6]]/8 = [[9]]/12»; un número es un hueco numérico, un texto es de respuesta corta y varias válidas van con «|»; los huecos, FUERA de las fórmulas TeX). En «opcion», si hay varias correctas («marca todos los múltiplos de 3»), «correcta» lleva sus números separados por comas: «1,3».
+Cómo: el mismo nivel y la misma idea que la ficha o el tema, con números distintos; enunciados cortos, en castellano y de tú; una sola respuesta correcta sin discusión, comprobada haciendo la cuenta; nada que dependa de un dibujo. Las fórmulas, en TeX entre \\( y \\): \\( \\frac{3}{4} \\), \\( 2^{5} \\), \\( -3 \\cdot (-4) \\). En «numerica», di en el enunciado cómo se escribe la respuesta si puede haber duda. «retro»: una frase que explique el porqué de la buena (se enseña después de responder). Lo que no sea del tipo va vacío («opciones», «pares», «elementos», «tolerancia», «correcta»). Nada de un alumno concreto. «notas»: algo que el profesor deba saber (una pregunta dudosa, algo de la ficha que no se podía preguntar); si no, cadena vacía.`;
 function auPregDeIA(o){
   const out = [];
   for (const x of o.preguntas || []){ if (!AU_PREG[x.tipo] || !String(x.enunciado || '').trim()) continue; const q = auPregunta(x.tipo); q.enunciado = String(x.enunciado).trim(); q.retro = String(x.retro || '').trim(); q.sinRevisar = true;
-    if (x.tipo === 'opcion'){ const ops = (x.opciones || []).map(t => String(t).trim()).filter(Boolean), k = parseInt(x.correcta, 10) - 1; if (ops.length < 2 || !(k >= 0 && k < ops.length)) continue; q.opciones = ops.map((t, i) => ({t, ok: i === k})); }
+    if (x.tipo === 'opcion'){ const ops = (x.opciones || []).map(t => String(t).trim()).filter(Boolean), ks = [...new Set(String(x.correcta || '').split(/[,;\s]+/).map(n => parseInt(n, 10) - 1).filter(k => k >= 0 && k < ops.length))];
+      if (ops.length < 2 || !ks.length || ks.length === ops.length) continue; q.opciones = ops.map((t, i) => ({t, ok: ks.includes(i)})); q.varias = ks.length > 1; }
+    if (x.tipo === 'empareja'){ q.pares = (x.pares || []).map(z => ({a: String(z.a || '').trim(), b: String(z.b || '').trim()})).filter(z => z.a && z.b); if (q.pares.length < 3) continue; }
+    if (x.tipo === 'ordena'){ const ls = (x.elementos || []).map(t => String(t).replace(/\n/g, ' ').trim()).filter(Boolean); if (ls.length < 3) continue; q.elementos = ls.join('\n'); }
+    if (x.tipo === 'huecos' && !auHuecos(q.enunciado).huecos.length) continue;
     if (x.tipo === 'vf') q.respuesta = /^f/i.test(String(x.correcta).trim()) ? 'falso' : 'verdadero';
     if (x.tipo === 'numerica'){ if (auNum(x.correcta) == null) continue; q.respuesta = String(x.correcta).trim().replace('.', ','); q.tolerancia = auNum(x.tolerancia) == null ? '0' : String(x.tolerancia).trim().replace('.', ','); }
     if (x.tipo === 'corta'){ q.respuesta = String(x.correcta || '').trim(); if (!q.respuesta) continue; }
@@ -3976,7 +4009,10 @@ function pintaBanco(C){
   if (!b){ B.banco = null; return pintaBloquesLista(C); }
   const ab = B.abierta, ficha = B.fichaIA && DOCS.find(d => d.id === B.fichaIA);
   const cuerpo = q => `<textarea data-q="${q.id}" data-k="enunciado" rows="3" placeholder="El enunciado. Fórmulas entre \\( y \\): \\( \\frac{3}{4} \\)" style="width:100%;margin-top:6px">${esc(q.enunciado)}</textarea>`
-    + (q.tipo === 'opcion' ? q.opciones.map((o, i) => `<div class="fila" style="flex-wrap:nowrap;margin-top:6px"><input type="radio" name="ok${q.id}" data-ok="${q.id}" value="${i}"${o.ok ? ' checked' : ''} aria-label="Es la correcta"><input type="text" data-op="${q.id}" data-i="${i}" value="${esc(o.t)}" placeholder="Opción ${i + 1}${o.ok ? ' (la correcta)' : ''}" style="flex:1"><button class="pz-b" data-opq="${q.id}" data-i="${i}" aria-label="Quitar la opción">✕</button></div>`).join('') + `<div class="fila" style="margin-top:6px"><button class="btn peq" data-opmas="${q.id}">+ Opción</button><span class="nota">El punto marca la correcta; al alumno le salen barajadas.</span></div>` :
+    + (q.tipo === 'huecos' ? '<p class="nota">Cada hueco, entre dobles corchetes con su respuesta: <b>3/4 = [[6]]/8</b>. Un número es un hueco numérico (con margen: [[3,14±0,01]]); un texto, respuesta corta; varias válidas, con «|»: [[tres cuartos|3 cuartos]]. Los huecos, fuera de las fórmulas.</p>' :
+      q.tipo === 'empareja' ? q.pares.map((z, i) => `<div class="fila" style="flex-wrap:nowrap;margin-top:6px"><input type="text" data-par="${q.id}" data-i="${i}" data-l="a" value="${esc(z.a)}" placeholder="Esto (\\( \\frac{1}{2} \\))" style="flex:1"><span>→</span><input type="text" data-par="${q.id}" data-i="${i}" data-l="b" value="${esc(z.b)}" placeholder="con esto (0,5)" style="flex:1"><button class="pz-b" data-parq="${q.id}" data-i="${i}" aria-label="Quitar la pareja">✕</button></div>`).join('') + `<div class="fila" style="margin-top:6px"><button class="btn peq" data-parmas="${q.id}">+ Pareja</button><span class="nota">La derecha sale en un desplegable: texto sencillo, sin fórmulas.</span></div>` :
+      q.tipo === 'ordena' ? `<textarea data-q="${q.id}" data-k="elementos" rows="5" placeholder="Una cosa por renglón, EN EL ORDEN CORRECTO (al alumno le salen barajadas):\n-3\n0\n2\n5" style="width:100%;margin-top:6px">${esc(q.elementos || '')}</textarea>` :
+      q.tipo === 'opcion' ? `<label class="au-marca"><input type="checkbox" data-q="${q.id}" data-k="varias"${q.varias ? ' checked' : ''}> Varias correctas (el alumno marca todas las que valen)</label>` + q.opciones.map((o, i) => `<div class="fila" style="flex-wrap:nowrap;margin-top:6px"><input type="${q.varias ? 'checkbox' : 'radio'}" name="ok${q.id}" data-ok="${q.id}" value="${i}"${o.ok ? ' checked' : ''} aria-label="Es la correcta"><input type="text" data-op="${q.id}" data-i="${i}" value="${esc(o.t)}" placeholder="Opción ${i + 1}${o.ok ? ' (la correcta)' : ''}" style="flex:1"><button class="pz-b" data-opq="${q.id}" data-i="${i}" aria-label="Quitar la opción">✕</button></div>`).join('') + `<div class="fila" style="margin-top:6px"><button class="btn peq" data-opmas="${q.id}">+ Opción</button><span class="nota">Marca la correcta; al alumno le salen barajadas.</span></div>` :
       q.tipo === 'vf' ? `<div class="fila nota" style="margin-top:6px">Es <select data-q="${q.id}" data-k="respuesta"><option value="verdadero"${q.respuesta !== 'falso' ? ' selected' : ''}>verdadero</option><option value="falso"${q.respuesta === 'falso' ? ' selected' : ''}>falso</option></select></div>` :
       q.tipo === 'numerica' ? `<div class="fila nota" style="margin-top:6px">Respuesta <input type="text" data-q="${q.id}" data-k="respuesta" value="${esc(q.respuesta)}" inputmode="decimal" style="width:110px"> margen ± <input type="text" data-q="${q.id}" data-k="tolerancia" value="${esc(q.tolerancia || '0')}" inputmode="decimal" style="width:70px"></div>` :
       `<input type="text" data-q="${q.id}" data-k="respuesta" value="${esc(q.respuesta)}" placeholder="Respuestas válidas, separadas por ;  (3/4; 0,75)" style="width:100%;margin-top:6px">`)
@@ -3995,7 +4031,7 @@ function pintaBanco(C){
         <button class="pz-b" data-quitaq="${q.id}" aria-label="Quitar">✕</button></div>${ab === q.id ? '<div class="pz-cuerpo">' + cuerpo(q) + '</div>' : ''}</div>`).join('') || '<p class="nota">Aún no hay preguntas.</p>'}</div>
     <div class="fila" style="margin-top:8px">${Object.entries(AU_PREG).map(([k, t]) => `<button class="btn peq" data-masq="${k}">+ ${t}</button>`).join('')}</div>
     ${B.errores ? `<div class="caja" id="blErr" style="border-color:var(--mal)"><h2 style="color:var(--mal)">No se genera todavía</h2><ul class="pasos nota">${B.errores.map(e => '<li>' + esc(e) + '</li>').join('')}</ul></div>` : ''}
-    ${B.hecho ? `<div class="caja" id="blHecho" style="border-color:var(--ok)"><h2>Listo: ${esc(B.hecho.archivo)}</h2><p class="nota" style="margin-top:0">Guardado en <b>${esc(B.hecho.donde)}</b> · ${b.preguntas.length} preguntas.</p>
+    ${B.hecho ? `<div class="caja" id="blHecho" style="border-color:var(--ok)"><h2>Listo: ${esc(B.hecho.archivo)}</h2><p class="nota" style="margin-top:0">Guardado en <b>${esc(B.hecho.donde)}</b> · ${b.preguntas.length} preguntas.</p><p class="nota">${dondeMovil(B.hecho.donde)}</p>
       <ol class="pasos nota"><li>En Aules, en el curso: <b>Més → Bancs de preguntes</b> (o Banc de preguntes) → <b>Importa</b>.</li><li>Format del fitxer: «<b>Format XML de Moodle</b>». Sube el archivo y pulsa <b>Importa</b>.</li>
         <li>Entran en la categoría «<b>${esc(b.nombre)}</b>». Mira un par en «Previsualitza»: que las fórmulas se vean bien y que la correcta sea la correcta.</li><li>Para usarlas: añade un <b>Qüestionari</b> al tema (oculto la primera vez) y, en «Preguntes», «del banc de preguntes».</li></ol>
       <div class="fila"><button class="btn peq" id="blEnvia">Compartir el archivo (OneDrive, al ordenador…)</button></div></div>` : ''}
@@ -4004,9 +4040,13 @@ function pintaBanco(C){
   const res = q => { const r = C.querySelector('[data-pq="' + q.id + '"] [data-res]'); if (r) r.textContent = (auLlanoTexto(q.enunciado).slice(0, 60) || 'sin enunciado') + ' → ' + auLlanoTexto(auRespuesta(q)).slice(0, 30); };
   $('#bqVolver').onclick = () => { B.banco = null; B.abierta = null; B.notasIA = null; B.fichaIA = null; limpia(); re(); };
   $('#bqNombre').onchange = e => { b.nombre = e.target.value; limpia(); guardaAU(); };
-  C.querySelectorAll('[data-q]').forEach(x => x.onchange = () => { const q = q_(x.dataset.q); q[x.dataset.k] = x.value; limpia(); guardaAU(); res(q); });
+  C.querySelectorAll('[data-q]').forEach(x => x.onchange = () => { const q = q_(x.dataset.q); if (x.type === 'checkbox'){ q[x.dataset.k] = x.checked; if (x.dataset.k === 'varias' && !x.checked){ let ya = false; q.opciones.forEach(o => { o.ok = o.ok && !ya; ya = ya || o.ok; }); if (!ya) q.opciones[0].ok = true; } limpia(); guardaAU(); return re(); }
+    q[x.dataset.k] = x.value; limpia(); guardaAU(); res(q); });
+  C.querySelectorAll('[data-par]').forEach(x => x.onchange = () => { const q = q_(x.dataset.par); q.pares[+x.dataset.i][x.dataset.l] = x.value; limpia(); guardaAU(); res(q); });
+  C.querySelectorAll('[data-parq]').forEach(x => x.onclick = () => { const q = q_(x.dataset.parq); if (q.pares.length <= 3) return aviso('Al menos tres parejas'); q.pares.splice(+x.dataset.i, 1); limpia(); guardaAU(); re(); });
+  C.querySelectorAll('[data-parmas]').forEach(x => x.onclick = () => { q_(x.dataset.parmas).pares.push({a: '', b: ''}); guardaAU(); re(); });
   C.querySelectorAll('[data-op]').forEach(x => x.onchange = () => { const q = q_(x.dataset.op); q.opciones[+x.dataset.i].t = x.value; limpia(); guardaAU(); res(q); });
-  C.querySelectorAll('[data-ok]').forEach(x => x.onchange = () => { const q = q_(x.dataset.ok); q.opciones.forEach((o, i) => o.ok = i === +x.value); limpia(); guardaAU(); res(q); });
+  C.querySelectorAll('[data-ok]').forEach(x => x.onchange = () => { const q = q_(x.dataset.ok); if (q.varias) q.opciones[+x.value].ok = x.checked; else q.opciones.forEach((o, i) => o.ok = i === +x.value); limpia(); guardaAU(); res(q); });
   C.querySelectorAll('[data-opq]').forEach(x => x.onclick = () => { const q = q_(x.dataset.opq); if (q.opciones.length <= 2) return aviso('Al menos dos opciones'); const era = q.opciones[+x.dataset.i].ok; q.opciones.splice(+x.dataset.i, 1); if (era) q.opciones[0].ok = true; limpia(); guardaAU(); re(); });
   C.querySelectorAll('[data-opmas]').forEach(x => x.onclick = () => { q_(x.dataset.opmas).opciones.push({t: '', ok: false}); guardaAU(); re(); });
   C.querySelectorAll('[data-abreq]').forEach(x => x.onclick = () => { B.abierta = B.abierta === x.dataset.abreq ? null : x.dataset.abreq; const q = q_(x.dataset.abreq); if (q.sinRevisar){ delete q.sinRevisar; guardaAU(); } re(); });
@@ -4027,7 +4067,7 @@ function pintaBanco(C){
   $('#bqGenera').onclick = async () => { limpia(); const err = auRevisaBanco(b); if (err.length){ B.errores = err; return re(); }
     const sr = b.preguntas.filter(q => q.sinRevisar).length; if (sr && !confirm((sr === 1 ? 'Hay una pregunta de la IA' : 'Hay ' + sr + ' preguntas de la IA') + ' sin abrir. ¿Generar igualmente?')) return;
     const f = new File([auXmlBanco(b)], 'aules-banco-' + auSlug(b.nombre) + '.xml', {type: 'text/xml'}), g = await guardaMovil([f], 'Aules');
-    if (g){ b.generado = Date.now(); await guardaAU(); B.hecho = {donde: g.donde, archivo: g.nombres[0], f}; } re(); };
+    if (g){ b.generado = Date.now(); b.archivo = g.nombres[0]; await guardaAU(); B.hecho = {donde: g.donde, archivo: g.nombres[0], f}; } re(); };
   if ($('#blEnvia')) $('#blEnvia').onclick = () => { const f = B.hecho.f; if (nativa()) sacaNativo([f], {titulo: f.name}); else descarga(f, f.name); };
   if (B.errores && $('#blErr')) $('#blErr').scrollIntoView({block: 'center'}); else if (B.hecho && $('#blHecho')) $('#blHecho').scrollIntoView({block: 'start'});
 }
