@@ -228,7 +228,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <div style="text-align:center;flex:1"><b id="hoyFecha" style="font-size:18px"></b><div class="nota" id="hoySub" style="margin:0"></div></div>
       <button class="btn peq" id="hoyDespues" aria-label="Día siguiente">›</button>
     </div>
-    <div class="fila" style="margin-top:10px"><button class="btn peq" id="hoyVolver" hidden>Volver a hoy</button><button class="btn peq" id="hoySemana">Ver la semana</button><button class="btn peq" id="hoyComparte">Compartir todo lo de hoy</button><button class="btn peq" id="hoyIa" hidden>¿Qué toca hoy? (IA)</button></div>
+    <div class="fila" style="margin-top:10px"><button class="btn peq" id="hoyVolver" hidden>Volver a hoy</button><button class="btn peq" id="hoySemana">Ver la semana</button><button class="btn peq" id="hoyComparte">Compartir todo lo de hoy</button><button class="btn peq" id="hoyGuarda" hidden>Guardar en el móvil lo de hoy</button><button class="btn peq" id="hoyIa" hidden>¿Qué toca hoy? (IA)</button></div>
     <div id="hoyCopia"></div>
     <div id="hoyLista"></div>
   </section>
@@ -372,6 +372,8 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
         </ol>
       </details>
       <p class="nota">Los datos de la app de Android son solo suyos (biblioteca, notas, token): no van a la copia de Google. Los de la web, aparte.</p>
+      <p class="nota"><b>Guardar en el móvil</b> (en cada documento y en Hoy) deja una copia en la carpeta <b>Documentos/Utilidades</b>, donde la encuentran MyOrbys y el navegador. Esa carpeta la pueden leer otras apps: vacíala cuando acabes.</p>
+      <div class="fila"><button class="btn peq peligro" id="bVaciaMovil">Vaciar Documentos/Utilidades</button></div>
     </div>
     <div class="caja">
       <h2>Espacio</h2>
@@ -404,6 +406,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
     <h2 id="hojaNombre"></h2><p class="nota" id="hojaMeta" style="margin:0 0 6px"></p>
     <button class="acc" data-a="ver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Ver</button>
     <button class="acc" data-a="compartir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Compartir (Bluetooth, Nearby, correo…)</button>
+    <button class="acc" data-a="guardar" id="hojaGuardar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h7V3M8 21v-7h8v7"/></svg>Guardar en el móvil (para imprimir)</button>
     <button class="acc" data-a="hoy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg><span id="hojaHoy">Para hoy</span></button>
     <button class="acc" data-a="herr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>Tapar, reducir, páginas…</button>
     <button class="acc" data-a="variantes" id="hojaVar" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>Variantes de los ejercicios (IA)</button>
@@ -474,7 +477,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.16.2';
+const VERSION = '1.17';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -534,6 +537,38 @@ async function sacaNativo(files, {abrir = false, titulo = ''} = {}){
     await capP('Share').share({title: titulo || files[0].name, files: uris, dialogTitle: files.length === 1 ? 'Enviar «' + files[0].name + '»' : 'Enviar ' + files.length + ' archivos'});
     return true;
   } catch (e) { if (!/cancel/i.test((e && e.message) || '')) aviso('No se ha podido compartir: ' + ((e && e.message) || e), 4000); return false; }
+}
+/* 1.17 · GUARDAR EN EL MÓVIL (pendiente 8). Hay apps que no reciben archivos por «compartir»
+   (MyOrbys, la de las impresoras del centro: busca el archivo en el móvil), y los archivos
+   para Aules se suben desde el navegador. En la APK se escriben en una carpeta visible:
+   Documentos/Utilidades (y subcarpetas: «Aules»). Desde Android 11 una app puede crear
+   archivos ahí sin pedir permiso; lo que no puede es pisar uno que no creó ella (p. ej. tras
+   reinstalar): entonces se guarda con la hora en el nombre. En la web, la descarga de siempre.
+   Devuelve {n, donde, nombres} o null si no se ha podido. Ojo: esa carpeta la leen otras
+   apps; lo de «Mis archivos» y «Capturas» puede llevar letra de alumnos: se vacía en Ajustes. */
+const CARPETA_MOVIL = 'Utilidades';
+async function guardaMovil(files, sub = ''){
+  if (!files.length){ aviso('No hay nada que guardar'); return null; }
+  if (!nativa()){ for (const f of files) descarga(f, f.name); const r = {n: files.length, donde: 'Descargas', nombres: files.map(f => f.name)}; aviso((r.n === 1 ? 'Descargado «' + r.nombres[0] + '»' : r.n + ' archivos descargados') + ': en Descargas', 5000); return r; }
+  const dir = CARPETA_MOVIL + (sub ? '/' + nombreSeguro(sub) : ''), nombres = [];
+  try {
+    for (const f of files){
+      const data = await aBase64(f); let nombre = nombreSeguro(f.name);
+      try { await capP('Filesystem').writeFile({path: dir + '/' + nombre, data, directory: 'DOCUMENTS', recursive: true}); }
+      catch (e) { const h = new Date(), sello = ' ' + String(h.getHours()).padStart(2, '0') + String(h.getMinutes()).padStart(2, '0') + String(h.getSeconds()).padStart(2, '0');
+        nombre = /\.[a-z0-9]{1,5}$/i.test(nombre) ? nombre.replace(/(\.[a-z0-9]{1,5})$/i, sello + '$1') : nombre + sello;
+        await capP('Filesystem').writeFile({path: dir + '/' + nombre, data, directory: 'DOCUMENTS', recursive: true}); }
+      nombres.push(nombre); }
+  } catch (e) { aviso('No se ha podido guardar en Documentos: ' + ((e && e.message) || e) + '. Prueba con «Compartir».', 6000); return null; }
+  const r = {n: nombres.length, donde: 'Documentos/' + dir, nombres};
+  aviso((r.n === 1 ? 'Guardado «' + nombres[0] + '»' : r.n + ' archivos guardados') + ' en ' + r.donde, 7000);
+  return r;
+}
+const fichero = d => new File([d.blob], nombreArch(d), {type: tipoArch(d)});
+async function vaciaMovil(){
+  if (!confirm('¿Borrar todo lo que Utilidades ha guardado en Documentos/' + CARPETA_MOVIL + ' (también lo de Aules)? Lo de la biblioteca no se toca.')) return;
+  try { await capP('Filesystem').rmdir({path: CARPETA_MOVIL, directory: 'DOCUMENTS', recursive: true}); aviso('Carpeta Documentos/' + CARPETA_MOVIL + ' vacía'); }
+  catch (e) { aviso(/exist|not found|no such/i.test((e && e.message) || '') ? 'No había nada guardado' : 'No se ha podido vaciar: ' + ((e && e.message) || e), 5000); }
 }
 /* un archivo del móvil (ruta o file://) como Blob: por el servidor local del WebView, sin
    pasar por base64; si no se puede, con Filesystem */
@@ -682,6 +717,7 @@ function iniciaNativa(){
   $('#bResBaja').textContent = 'Abrir con…'; $('#bCopiaNotas').hidden = true; $('#ajPasar').hidden = true; $('#ajAndroid').hidden = false;
   $('#bMlkit').hidden = false; $('#bFoto').classList.remove('acento');
   $('#bMlkit').onclick = escanerAndroid;
+  $('#hojaGuardar').hidden = false; $('#hoyGuarda').hidden = false; $('#bVaciaMovil').onclick = vaciaMovil;
   capP('Filesystem').rmdir({path: 'salida', directory: 'CACHE', recursive: true}).catch(() => {});
   const app = capP('App');
   app.addListener('backButton', () => { if (pila.length) return history.back(); if ($('#v-hoy').hidden) return ve('hoy'); app.minimizeApp(); });
@@ -809,6 +845,7 @@ $('#hoja').addEventListener('click', async e => {
   if (a === 'ver'){ cambiaCapa('visor'); verDoc(d); }
   else if (a === 'compartir'){ cierraCapa(); comparte(d); }
   else if (a === 'descargar'){ cierraCapa(); descarga(d.blob, nombreArch(d)); }
+  else if (a === 'guardar'){ cierraCapa(); guardaMovil([fichero(d)]); }
   else if (a === 'variantes') variantesIA(d, true);
   else if (a === 'hoy'){ d.hoy = !d.hoy; await guardaDB('docs', d); cierraCapa(); pintaLista(); aviso(d.hoy ? 'En «para hoy»' : 'Quitado de «para hoy»'); }
   else if (a === 'herr'){ cierraCapa(); ve('herr'); herrDoc = d; aviso('Elige qué hacer con «' + d.nombre + '»'); }
@@ -1763,6 +1800,7 @@ $('#hoyDespues').onclick = () => { DIA = suma(DIA || hoyISO(), SEMANA ? 7 : 1); 
 $('#hoyVolver').onclick = () => { DIA = hoyISO(); pintaHoy(); };
 $('#hoySemana').onclick = () => { SEMANA = !SEMANA; pintaHoy(); };
 $('#hoyComparte').onclick = () => comparteVarios(docsDelDia(DIA || hoyISO()));
+$('#hoyGuarda').onclick = () => guardaMovil(docsDelDia(DIA || hoyISO()).map(fichero));
 $('#hoyLista').addEventListener('click', e => { const b = e.target.closest('.doc[data-id]'); if (b) abreHoja(b.dataset.id); });
 
 /* ── NOTAS: corregir con la rúbrica y la nota de la evaluación ──
