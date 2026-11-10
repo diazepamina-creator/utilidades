@@ -497,7 +497,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.21';
+const VERSION = '1.22';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -3600,13 +3600,15 @@ function auConAlumno(t){
 /* lo que impide generar (err) y lo que hay que confirmar (avisos) */
 function auRevisa(pl){
   const err = [], avisos = [];
-  if (!pl.titulo.trim()) err.push('Falta el título de la sección.');
-  if (!Number.isInteger(+pl.seccion) || +pl.seccion < 1) err.push('El número de sección tiene que ser 1 o más: una sección nueva, detrás de las que ya tiene el curso.');
+  if (!pl.existente && !pl.titulo.trim()) err.push('Falta el título de la sección.');
+  if (pl.existente ? !(Number.isInteger(+pl.seccion) && +pl.seccion >= 0) : false) err.push('Di a qué sección se añade: su número (0 = la de arriba del todo, «Empieza aquí»; 1 = el primer tema…).');
+  if (pl.existente && !pl.piezas.length) err.push('No hay ninguna pieza que añadir.');
+  if (!pl.existente && (!Number.isInteger(+pl.seccion) || +pl.seccion < 1)) err.push('El número de sección tiene que ser 1 o más: una sección nueva, detrás de las que ya tiene el curso.');
   if (!pl.piezas.length && !pl.cabecera) err.push('El bloque está vacío: añade alguna pieza.');
   /* un nombre o un número de lista en un texto NO bloquea (1.19, decisión de Andrés): es su Aules y lo podría escribir allí
      a mano; el archivo sigue sin llevar el listado ni nada de los matriculados. Solo se avisa, porque lo ve todo el grupo. */
   const mira = (donde, t) => { const q = auConAlumno(t || ''); if (q) avisos.push(donde + ' lleva ' + q + ': en Aules lo verá todo el grupo.'); };
-  mira('El título', pl.titulo); mira('La línea de qué entra', pl.resumen);
+  if (!pl.existente){ mira('El título', pl.titulo); mira('La línea de qué entra', pl.resumen); }
   pl.piezas.forEach((z, i) => { const q = 'Pieza ' + (i + 1) + ' (' + AU_TIPOS[z.tipo] + ')';
     for (const k of ['texto', 'nombre', 'descripcion', 'tema', 'que']) if (z[k]) mira(q, z[k]);
     if (z.tipo === 'texto' && !z.texto.trim()) err.push(q + ': está vacía.');
@@ -3640,8 +3642,8 @@ async function auCabecera(pl){
 /* la plantilla → lo que entiende cartucho.js */
 async function auTema(pl){
   const cur = AU.cursos[pl.grupo] || {};
-  const tema = {seccion: +pl.seccion, nombre: pl.titulo.trim(), resumen: pl.resumen.trim(), visible: !pl.oculta, inicioCurso: cur.inicio ? Cartucho.hora(cur.inicio + ' 08:00') : 0, actividades: []};
-  const cab = await auCabecera(pl); if (cab) tema.cabecera = cab;
+  const tema = {seccion: +pl.seccion, existente: !!pl.existente, nombre: pl.existente ? '' : pl.titulo.trim(), resumen: pl.existente ? '' : pl.resumen.trim(), visible: !pl.oculta, inicioCurso: cur.inicio ? Cartucho.hora(cur.inicio + ' 08:00') : 0, actividades: []};
+  const cab = pl.existente ? null : await auCabecera(pl); if (cab) tema.cabecera = cab;
   for (const z of pl.piezas){ const oculta = !!z.oculta;
     if (z.tipo === 'texto') tema.actividades.push({tipo: 'etiqueta', html: auHtml(z.texto), oculta});
     else if (z.tipo === 'examen') tema.actividades.push({tipo: 'etiqueta', html: auExamenHtml(z), oculta});
@@ -3649,16 +3651,17 @@ async function auTema(pl){
     else if (z.tipo === 'fotos') tema.actividades.push({tipo: 'fotos', nombre: z.nombre.trim(), html: auHtml(z.texto), desde: z.desde ? z.desde + ' 00:00' : '', hasta: z.hasta + ' 23:59', maxFotos: +z.maxFotos || 4, nota: +z.nota || 10, oculta});
     else if (z.tipo === 'cuestionario'){ const b = AU.bancos.find(x => x.id === z.banco);
       tema.actividades.push({tipo: 'cuestionario', nombre: (z.nombre || '').trim() || b.nombre.trim(), html: auHtml(z.texto || ''), intentos: +z.intentos || 0, nota: 10, oculta,
-        preguntas: b.preguntas.map((q, i) => { const hu = q.tipo === 'huecos' ? auHuecos(q.enunciado) : null, ls = q.tipo === 'ordena' ? auLineas(q.elementos) : null; return ({tipo: q.tipo, nombre: String(i + 1).padStart(2, '0') + ' · ' + auLlanoTexto(q.enunciado).slice(0, 50), html: auHtml(hu ? hu.texto : q.enunciado), retroHtml: auHtml(q.retro || ''),
-          huecos: hu ? hu.huecos : undefined, pares: q.tipo === 'empareja' ? q.pares.filter(z => z.a.trim() && z.b.trim()).map(z => ({html: auHtml(z.a), respuesta: z.b.trim()})) : undefined,
-          elementos: ls ? ls.map(l => auHtml(l)) : undefined, horizontal: ls ? ls.every(l => l.length <= 8) : undefined,
-          opciones: q.tipo === 'opcion' ? q.opciones.filter(o => o.t.trim()).map(o => ({html: auHtml(o.t), ok: !!o.ok})) : undefined, verdadero: q.respuesta !== 'falso',
-          respuesta: q.tipo === 'numerica' ? auNum(q.respuesta) : undefined, tolerancia: q.tipo === 'numerica' ? auNum(q.tolerancia || '0') || 0 : undefined, respuestas: q.tipo === 'corta' ? q.respuesta.split(';').map(x => x.trim()).filter(Boolean) : undefined}); })}); }
+        preguntas: auPregsCartucho(b)}); }
     else if (z.tipo === 'acta') tema.actividades.push({tipo: 'acta', nombre: auActaNombre(z), html: auHtml((z.texto || '').trim() || auActaTexto(z)), desde: z.desde ? z.desde + ' 00:00' : '', hasta: z.hasta + ' 23:59', modo: z.modo === 'archivo' ? 'archivo' : 'texto', nota: +z.nota || 10, oculta});
     else if (z.tipo === 'pdf'){ const d = DOCS.find(x => x.id === z.doc);
       tema.actividades.push({tipo: 'pdf', nombre: (z.nombre || '').trim() || bonito(d.nombre), archivo: nombreSeguro(archivo(d.path ? d.path.split('/').pop() : d.nombre)), datos: new Uint8Array(await d.blob.arrayBuffer()), descripcion: (z.descripcion || '').trim(), oculta, soluciones: z.soluciones === true}); } }
   return tema;
 }
+const auPregsCartucho = b => b.preguntas.map((q, i) => { const hu = q.tipo === 'huecos' ? auHuecos(q.enunciado) : null, ls = q.tipo === 'ordena' ? auLineas(q.elementos) : null; return ({tipo: q.tipo, nombre: String(i + 1).padStart(2, '0') + ' · ' + auLlanoTexto(q.enunciado).slice(0, 50), html: auHtml(hu ? hu.texto : q.enunciado), retroHtml: auHtml(q.retro || ''),
+          huecos: hu ? hu.huecos : undefined, pares: q.tipo === 'empareja' ? q.pares.filter(z => z.a.trim() && z.b.trim()).map(z => ({html: auHtml(z.a), respuesta: z.b.trim()})) : undefined,
+          elementos: ls ? ls.map(l => auHtml(l)) : undefined, horizontal: ls ? ls.every(l => l.length <= 8) : undefined,
+          opciones: q.tipo === 'opcion' ? q.opciones.filter(o => o.t.trim()).map(o => ({html: auHtml(o.t), ok: !!o.ok})) : undefined, verdadero: q.respuesta !== 'falso',
+          respuesta: q.tipo === 'numerica' ? auNum(q.respuesta) : undefined, tolerancia: q.tipo === 'numerica' ? auNum(q.tolerancia || '0') || 0 : undefined, respuestas: q.tipo === 'corta' ? q.respuesta.split(';').map(x => x.trim()).filter(Boolean) : undefined}); });
 const auSlug = t => llano(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48).replace(/-$/, '') || 'bloque';
 async function auGenera(pl){
   const B = H.bl; B.errores = null; B.hecho = null;
@@ -3669,7 +3672,7 @@ async function auGenera(pl){
   try {
     const tema = await auTema(pl), r = await Cartucho.creaMbz(tema, {nombre: 'aules-' + pl.grupo + '-s' + pl.seccion + '-' + auSlug(pl.titulo) + '.mbz'});
     const f = new File([r.mbz], r.nombre, {type: 'application/octet-stream'}), g = await guardaMovil([f], 'Aules');
-    if (g){ const c = AU.cursos[pl.grupo] = AU.cursos[pl.grupo] || {}; c.secciones = Math.max(c.secciones || 0, +pl.seccion);
+    if (g){ const c = AU.cursos[pl.grupo] = AU.cursos[pl.grupo] || {}; if (!pl.existente) c.secciones = Math.max(c.secciones || 0, +pl.seccion);
       pl.generado = {fecha: Date.now(), archivo: g.nombres[0], donde: g.donde}; await guardaAU();
       B.hecho = {donde: g.donde, archivo: g.nombres[0], f, kb: Math.round(r.mbz.length / 1024), actividades: r.actividades, archivos: r.archivos}; }
   } catch (e) { B.errores = e.errores || [(e && e.message) || String(e)]; }
@@ -3679,7 +3682,7 @@ async function auGenera(pl){
 function auVista(pl){
   const oc = '<span class="au-oc">Oculto para los alumnos</span>';
   const fila = (z, dentro) => `<div class="au-act${z.oculta || pl.oculta ? ' oculta' : ''}">${dentro}${z.oculta || pl.oculta ? oc : ''}</div>`;
-  return `<div class="au-vista"><h3>${esc(pl.titulo || 'Sin título')}${pl.oculta ? ' ' + oc : ''}</h3>${pl.cabecera ? '<img data-cab alt="">' : ''}${pl.resumen ? '<p>' + esc(pl.resumen) + '</p>' : ''}
+  return `<div class="au-vista">${pl.existente ? `<h3 style="color:var(--suave);font-size:15px">Se añade al final de la sección ${+pl.seccion} del curso; lo que ya tiene no se toca.</h3>` : `<h3>${esc(pl.titulo || 'Sin título')}${pl.oculta ? ' ' + oc : ''}</h3>${pl.cabecera ? '<img data-cab alt="">' : ''}${pl.resumen ? '<p>' + esc(pl.resumen) + '</p>' : ''}`}
     ${pl.piezas.map(z => z.tipo === 'texto' ? fila(z, auHtml(z.texto)) : z.tipo === 'examen' ? fila(z, auExamenHtml(z)) :
       z.tipo === 'enlace' ? fila(z, `<div class="au-rec"><span>🔗</span><b>${esc(z.nombre)}</b></div>${z.descripcion ? '<p class="au-des">' + esc(z.descripcion) + '</p>' : ''}`) :
       z.tipo === 'cuestionario' ? (b => fila(z, `<div class="au-rec"><span>❓</span><b>${esc(z.nombre || (b && b.nombre) || 'Cuestionario')}</b></div><p class="au-des">${b ? b.preguntas.length + ' preguntas' : 'sin banco'} · ${+z.intentos ? z.intentos + (+z.intentos === 1 ? ' intento' : ' intentos') : 'intentos ilimitados'} · cuenta la nota más alta, sobre 10</p>${auHtml(z.texto || '')}`))((AU.bancos || []).find(x => x.id === z.banco)) :
@@ -3730,13 +3733,14 @@ function pintaBloques(C){
     ${B.notasIA ? `<div class="caja" id="blNotasIA"><p class="nota" style="margin:0"><b>Montado por la IA: revísalo.</b> ${B.notasIA.map(esc).join(' · ')}</p></div>` : ''}
     <div class="caja"><input type="text" data-p="nombre" value="${esc(pl.nombre)}" placeholder="Nombre de la plantilla" style="width:100%;font-weight:600">
       <div class="fila" style="margin-top:8px"><span class="nota">Para</span><select data-p="grupo" data-re>${gs.concat(gs.includes(pl.grupo) ? [] : [pl.grupo]).map(g => `<option value="${g}"${g === pl.grupo ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select>
-        <span class="nota">· sección n.º</span><input type="number" data-p="seccion" value="${pl.seccion}" min="1" max="60"></div>
-      <p class="nota">Una sección <b>nueva</b>, detrás de las que ya tiene el curso (si tiene 4 temas, la 5)${cur.secciones ? '. El último bloque de ' + etqGrupo(pl.grupo) + ' fue a la ' + cur.secciones : ''}.</p>
-      <label class="au-marca"><input type="checkbox" data-p="oculta" data-re${pl.oculta ? ' checked' : ''}> Entra oculto para los alumnos (para probarlo; se muestra luego desde Aules)</label>
+        <span class="nota">· sección n.º</span><input type="number" data-p="seccion" value="${pl.seccion}" min="${pl.existente ? 0 : 1}" max="60"></div>
+      <label class="au-marca"><input type="checkbox" data-p="existente" data-re${pl.existente ? ' checked' : ''}> Añadir las piezas a una sección que <b>ya existe</b> (una tarea o un cuestionario para un tema que ya está)</label>
+      <p class="nota">${pl.existente ? 'Las piezas entran al final de esa sección (0 = «Empieza aquí», 1 = el primer tema…). Su título, su texto y lo que tiene no se tocan.' : 'Una sección <b>nueva</b>, detrás de las que ya tiene el curso (si tiene 4 temas, la 5)' + (cur.secciones ? '. El último bloque de ' + etqGrupo(pl.grupo) + ' fue a la ' + cur.secciones : '') + '.'}</p>
+      <label class="au-marca"><input type="checkbox" data-p="oculta" data-re${pl.oculta ? ' checked' : ''}> ${pl.existente ? 'Las piezas entran ocultas' : 'Entra oculto'} para los alumnos (para probarlo; se muestra luego desde Aules)</label>
       <details style="margin-top:6px"${cur.inicio ? '' : ''}><summary class="nota" style="cursor:pointer">Fecha de inicio del curso de ${etqGrupo(pl.grupo)} en Aules: ${cur.inicio ? fechaEs(cur.inicio) : 'sin poner'}</summary>
         <p class="nota">Se pide una vez por curso. Está en Aules → Paràmetres → «Data d'inici del curs». Si no coincide (por un día o más), Moodle mueve las fechas de las tareas; sin fecha, el archivo no declara ninguna y no se mueve nada.</p>
         <div class="fila"><input type="date" id="blInicio" value="${cur.inicio || ''}"><button class="btn peq" id="blInicioNo">Sin fecha</button></div></details></div>
-    <div class="caja"><h2>La sección</h2>
+    <div class="caja"${pl.existente ? ' hidden' : ''}><h2>La sección</h2>
       <input type="text" data-p="titulo" value="${esc(pl.titulo)}" placeholder="Título (Números racionales · La grapadora de Nick)" style="width:100%">
       <input type="text" data-p="resumen" value="${esc(pl.resumen)}" placeholder="Una línea: qué entra en el tema" style="width:100%;margin-top:6px">
       <div class="fila" style="margin-top:8px"><span class="nota" style="flex:1">Cabecera: ${pl.cabecera ? esc(pl.cabecera.ruta ? pl.cabecera.ruta.split('/').pop() : pl.cabecera.nombre) : 'ninguna'}</span>
@@ -3754,7 +3758,7 @@ function pintaBloques(C){
       <ol class="pasos nota"><li>En Aules, en el curso de <b>${etqGrupo(pl.grupo)}</b> (mejor en el ordenador): <b>Més → Reutilització del curs → Restaura</b> y sube el archivo.</li>
         <li><b>Destinació</b>: «<b>Fusiona</b> la còpia de seguretat amb aquest curs». Nunca «Esborra el contingut…».</li>
         <li><b>Configuració</b>: «Sobreescriu la configuració del curs», en <b>No</b>.</li>
-        <li><b>Revisa</b>: que diga Fusiona y que solo haya una sección, la nueva. Entonces, <b>Processa</b>.</li>
+        <li><b>Revisa</b>: que diga Fusiona y que solo haya una sección, la ${pl.existente ? pl.seccion + ', con las piezas nuevas' : 'nueva'}. Entonces, <b>Processa</b>.</li>
         <li>Mira que las fechas son las de aquí${pl.oculta ? ' y, si está bien, muestra la sección desde Aules (o bórrala)' : ''}.</li></ol>
       <div class="fila"><button class="btn peq" id="blEnvia">Compartir el archivo (OneDrive, al ordenador…)</button></div></div>` : ''}
     <div class="fila" style="margin-top:12px"><button class="btn" id="blVista">${B.vista ? 'Quitar la vista previa' : 'Vista previa'}</button><button class="btn prim" id="blGenera">Generar el archivo para Aules</button></div>
@@ -3932,7 +3936,11 @@ async function auMontaIA(frase, g){
 const AU_PREG = {opcion: 'Opción múltiple', vf: 'Verdadero o falso', numerica: 'Numérica', corta: 'Respuesta corta', empareja: 'Emparejar', ordena: 'Ordenar', huecos: 'Huecos'};
 const auPregunta = tipo => Object.assign({id: auId(), tipo, enunciado: '', retro: ''}, {opcion: {opciones: [{t: '', ok: true}, {t: '', ok: false}, {t: '', ok: false}, {t: '', ok: false}]}, vf: {respuesta: 'verdadero'}, numerica: {respuesta: '', tolerancia: '0'}, corta: {respuesta: ''}, empareja: {pares: [{a: '', b: ''}, {a: '', b: ''}, {a: '', b: ''}]}, ordena: {elementos: ''}, huecos: {}}[tipo]);
 const auNum = s => { const n = Number(String(s == null ? '' : s).trim().replace(/\s/g, '').replace(',', '.')); return String(s == null ? '' : s).trim() === '' || !isFinite(n) ? null : n; };
-const auLlanoTexto = t => String(t || '').replace(/\*\*/g, '').replace(/\\[()]/g, '').replace(/\s+/g, ' ').trim();
+/* el texto llano de un enunciado (para el nombre de la pregunta y los resúmenes): sin negritas y con el TeX legible
+   (\frac{5}{6} → 5/6, \cdot → ·, ^{2} → ^2); los huecos, como «___» */
+const auLlanoTexto = t => { let x = String(t || '').replace(/\*\*/g, '').replace(/\[\[.+?\]\]/g, '___').replace(/\\[(\[]\s*/g, '').replace(/\s*\\[)\]]/g, '');
+  for (let i = 0; i < 4; i++) x = x.replace(/\\d?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2').replace(/\\sqrt\s*\{([^{}]*)\}/g, '√$1').replace(/([_^])\{([^{}]*)\}/g, '$1$2');
+  return x.replace(/\\cdot/g, '·').replace(/\\times/g, '×').replace(/\\div/g, ':').replace(/\\(?:leq?|le)\b/g, '≤').replace(/\\(?:geq?|ge)\b/g, '≥').replace(/\\neq?\b/g, '≠').replace(/\\(?:left|right|,|;|!|quad|text)\b/g, '').replace(/\\([a-zA-Z]+)/g, '$1').replace(/[{}]/g, '').replace(/\s+/g, ' ').trim(); };
 /* 1.21 · HUECOS: en el enunciado, cada hueco va entre dobles corchetes con su respuesta: «3/4 = [[6]]/8».
    Un número = hueco numérico (con margen: [[3,14±0,01]]); un texto = respuesta corta; varias válidas con «|»:
    [[tres cuartos|3 cuartos]]. Devuelve el texto con {#1}, {#2}… (como lo guarda Moodle) y los huecos con su
@@ -4023,7 +4031,7 @@ function pintaBanco(C){
     ${iaLista() ? `<details class="caja" id="bqIa"${B.iaAbierta ? ' open' : ''}><summary style="cursor:pointer;font-weight:600">Preguntas con IA</summary>${sale('el tema que escribas y, si eliges una ficha de tus originales, su texto')}
       <input type="text" id="bqTema" placeholder="De qué (comparar fracciones con distinto denominador, 2.º ESO)" value="${esc(B.temaIA || '')}" style="width:100%">
       <div class="fila" style="margin-top:8px"><span class="nota" style="flex:1">${ficha ? 'Ficha: ' + esc(bonito(ficha.nombre)) : 'Sin ficha (solo el tema)'}</span><button class="btn peq" id="bqFicha">Elegir una ficha</button>${ficha ? '<button class="btn peq" id="bqFichaNo" aria-label="Quitar la ficha">✕</button>' : ''}</div>
-      <div class="fila" style="margin-top:8px"><select id="bqN"><option>5</option><option selected>10</option><option>15</option></select><span class="nota">preguntas</span><select id="bqTipo" style="flex:1"><option value="">de varios tipos</option>${Object.entries(AU_PREG).map(([k, t]) => `<option value="${k}">solo ${t.toLowerCase()}</option>`).join('')}</select></div>
+      <div class="fila" style="margin-top:8px"><select id="bqN"><option>5</option><option selected>10</option><option>15</option><option>20</option><option>30</option><option>45</option></select><span class="nota">preguntas</span><select id="bqTipo" style="flex:1"><option value="">de varios tipos</option>${Object.entries(AU_PREG).map(([k, t]) => `<option value="${k}">solo ${t.toLowerCase()}</option>`).join('')}</select></div>
       <div class="fila" style="margin-top:10px"><button class="btn acento" id="bqPide">Pedir las preguntas</button></div><div id="iaRes"></div></details>` : '<p class="nota">Con la clave de la IA (Ajustes → La IA), aquí puedes pedirle preguntas de un tema o de una ficha.</p>'}
     ${B.notasIA ? `<div class="caja"><p class="nota" style="margin:0"><b>La IA dice:</b> ${esc(B.notasIA)}</p></div>` : ''}
     <h2 style="margin:16px 2px 6px;font-size:16px">Preguntas <small class="nota">· ${b.preguntas.length}</small></h2>
@@ -4032,10 +4040,12 @@ function pintaBanco(C){
     <div class="fila" style="margin-top:8px">${Object.entries(AU_PREG).map(([k, t]) => `<button class="btn peq" data-masq="${k}">+ ${t}</button>`).join('')}</div>
     ${B.errores ? `<div class="caja" id="blErr" style="border-color:var(--mal)"><h2 style="color:var(--mal)">No se genera todavía</h2><ul class="pasos nota">${B.errores.map(e => '<li>' + esc(e) + '</li>').join('')}</ul></div>` : ''}
     ${B.hecho ? `<div class="caja" id="blHecho" style="border-color:var(--ok)"><h2>Listo: ${esc(B.hecho.archivo)}</h2><p class="nota" style="margin-top:0">Guardado en <b>${esc(B.hecho.donde)}</b> · ${b.preguntas.length} preguntas.</p><p class="nota">${dondeMovil(B.hecho.donde)}</p>
-      <ol class="pasos nota"><li>En Aules, en el curso: <b>Més → Bancs de preguntes</b> (o Banc de preguntes) → <b>Importa</b>.</li><li>Format del fitxer: «<b>Format XML de Moodle</b>». Sube el archivo y pulsa <b>Importa</b>.</li>
-        <li>Entran en la categoría «<b>${esc(b.nombre)}</b>». Mira un par en «Previsualitza»: que las fórmulas se vean bien y que la correcta sea la correcta.</li><li>Para usarlas: añade un <b>Qüestionari</b> al tema (oculto la primera vez) y, en «Preguntes», «del banc de preguntes».</li></ol>
+      ${B.hecho.mbz ? `<ol class="pasos nota"><li>En Aules, en el curso (mejor en el ordenador): <b>Més → Reutilització del curs → Restaura</b> y sube el archivo.</li><li><b>Destinació</b>: «<b>Fusiona</b> la còpia de seguretat amb aquest curs». Nunca «Esborra el contingut…».</li><li>«Sobreescriu la configuració del curs», en <b>No</b>. En <b>Revisa</b>, solo debe salir un «Banc de preguntes» con este nombre. <b>Processa</b>.</li>
+        <li>El banco «<b>${esc(b.nombre)}</b>» aparece en <b>Més → Bancs de preguntes</b>. No toca ninguna sección ni se ve en la página del curso.</li><li>Para usarlo: en un <b>Qüestionari</b>, «Preguntes» → «Afig» → «del banc de preguntes» → cambia de banco y elige este.</li></ol>` : `<ol class="pasos nota"><li>En Aules, en el curso: <b>Més → Bancs de preguntes</b> (o Banc de preguntes) → <b>Importa</b>.</li><li>Format del fitxer: «<b>Format XML de Moodle</b>». Sube el archivo y pulsa <b>Importa</b>.</li>
+        <li>Entran en la categoría «<b>${esc(b.nombre)}</b>». Mira un par en «Previsualitza»: que las fórmulas se vean bien y que la correcta sea la correcta.</li><li>Para usarlas: añade un <b>Qüestionari</b> al tema (oculto la primera vez) y, en «Preguntes», «del banc de preguntes».</li></ol>`}
       <div class="fila"><button class="btn peq" id="blEnvia">Compartir el archivo (OneDrive, al ordenador…)</button></div></div>` : ''}
-    <div class="fila" style="margin-top:12px"><button class="btn prim" id="bqGenera">Generar el archivo para Aules (XML)</button></div>`;
+    <div class="fila" style="margin-top:12px"><button class="btn prim" id="bqMbz">Generar para restaurar en Aules</button><button class="btn peq" id="bqGenera">O en XML (para «Importa»)</button></div>
+    <p class="nota">«Restaurar» mete el banco en el curso con «Fusiona», como los bloques, sin importar nada. Para usarlo ya dentro de un cuestionario, mejor la pieza «+ Cuestionario» de un bloque.</p>`;
   const re = () => pintaHerramienta(), q_ = id => b.preguntas.find(x => x.id === id), limpia = () => { B.errores = null; B.hecho = null; };
   const res = q => { const r = C.querySelector('[data-pq="' + q.id + '"] [data-res]'); if (r) r.textContent = (auLlanoTexto(q.enunciado).slice(0, 60) || 'sin enunciado') + ' → ' + auLlanoTexto(auRespuesta(q)).slice(0, 30); };
   $('#bqVolver').onclick = () => { B.banco = null; B.abierta = null; B.notasIA = null; B.fichaIA = null; limpia(); re(); };
@@ -4060,10 +4070,22 @@ function pintaBanco(C){
       if (!tema && !ficha) return aviso('Escribe de qué, o elige una ficha');
       let t = ''; if (ficha){ if (ficha.origen !== 'github' || esImg(ficha)) throw new Error('Solo fichas de tus originales'); t = await textoPdf(ficha.blob); if (t.length < 40) throw new Error('Este PDF no tiene texto que leer (es una imagen)');
         if (riesgosIA(t).length) throw new Error('El texto de la ficha parece llevar algo de un alumno (' + riesgosIA(t)[0] + '): no se envía'); }
-      $('#iaRes').innerHTML = esperaIA;
-      const {o} = await iaLlama({system: SYS_PREG, esquema: ESQ_PREG, maxTokens: 12000, contenido: (t ? 'Ficha «' + bonito(ficha.nombre) + '» (texto):\n' + t + '\n\n' : '') + 'Quiero ' + n + ' preguntas' + (tipo ? ', todas de tipo «' + tipo + '»' : ', de varios tipos') + (tema ? ', sobre: ' + tema : ', sobre lo que trabaja la ficha') + '.'});
-      const ps = auPregDeIA(o); if (!ps.length) throw new Error('La IA no ha devuelto ninguna pregunta que se pueda usar');
-      b.preguntas = b.preguntas.concat(ps); if (!b.nombre.trim()) b.nombre = tema || bonito(ficha.nombre); B.notasIA = String(o.notas || '').trim() || null; B.iaAbierta = false; limpia(); await guardaAU(); aviso(ps.length + ' preguntas nuevas, sin revisar: ábrelas una a una'); re(); }); }
+      /* de 15 en 15 (1.22): cada tanda lleva los enunciados que ya hay, para que no se repitan; lo que va llegando se guarda */
+      let ps = [], notas = [], falta = +n; const tandas = Math.ceil(falta / 15);
+      for (let k = 1; falta > 0; k++){ const pide = Math.min(15, falta), ya = b.preguntas.concat(ps).map(q => auLlanoTexto(q.enunciado).slice(0, 90)).slice(-60);
+        $('#iaRes').innerHTML = (tandas > 1 ? '<p class="nota">Tanda ' + k + ' de ' + tandas + (ps.length ? ' · llevo ' + ps.length : '') + '</p>' : '') + esperaIA;
+        let o; try { ({o} = await iaLlama({system: SYS_PREG, esquema: ESQ_PREG, maxTokens: 14000, contenido: (t ? 'Ficha «' + bonito(ficha.nombre) + '» (texto):\n' + t + '\n\n' : '') + 'Quiero ' + pide + ' preguntas' + (tipo ? ', todas de tipo «' + tipo + '»' : ', de varios tipos') + (tema ? ', sobre: ' + tema : ', sobre lo que trabaja la ficha') + '.' + (ya.length ? '\n\nYa tengo estas; no las repitas ni hagas otras casi iguales (cambia la idea, no solo los números):\n- ' + ya.join('\n- ') : '')})); }
+        catch (e) { if (!ps.length) throw e; notas.push('Se ha cortado en la tanda ' + k + ': ' + e.message); break; }
+        const nuevas = auPregDeIA(o); if (!nuevas.length) break; ps = ps.concat(nuevas); falta -= pide; if (String(o.notas || '').trim()) notas.push(String(o.notas).trim()); }
+      if (!ps.length) throw new Error('La IA no ha devuelto ninguna pregunta que se pueda usar');
+      b.preguntas = b.preguntas.concat(ps); if (!b.nombre.trim()) b.nombre = tema || bonito(ficha.nombre); B.notasIA = notas.join(' · ') || null; B.iaAbierta = false; limpia(); await guardaAU(); aviso(ps.length + ' preguntas nuevas, sin revisar: ábrelas una a una'); re(); }); }
+  $('#bqMbz').onclick = async () => { limpia(); const err = auRevisaBanco(b); if (err.length){ B.errores = err; return re(); }
+    const sr = b.preguntas.filter(q => q.sinRevisar).length; if (sr && !confirm((sr === 1 ? 'Hay una pregunta de la IA' : 'Hay ' + sr + ' preguntas de la IA') + ' sin abrir. ¿Generar igualmente?')) return;
+    try { const r = await Cartucho.creaMbz({seccion: 0, existente: true, inicioCurso: 0, actividades: [{tipo: 'banco', nombre: b.nombre.trim(), preguntas: auPregsCartucho(b)}]}, {nombre: 'aules-banco-' + auSlug(b.nombre) + '.mbz'});
+      const f = new File([r.mbz], r.nombre, {type: 'application/octet-stream'}), g = await guardaMovil([f], 'Aules');
+      if (g){ b.generado = Date.now(); b.archivo = g.nombres[0]; await guardaAU(); B.hecho = {donde: g.donde, archivo: g.nombres[0], f, mbz: true}; } }
+    catch (e) { B.errores = e.errores || [(e && e.message) || String(e)]; }
+    re(); };
   $('#bqGenera').onclick = async () => { limpia(); const err = auRevisaBanco(b); if (err.length){ B.errores = err; return re(); }
     const sr = b.preguntas.filter(q => q.sinRevisar).length; if (sr && !confirm((sr === 1 ? 'Hay una pregunta de la IA' : 'Hay ' + sr + ' preguntas de la IA') + ' sin abrir. ¿Generar igualmente?')) return;
     const f = new File([auXmlBanco(b)], 'aules-banco-' + auSlug(b.nombre) + '.xml', {type: 'text/xml'}), g = await guardaMovil([f], 'Aules');
