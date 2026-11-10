@@ -497,7 +497,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.19';
+const VERSION = '1.20';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -3550,8 +3550,8 @@ function pintaEditorRubrica(){
 let AU = {plantillas: [], bancos: [], cursos: {'2B': {inicio: '2026-09-09'}}, sembrado: false};
 const guardaAU = () => ponConf('aules', AU);
 const auId = () => 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const AU_TIPOS = {texto: 'Texto', enlace: 'Enlace', pdf: 'PDF', fotos: 'Tarea de fotos', acta: 'Tarea del acta', examen: 'Aviso de examen'};
-const AU_ICONO = {texto: '¶', enlace: '🔗', pdf: 'PDF', fotos: '📤', acta: '🧾', examen: '📝'};
+const AU_TIPOS = {texto: 'Texto', enlace: 'Enlace', pdf: 'PDF', fotos: 'Tarea de fotos', acta: 'Tarea del acta', cuestionario: 'Cuestionario', examen: 'Aviso de examen'};
+const AU_ICONO = {texto: '¶', enlace: '🔗', pdf: 'PDF', fotos: '📤', acta: '🧾', cuestionario: '❓', examen: '📝'};
 const AU_SOLUCION = /soluci|clave|corrector|respuestas/i;
 /* la primera plantilla: el tema de Racionales de 2.º B, como está en Aules (herramientas/cartucho/temas) */
 const auSemilla = () => ({id: auId(), nombre: 'Racionales · 2.º B', grupo: '2B', seccion: 5, oculta: true,
@@ -3572,7 +3572,7 @@ const auSemilla = () => ({id: auId(), nombre: 'Racionales · 2.º B', grupo: '2B
 const auNueva = g => ({id: auId(), nombre: 'Bloque nuevo', grupo: g, seccion: ((AU.cursos[g] || {}).secciones || 0) + 1, oculta: true, titulo: '', resumen: '', cabecera: null, piezas: []});
 const auPieza = tipo => Object.assign({id: auId(), tipo}, {texto: {texto: ''}, enlace: {nombre: '', url: 'https://', descripcion: ''}, pdf: {doc: '', nombre: '', descripcion: ''},
   fotos: {nombre: 'Fotos de tu libreta', texto: '', desde: suma(hoyISO(), 1), hasta: proxDomingo(suma(hoyISO(), 1)), maxFotos: 4, nota: 10},
-  acta: {app: APPS_AULES[0], que: '', texto: '', desde: suma(hoyISO(), 1), hasta: proxDomingo(suma(hoyISO(), 1)), modo: 'texto', nota: 10}, examen: {tema: '', fecha: '', texto: '', oculta: true}}[tipo]);
+  acta: {app: APPS_AULES[0], que: '', texto: '', desde: suma(hoyISO(), 1), hasta: proxDomingo(suma(hoyISO(), 1)), modo: 'texto', nota: 10}, cuestionario: {banco: '', nombre: '', texto: '', intentos: 0}, examen: {tema: '', fecha: '', texto: '', oculta: true}}[tipo]);
 
 /* el texto llano → el HTML que guarda Aules */
 function auHtml(t){
@@ -3586,7 +3586,7 @@ function auHtml(t){
 }
 const auExamenHtml = z => '<blockquote><p><strong>Examen' + (z.tema.trim() ? ' de ' + esc(z.tema.trim()) : '') + (z.fecha ? ': ' + fechaEs(z.fecha) : '') + '.</strong>' + (z.texto.trim() ? ' ' + auHtml(z.texto).replace(/^<p>|<\/p>$/g, '').replace(/<\/p><p>/g, '<br>') : '') + '</p></blockquote>';
 const auResumen = z => z.tipo === 'texto' ? z.texto.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 70) : z.tipo === 'enlace' ? z.nombre : z.tipo === 'pdf' ? (z.nombre || ((DOCS.find(d => d.id === z.doc) || {}).nombre) || 'sin elegir') :
-  z.tipo === 'fotos' ? z.nombre + (z.hasta ? ' · hasta el ' + fechaEs(z.hasta) : '') : z.tipo === 'acta' ? auActaNombre(z) + (z.hasta ? ' · hasta el ' + fechaEs(z.hasta) : '') : 'Examen' + (z.tema ? ' de ' + z.tema : '') + (z.fecha ? ' · ' + fechaEs(z.fecha) : ' · sin fecha');
+  z.tipo === 'fotos' ? z.nombre + (z.hasta ? ' · hasta el ' + fechaEs(z.hasta) : '') : z.tipo === 'acta' ? auActaNombre(z) + (z.hasta ? ' · hasta el ' + fechaEs(z.hasta) : '') : z.tipo === 'cuestionario' ? (b => (z.nombre || (b && b.nombre) || 'sin banco') + (b ? ' · ' + b.preguntas.length + ' preguntas' : ''))((AU.bancos || []).find(x => x.id === z.banco)) : 'Examen' + (z.tema ? ' de ' + z.tema : '') + (z.fecha ? ' · ' + fechaEs(z.fecha) : ' · sin fecha');
 /* ¿nombra a un alumno? un número de lista o dos palabras seguidas de un nombre de la lista cargada */
 function auConAlumno(t){
   if (numeroLista(t).bloquea) return 'un número de lista';
@@ -3616,6 +3616,9 @@ function auRevisa(pl){
       else { if (d.origen === 'local') avisos.push('«' + d.nombre + '» es de «Mis archivos»: comprueba que no lleva nada de alumnos (ni nombres ni letra suya).');
         if (AU_SOLUCION.test(d.nombre + ' ' + (z.nombre || '')) && z.soluciones !== true) err.push(q + ': parece de soluciones o claves. Si de verdad la quieres en Aules, márcalo en la pieza.'); } }
     if (z.tipo === 'fotos'){ if (!z.nombre.trim()) err.push(q + ': falta el nombre.'); if (!z.hasta) err.push(q + ': falta el plazo.'); else if (z.desde && z.desde > z.hasta) err.push(q + ': se abre después del plazo.'); }
+    if (z.tipo === 'cuestionario'){ const b = (AU.bancos || []).find(x => x.id === z.banco);
+      if (!b) err.push(q + ': falta elegir el banco de preguntas.');
+      else { for (const e of auRevisaBanco(b)) err.push(q + ', banco «' + (b.nombre || 'sin nombre') + '»: ' + e); const sr = b.preguntas.filter(x => x.sinRevisar).length; if (sr) avisos.push('El banco «' + b.nombre + '» tiene ' + sr + (sr === 1 ? ' pregunta' : ' preguntas') + ' de la IA sin abrir.'); } }
     if (z.tipo === 'acta'){ if (!z.hasta) err.push(q + ': falta el plazo.'); else if (z.desde && z.desde > z.hasta) err.push(q + ': se abre después del plazo.'); }
     if (z.tipo === 'examen' && !z.fecha) err.push(q + ': falta la fecha del examen.'); });
   return {err, avisos};
@@ -3642,6 +3645,11 @@ async function auTema(pl){
     else if (z.tipo === 'examen') tema.actividades.push({tipo: 'etiqueta', html: auExamenHtml(z), oculta});
     else if (z.tipo === 'enlace') tema.actividades.push({tipo: 'enlace', nombre: z.nombre.trim(), url: z.url.trim(), descripcion: (z.descripcion || '').trim(), oculta});
     else if (z.tipo === 'fotos') tema.actividades.push({tipo: 'fotos', nombre: z.nombre.trim(), html: auHtml(z.texto), desde: z.desde ? z.desde + ' 00:00' : '', hasta: z.hasta + ' 23:59', maxFotos: +z.maxFotos || 4, nota: +z.nota || 10, oculta});
+    else if (z.tipo === 'cuestionario'){ const b = AU.bancos.find(x => x.id === z.banco);
+      tema.actividades.push({tipo: 'cuestionario', nombre: (z.nombre || '').trim() || b.nombre.trim(), html: auHtml(z.texto || ''), intentos: +z.intentos || 0, nota: 10, oculta,
+        preguntas: b.preguntas.map((q, i) => ({tipo: q.tipo, nombre: String(i + 1).padStart(2, '0') + ' · ' + auLlanoTexto(q.enunciado).slice(0, 50), html: auHtml(q.enunciado), retroHtml: auHtml(q.retro || ''),
+          opciones: q.tipo === 'opcion' ? q.opciones.filter(o => o.t.trim()).map(o => ({html: auHtml(o.t), ok: !!o.ok})) : undefined, verdadero: q.respuesta !== 'falso',
+          respuesta: q.tipo === 'numerica' ? auNum(q.respuesta) : undefined, tolerancia: q.tipo === 'numerica' ? auNum(q.tolerancia || '0') || 0 : undefined, respuestas: q.tipo === 'corta' ? q.respuesta.split(';').map(x => x.trim()).filter(Boolean) : undefined}))}); }
     else if (z.tipo === 'acta') tema.actividades.push({tipo: 'acta', nombre: auActaNombre(z), html: auHtml((z.texto || '').trim() || auActaTexto(z)), desde: z.desde ? z.desde + ' 00:00' : '', hasta: z.hasta + ' 23:59', modo: z.modo === 'archivo' ? 'archivo' : 'texto', nota: +z.nota || 10, oculta});
     else if (z.tipo === 'pdf'){ const d = DOCS.find(x => x.id === z.doc);
       tema.actividades.push({tipo: 'pdf', nombre: (z.nombre || '').trim() || bonito(d.nombre), archivo: nombreSeguro(archivo(d.path ? d.path.split('/').pop() : d.nombre)), datos: new Uint8Array(await d.blob.arrayBuffer()), descripcion: (z.descripcion || '').trim(), oculta, soluciones: z.soluciones === true}); } }
@@ -3670,6 +3678,7 @@ function auVista(pl){
   return `<div class="au-vista"><h3>${esc(pl.titulo || 'Sin título')}${pl.oculta ? ' ' + oc : ''}</h3>${pl.cabecera ? '<img data-cab alt="">' : ''}${pl.resumen ? '<p>' + esc(pl.resumen) + '</p>' : ''}
     ${pl.piezas.map(z => z.tipo === 'texto' ? fila(z, auHtml(z.texto)) : z.tipo === 'examen' ? fila(z, auExamenHtml(z)) :
       z.tipo === 'enlace' ? fila(z, `<div class="au-rec"><span>🔗</span><b>${esc(z.nombre)}</b></div>${z.descripcion ? '<p class="au-des">' + esc(z.descripcion) + '</p>' : ''}`) :
+      z.tipo === 'cuestionario' ? (b => fila(z, `<div class="au-rec"><span>❓</span><b>${esc(z.nombre || (b && b.nombre) || 'Cuestionario')}</b></div><p class="au-des">${b ? b.preguntas.length + ' preguntas' : 'sin banco'} · ${+z.intentos ? z.intentos + (+z.intentos === 1 ? ' intento' : ' intentos') : 'intentos ilimitados'} · cuenta la nota más alta, sobre 10</p>${auHtml(z.texto || '')}`))((AU.bancos || []).find(x => x.id === z.banco)) :
       z.tipo === 'pdf' ? fila(z, `<div class="au-rec"><span class="ico">PDF</span><b>${esc(z.nombre || auResumen(z))}</b></div>${z.descripcion ? '<p class="au-des">' + esc(z.descripcion) + '</p>' : ''}`) :
       fila(z, `<div class="au-rec"><span>${z.tipo === 'acta' ? '🧾' : '📤'}</span><b>${esc(z.tipo === 'acta' ? auActaNombre(z) : z.nombre)}</b></div><p class="au-des"><b>Se abre:</b> ${z.desde ? fechaEs(z.desde) + ', 00:00' : 'ya'} · <b>Vence:</b> ${z.hasta ? fechaEs(z.hasta) + ', 23:59' : '—'}${z.tipo === 'acta' ? ' · ' + (z.modo === 'archivo' ? 'sube el .txt' : 'pega el texto') : ''}</p>${auHtml(z.tipo === 'acta' ? ((z.texto || '').trim() || auActaTexto(z)) : z.texto)}`)).join('')}</div>`;
 }
@@ -3701,6 +3710,11 @@ function pintaBloques(C){
         + `<div class="fila nota" style="margin-top:8px">Se abre <input type="date" data-z="${z.id}" data-k="desde" value="${z.desde || ''}"> a las 00:00</div><div class="fila nota">Vence <input type="date" data-z="${z.id}" data-k="hasta" value="${z.hasta || ''}"> a las 23:59 (después no se puede entregar)</div>
           <div class="fila">${auChips(pl.grupo, z.id, 'hasta')}</div>
           <div class="fila nota">Fotos, como mucho <input type="number" data-z="${z.id}" data-k="maxFotos" value="${z.maxFotos || 4}" min="1" max="20"> · nota sobre <input type="number" data-z="${z.id}" data-k="nota" value="${z.nota || 10}" min="1" max="100"></div>` :
+    z.tipo === 'cuestionario' ? `<div class="fila" style="margin-top:6px"><select data-z="${z.id}" data-k="banco" style="flex:1"><option value="">Elige un banco de preguntas…</option>${(AU.bancos || []).map(b => `<option value="${b.id}"${b.id === z.banco ? ' selected' : ''}>${esc(b.nombre || 'Banco sin nombre')} (${b.preguntas.length})</option>`).join('')}</select></div>`
+        + ((AU.bancos || []).length ? '' : '<p class="nota">Aún no hay bancos: créalo en «‹ Plantillas» → Bancos de preguntas.</p>')
+        + campo(z, 'nombre', 'Nombre en Aules (si lo dejas vacío, el del banco)') + area(z, 'texto', 'Una línea de presentación (opcional)', 2)
+        + `<div class="fila nota" style="margin-top:8px">Intentos <select data-z="${z.id}" data-k="intentos">${[0, 1, 2, 3, 5].map(n => `<option value="${n}"${+z.intentos === n ? ' selected' : ''}>${n || 'ilimitados'}</option>`).join('')}</select> · cuenta la nota más alta, sobre 10</div>
+          <p class="nota">Entra con las preguntas dentro: no hay que importar nada. Al acabar, el alumno ve la correcta y la explicación.</p>` :
     z.tipo === 'acta' ? `<div class="fila" style="margin-top:6px"><select data-z="${z.id}" data-k="app" style="flex:1">${APPS_AULES.map(a => `<option${a === z.app ? ' selected' : ''}>${a}</option>`).join('')}</select><select data-z="${z.id}" data-k="modo"><option value="texto"${z.modo !== 'archivo' ? ' selected' : ''}>pega el acta</option><option value="archivo"${z.modo === 'archivo' ? ' selected' : ''}>sube el .txt</option></select></div>`
         + campo(z, 'que', 'Qué tienen que hacer (los encargos 5, 6 y 8…)')
         + `<div class="fila nota" style="margin-top:8px">Se abre <input type="date" data-z="${z.id}" data-k="desde" value="${z.desde || ''}"> a las 00:00</div><div class="fila nota">Vence <input type="date" data-z="${z.id}" data-k="hasta" value="${z.hasta || ''}"> a las 23:59</div><div class="fila">${auChips(pl.grupo, z.id, 'hasta')}</div>`
@@ -3969,7 +3983,7 @@ function pintaBanco(C){
     + `<input type="text" data-q="${q.id}" data-k="retro" value="${esc(q.retro || '')}" placeholder="La explicación, para después de responder (opcional)" style="width:100%;margin-top:6px">`;
   C.innerHTML = `<div class="fila" style="margin-bottom:4px"><button class="btn peq" id="bqVolver">‹ Bloques y bancos</button><span class="nota" style="flex:1;text-align:right">Se guarda solo</span></div>
     <div class="caja"><input type="text" id="bqNombre" value="${esc(b.nombre)}" placeholder="Nombre del banco (Racionales · comparar fracciones)" style="width:100%;font-weight:600">
-      <p class="nota">Será la categoría del banco de preguntas en Aules. Preguntas de práctica, que Moodle corrige solo.</p></div>
+      <p class="nota">Preguntas de práctica, que Moodle corrige solo. Para que entren ya montadas: en un bloque, pieza «<b>+ Cuestionario</b>» y eliges este banco. (El archivo XML de abajo es la otra vía: importarlas a mano en Bancs de preguntes.)</p></div>
     ${iaLista() ? `<details class="caja" id="bqIa"${B.iaAbierta ? ' open' : ''}><summary style="cursor:pointer;font-weight:600">Preguntas con IA</summary>${sale('el tema que escribas y, si eliges una ficha de tus originales, su texto')}
       <input type="text" id="bqTema" placeholder="De qué (comparar fracciones con distinto denominador, 2.º ESO)" value="${esc(B.temaIA || '')}" style="width:100%">
       <div class="fila" style="margin-top:8px"><span class="nota" style="flex:1">${ficha ? 'Ficha: ' + esc(bonito(ficha.nombre)) : 'Sin ficha (solo el tema)'}</span><button class="btn peq" id="bqFicha">Elegir una ficha</button>${ficha ? '<button class="btn peq" id="bqFichaNo" aria-label="Quitar la ficha">✕</button>' : ''}</div>
