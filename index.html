@@ -497,7 +497,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.24';
+const VERSION = '1.25';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1850,6 +1850,29 @@ const examenDe = id => RUB && RUB.examenes.find(e => e.id === id);
 const etqGrupo = g => /^\d[A-Z]$/.test(g) ? g[0] + '.º ' + g[1] : g === 'T4' ? 'Taller 4.º' : g;
 const gruposDe = curso => { const gs = Object.keys((CAL && CAL.grupos) || {}); return (gs.length ? gs : ['1A', '1B', '1D', '2B']).filter(g => !curso || g[0] === curso[0]); };
 const nAlumnos = g => NT.alumnos[g] || 30;
+/* 1.25 · el número de alumnos, con candado. Con notas ya puestas en el grupo, cambiarlo NO mueve ninguna nota (solo
+   añade o quita casillas al final) y los nombres dejan de cuadrar si alguien se quitó o entró en medio: así se
+   desplazaron las de 1.º B en noviembre de 2026 (la lista con 21 al corregir; la oficial, con 22). Cerrado 🔒 mientras
+   haya notas; se abre con un toque y un aviso, y se vuelve a cerrar al cambiarlo. Al cargar nombres, tampoco se cambia
+   sin preguntar. Lo que sí mueve las notas con los números es «Lista de nombres» (quitar y correr). */
+const conNotas = g => almacenesDe(g).some(([, , R]) => Object.keys((R && R.al) || {}).length > 0);
+const notasPorEncima = (g, v) => { const ns = new Set(); for (const [, , R] of almacenesDe(g)) for (const n of Object.keys((R && R.al) || {})) if (+n > v) ns.add(+n); return [...ns].sort((a, b) => a - b); };
+const N_ABIERTO = new Set();
+const campoN = (id, g, N) => { const tiene = conNotas(g), cerrado = tiene && !N_ABIERTO.has(g);
+  return `<input type="number" id="${id}" min="1" max="40" value="${N}"${cerrado ? ' disabled' : ''}>` +
+    (tiene ? ` <button class="btn peq" type="button" id="${id}Candado" aria-label="${cerrado ? 'Abrir' : 'Cerrar'} el número de alumnos" title="${cerrado ? 'Cerrado: hay notas puestas' : 'Abierto'}">${cerrado ? '🔒' : '🔓'}</button>` : ''); };
+function atarN(id, g, repinta){
+  const el = $('#' + id); if (!el) return;
+  const cand = $('#' + id + 'Candado');
+  if (cand) cand.onclick = () => {
+    if (N_ABIERTO.has(g)) N_ABIERTO.delete(g);
+    else { if (!confirm('Cambiar el número de alumnos de ' + etqGrupo(g) + ' NO mueve las notas: solo añade o quita casillas al final de la lista. Si alguien se ha quitado o ha entrado en medio, las notas dejarán de cuadrar con los nombres (para eso está «Lista de nombres»). ¿Abrirlo?')) return; N_ABIERTO.add(g); }
+    repinta(); };
+  el.onchange = e => { const v = Math.max(1, Math.min(40, Math.round(+e.target.value || 30))), antes = nAlumnos(g);
+    if (v < antes){ const fuera = notasPorEncima(g, v);
+      if (fuera.length && !confirm('Con ' + v + ' alumnos dejan de verse las notas del n.º ' + fuera.join(', ') + ' (no se borran: vuelven si se sube otra vez el número). ¿Seguir?')){ e.target.value = antes; return; } }
+    NT.alumnos[g] = v; N_ABIERTO.delete(g); guardaNotas(); repinta(); };
+}
 const tonoNota = v => v == null ? '' : v < 5 ? 'mal' : 'ok';
 
 /* la nota de un alumno en un examen corregido */
@@ -1939,7 +1962,10 @@ function montaNombres(C){
       for (const g of gs){ const rn = (NT.renum || {})[g], mx = Math.max(...Object.keys(L[g]).map(Number));
         if (rn && mx === rn.antes && rn.antes !== rn.despues && !confirm('Ojo: esta lista de ' + etqGrupo(g) + ' parece la de ANTES de correr los números (llega al ' + mx + '; la nueva, al ' + rn.despues + '). Tus notas ya están con los números nuevos: con esta lista, los nombres no cuadrarían. ¿Cargarla igualmente?')) return; }
       Object.assign(LISTA, L);
-      for (const g of gs){ const mx = Math.max(...Object.keys(L[g]).map(Number)); const rn = (NT.renum || {})[g]; if (mx !== NT.alumnos[g] && (!rn || mx === rn.despues)){ NT.alumnos[g] = mx; guardaNotas(); } }
+      for (const g of gs){ const mx = Math.max(...Object.keys(L[g]).map(Number)); const rn = (NT.renum || {})[g]; if (mx !== NT.alumnos[g] && (!rn || mx === rn.despues)){
+        /* 1.25 · con notas puestas, no se cambia el número sin preguntar (ver conNotas) */
+        if (conNotas(g) && NT.alumnos[g] && !confirm('La lista de ' + etqGrupo(g) + ' llega al ' + mx + ' y la app tenía ' + NT.alumnos[g] + ' alumnos, con notas ya puestas. Las notas no se mueven con el número: si en medio de la lista hay alguien que antes no estaba, o al revés, dejarán de cuadrar con los nombres. ¿Poner ' + mx + '?')) continue;
+        NT.alumnos[g] = mx; guardaNotas(); } }
       aviso(gs.map(g => etqGrupo(g) + ': ' + Object.keys(L[g]).length).join(' · ') + (fuera.length ? ' · no cargo ' + fuera.map(g => g.startsWith('otro') ? g.slice(6) : etqGrupo(g)).join(', ') + ' (no son grupos tuyos)' : ''), 5000); pintaHerramienta(); }
     catch (er) { aviso('No puedo leer la lista: ' + er.message, 4500); } };
 }
@@ -1955,7 +1981,7 @@ function pintaCorregir(C){
   const R = corr(ex.id, H.g), N = nAlumnos(H.g);
   let h = `<div class="caja"><div class="fila"><select id="cEx" style="flex:1">${RUB.examenes.map(e => `<option value="${e.id}"${e.id === ex.id ? ' selected' : ''}>${esc(e.tema)} (${esc(e.curso.replace(' ESO', ''))})${e.propia ? ' · tuya' + (e.sinRevisar ? ', sin revisar' : '') : ''}</option>`).join('')}</select>
     <select id="cG">${gs.map(g => `<option value="${g}"${g === H.g ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select></div>
-    <div class="fila nota" style="margin-top:8px">Alumnos en ${etqGrupo(H.g)}: <input type="number" id="cN" min="1" max="40" value="${N}"> </div>
+    <div class="fila nota" style="margin-top:8px">Alumnos en ${etqGrupo(H.g)}: ${campoN('cN', H.g, N)} </div>
     <div class="mods">${ex.modelos.map(m => `<span>${m.marca ? `<img src="${m.marca}" alt="">` : ''}<b>${esc(m.nombre)}</b>${m.apodo ? ' · ' + esc(m.apodo) : ''}</span>`).join('')}</div>
     <div class="fila" style="margin-top:8px">${LISTA[H.g] ? `<span class="nota" style="flex:1">Nombres de ${Object.keys(LISTA).map(etqGrupo).join(', ')}: solo mientras la app esté abierta.</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button><span class="nota">No se guardan: al cerrar la app, se olvidan.</span>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>`;
   const hechos = Object.entries(R.al).filter(([n]) => +n <= N), corregidos = hechos.filter(([, a]) => !a.np && Object.keys(a.x).length);
@@ -1977,7 +2003,7 @@ function pintaCorregir(C){
   C.innerHTML = h;
   $('#cEx').onchange = e => { H.ex = e.target.value; H.g = null; pintaHerramienta(); };
   $('#cG').onchange = e => { H.g = e.target.value; pintaHerramienta(); };
-  $('#cN').onchange = e => { const v = Math.max(1, Math.min(40, Math.round(+e.target.value || 30))); NT.alumnos[H.g] = v; guardaNotas(); pintaHerramienta(); };
+  atarN('cN', H.g, pintaHerramienta);
   $('#cVLista').onclick = () => { H.vista = 'lista'; pintaHerramienta(); };
   $('#cVEstad').onclick = () => { H.vista = 'estad'; pintaHerramienta(); };
   C.querySelectorAll('.num[data-n]').forEach(b => b.onclick = () => abreCorrige(+b.dataset.n));
@@ -2293,7 +2319,7 @@ function pintaFichas(C){
   let h = `<div class="caja"><div class="fila"><select id="fG">${gs.map(g => `<option value="${g}"${g === H.g ? ' selected' : ''}>${etqGrupo(g)}</option>`).join('')}</select>
     <select id="fF" style="flex:1;min-width:0">${unidades.map(u => `<optgroup label="${esc(u)}">${fs.filter(x => x.unidad === u).map(x => `<option value="${esc(x.id)}"${x.id === f.id ? ' selected' : ''}>${esc(x.nombre + ' · ' + x.titulo)}</option>`).join('')}</optgroup>`).join('')}</select></div>
     <p class="nota" style="margin:8px 0 0">${esc(f.app)} · ${esc(f.titulo)}${f.subtitulo ? ' · ' + esc(f.subtitulo) : ''}</p>
-    <div class="fila nota" style="margin-top:8px">Alumnos: <input type="number" id="cN" min="1" max="40" value="${N}">
+    <div class="fila nota" style="margin-top:8px">Alumnos: ${campoN('cN', H.g, N)}
       ${LISTA[H.g] ? `<span style="flex:1">Con nombres (solo mientras la app esté abierta).</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>`;
   const hechos = Object.entries(R.al).filter(([n, a]) => +n <= N && (taller ? a.v != null : a.ne || (a.v1 || []).some(x => x != null)));
   h += `<div class="fila" style="margin:6px 0">${['lista', 'estad', 'resumen'].map(v => `<button class="btn peq${(H.vista || 'lista') === v ? ' prim' : ''}" data-vista="${v}">${{lista: 'Lista', estad: 'Estadísticas', resumen: 'Resumen'}[v]}</button>`).join('')}
@@ -2320,7 +2346,7 @@ function pintaFichas(C){
   C.innerHTML = h;
   $('#fG').onchange = e => { H.g = e.target.value; H.f = null; pintaHerramienta(); };
   $('#fF').onchange = e => { H.f = e.target.value; pintaHerramienta(); };
-  $('#cN').onchange = e => { NT.alumnos[H.g] = Math.max(1, Math.min(40, Math.round(+e.target.value || 30))); guardaNotas(); pintaHerramienta(); };
+  atarN('cN', H.g, pintaHerramienta);
   C.querySelectorAll('[data-vista]').forEach(b => b.onclick = () => { H.vista = b.dataset.vista; pintaHerramienta(); });
   C.querySelectorAll('.num[data-n]').forEach(b => b.onclick = () => abreCorrigeFicha(+b.dataset.n));
   C.querySelectorAll('[data-tn] button').forEach(b => b.onclick = () => { const n = +b.parentElement.dataset.tn, v = b.dataset.v;
@@ -2800,7 +2826,7 @@ function pintaEvaluacion(C){
   const g = H.g, E = evalDe(g, H.ev), N = nAlumnos(g);
   let h = `<div class="caja"><div class="fila"><select id="eG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
     <select id="eEv">${[1, 2, 3].map(v => `<option value="${v}"${v === H.ev ? ' selected' : ''}>${v}.ª evaluación</option>`).join('')}</select>
-    <span class="nota">Alumnos: <input type="number" id="eN" min="1" max="40" value="${N}"></span></div>
+    <span class="nota">Alumnos: ${campoN('eN', g, N)}</span></div>
     <div class="fila" style="margin-top:8px">${LISTA[g] ? `<span class="nota" style="flex:1">Con nombres (solo mientras la app esté abierta).</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div>
     <details style="margin-top:8px"><summary class="nota" style="cursor:pointer">Unidades y pesos: pruebas ${E.p.ex} % · ${esc(E.cu.toLowerCase())} ${E.p.cu} % · seguimiento ${E.p.se} %</summary>
       <div class="chips">${E.u.map((u, i) => `<div class="chip"><span><input type="text" data-un="${i}" value="${esc(u.nombre)}" style="width:44%"> <select data-ux="${i}"><option value="">a mano</option>${(RUB ? RUB.examenes : []).filter(e => e.curso[0] === g[0]).map(e => `<option value="${e.id}"${u.examen === e.id ? ' selected' : ''}>del corrector: ${esc(e.tema)}</option>`).join('')}</select></span><button data-uq="${i}" aria-label="Quitar">✕</button></div>`).join('')}</div>
@@ -2826,7 +2852,7 @@ function pintaEvaluacion(C){
   const otra = () => { guardaNotas(); pintaHerramienta(); };
   $('#eG').onchange = e => { H.g = e.target.value; otra(); };
   $('#eEv').onchange = e => { H.ev = +e.target.value; otra(); };
-  $('#eN').onchange = e => { NT.alumnos[g] = Math.max(1, Math.min(40, Math.round(+e.target.value || 30))); otra(); };
+  atarN('eN', g, () => pintaHerramienta());
   C.querySelectorAll('[data-un]').forEach(x => x.onchange = () => { E.u[+x.dataset.un].nombre = x.value.trim() || 'Unidad'; otra(); });
   C.querySelectorAll('[data-ux]').forEach(x => x.onchange = () => { E.u[+x.dataset.ux].examen = x.value || null; otra(); });
   C.querySelectorAll('[data-uq]').forEach(x => x.onclick = () => { const i = +x.dataset.uq; if (!confirm('¿Quitar la unidad «' + E.u[i].nombre + '» y sus notas?')) return;
