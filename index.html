@@ -183,7 +183,8 @@ label.cuad{display:flex;gap:10px;align-items:flex-start;border-top:1px solid var
 .todoP{flex:0 0 46px;width:46px;height:46px;min-height:46px;max-height:46px;padding:0;align-self:center;box-sizing:border-box;border-radius:50%;border:2px dashed var(--ok);background:none;color:var(--ok);font-size:24px;font-weight:800;margin-left:10px;line-height:1}
 .todoP.bien{background:var(--ok);border:2px solid var(--ok);color:#fff}.todoP.mal{background:var(--mal);border:2px solid var(--mal);color:#fff}.todoP.mezcla{border:2px solid var(--linea);color:var(--suave)}
 .cass2{display:grid;grid-template-columns:1fr 1fr;column-gap:12px}.cass2 .seg button{width:40px}
-.rej .num.hecho{border-color:var(--tinta)}.rej .num.amedias{border-color:var(--acento);border-style:dashed}.rej .num.np{background:#EFEAE0}.rej .num.nv{opacity:.42;border-style:dotted;cursor:default}.cas.nv,.tabla tr.nv{opacity:.45}
+.rej .num.hecho{border-color:var(--tinta)}.rej .num.amedias{border-color:var(--acento);border-style:dashed}.rej .num.np{background:#EFEAE0}.cmF{margin:10px 0 2px}.cmF .seg button{width:auto;min-width:40px;padding:0 9px;font-size:14px}.cmT{font-size:14px;margin:4px 0 0;color:var(--tinta)}.cmT.apagado{opacity:.45;text-decoration:line-through}
+.cmX label{display:block;font-size:14px;margin:5px 0}#cmTexto{width:100%;min-height:150px;border:1.5px solid var(--linea);border-radius:10px;padding:10px;font:15px/1.45 inherit}.rej .num.nv{opacity:.42;border-style:dotted;cursor:default}.cas.nv,.tabla tr.nv{opacity:.45}
 .pq{padding:12px}.pq h2{font-size:16px}.pq .sol{background:#F4F7F2;border-radius:8px;padding:6px 8px;color:#2C4A3A;margin:8px 0 4px}
 .cas{display:flex;align-items:center;gap:8px;border-top:1px solid var(--linea);padding:6px 0}
 .cas>span:first-child{flex:1;min-width:0;font-size:15px}
@@ -278,6 +279,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
       <button data-h="corregir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l1.5 1.5L12 8M8 15l1.5 1.5L12 14M14 9h3M14 15h3"/></svg><b>Corregir examen</b><span>Con la rúbrica, casilla a casilla: nota y estadísticas</span></button>
       <button data-h="fichas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="10" cy="12" r="1.6"/><path d="M13 12h3M9 16.5l1.3 1.3 2.4-2.6M14 17h2"/></svg><b>Corregir fichas</b><span>La rúbrica de las dos vueltas; en el taller, 0-1-2</span></button>
       <button data-h="evaluacion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 18h8"/></svg><b>Nota de la evaluación</b><span>80/10/10, para Itaca, y quién recupera qué</span></button>
+      <button data-h="comentarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg><b>Comentarios para Itaca</b><span>Los del modelo del centro: se eligen por fila y se copian</span></button>
       <button data-h="lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h1M4 12h1M4 18h1"/><path d="M15 9l3 6" opacity=".6"/></svg><b>Lista de nombres</b><span>Quitar a quien no viene y correr los números</span></button>
       <button data-h="tapar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="11" y="6.5" width="8" height="4" fill="currentColor"/><path d="M6 14h12M6 17h8"/></svg><b>Tapar nombres</b><span>Recuadro negro sobre el nombre, para compartir</span></button>
       <button data-h="reducir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg><b>Reducir peso</b><span>Para Aules o el correo</span></button>
@@ -498,7 +500,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.26';
+const VERSION = '1.27';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1049,7 +1051,7 @@ const PLANTILLAS = {fichas: {t: 'Fichas y carril', r: [.57, .055, .97, .125]}, e
 
 /* ── HERRAMIENTAS ── */
 let herrDoc = null, H = null;
-const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', azar: 'Al azar', reloj: 'Temporizador', aules: 'Tarea de Aules', bloques: 'Bloques de Aules', lista: 'Lista de nombres', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación'};
+const NOMBRE_H = {tapar: 'Tapar nombres', reducir: 'Reducir peso', unir: 'Unir PDF', paginas: 'Páginas', cuadernillo: 'Cuadernillo A5', varias: 'Varias por hoja', qr: 'QR para la pizarra', actas: 'Comprobar actas', azar: 'Al azar', reloj: 'Temporizador', aules: 'Tarea de Aules', bloques: 'Bloques de Aules', lista: 'Lista de nombres', corregir: 'Corregir examen', fichas: 'Corregir fichas', evaluacion: 'Nota de la evaluación', comentarios: 'Comentarios para Itaca'};
 $$('.herrs button').forEach(b => b.onclick = () => abreHerramienta(b.dataset.h));
 function abreHerramienta(tipo){
   H = {tipo, docs: herrDoc ? [herrDoc] : [], paginas: null, marcadas: new Set(), extra: {}, rect: PLANTILLAS.fichas.r.slice(), impares: false};
@@ -1073,6 +1075,7 @@ function pintaHerramienta(){
   if (H.tipo === 'corregir') return pintaCorregir(C);
   if (H.tipo === 'fichas') return pintaFichas(C);
   if (H.tipo === 'evaluacion') return pintaEvaluacion(C);
+  if (H.tipo === 'comentarios') return pintaComentarios(C);
   let h = eligeDocs();
   if (H.tipo === 'tapar' && d){
     h += `<div class="caja"><h2>Qué se tapa</h2>
@@ -2906,6 +2909,192 @@ function pintaEvaluacion(C){
   $('#eBorra').onclick = () => { if (!confirm('¿Borrar todas las notas escritas a mano de la ' + H.ev + '.ª evaluación de ' + etqGrupo(g) + '? Las del corrector no se tocan.')) return; E.al = {}; otra(); };
   for (let n = 1; n <= N; n++) pintaFila(E, g, n);
   pintaRec(E, g, N); montaNombres(C);
+}
+/* ── COMENTARIOS PARA ITACA (1.27) ──
+   Sobre el «model d'avaluació» que pasa orientación (COMENTARIS MODEL AVALUACIÓ 26-27, orientativo: no hace falta copiarlo
+   tal cual): cinco filas (interés, conocimientos previos, necesidades, hábitos, participación) con un texto por nivel, de
+   «insuficiente sin trabajo» a «sobresaliente», y otros aspectos (absentismo, convivencia, recién llegados). Se elige un
+   nivel por fila, como en la rúbrica: la nota de Itaca de «Nota de la evaluación» pone de salida el nivel de todas, y se
+   cambia la que no case. En valenciano o en castellano (se cambia con un toque: lo guardado son niveles y casillas, el
+   texto sale en el idioma elegido). Añadido nuestro, como pide el modelo («destacar progresos, fortalezas… y señalar lo
+   que hay que seguir trabajando»): lo que hace bien y lo que tiene que trabajar en matemáticas, para la familia, y la
+   recuperación, que sale sola con las unidades por debajo de 5. El orden del texto: primero lo bueno, después lo que falta.
+   Lo elegido se guarda por grupo, evaluación y número (nunca nombres) y va en la copia de las notas. «Copiar» lo deja en
+   el portapapeles para pegarlo en Itaca; antes se puede retocar en el cuadro. */
+const CM_NIV = {va: ['Insuf. sense treball', 'Insuf. amb treball', 'Suficient', 'Bé', 'Notable', 'Excel·lent'],
+  es: ['Insuf. sin trabajo', 'Insuf. con trabajo', 'Suficiente', 'Bien', 'Notable', 'Sobresaliente']};
+const CM_FILAS = [
+  {t: {va: 'Interés i esforç', es: 'Interés y esfuerzo'},
+   va: ['No mostra interés ni esforç per la matèria: no fa els exàmens, els treballs ni els deures.',
+    'Mostra interés per la matèria, encara que encara no demostra els coneixements necessaris per a aconseguir els objectius.',
+    'Ha mostrat l’interés i l’esforç necessaris per a aprovar, però cal mantindre’ls i augmentar-los.',
+    'Mostra prou interés per la matèria, encara que amb més esforç podria millorar el seu treball.',
+    'Mostra molt d’interés per la matèria i la treballa a classe; el seu esforç li permet aprovar-la amb facilitat.',
+    'Té molt d’interés per la matèria i s’esforça per anar més enllà del que es veu a classe: pregunta, investiga, llig.'],
+   es: ['No muestra interés ni esfuerzo por la materia: no hace los exámenes, los trabajos ni los deberes.',
+    'Muestra interés por la materia, aunque todavía no demuestra los conocimientos necesarios para alcanzar los objetivos.',
+    'Ha mostrado el interés y el esfuerzo necesarios para aprobar, pero tiene que mantenerlos y aumentarlos.',
+    'Muestra bastante interés por la materia, aunque con más esfuerzo podría mejorar su trabajo.',
+    'Muestra mucho interés por la materia y la trabaja en clase; su esfuerzo le permite aprobarla con facilidad.',
+    'Tiene mucho interés por la materia y se esfuerza por ir más allá de lo que se ve en clase: pregunta, investiga, lee.']},
+  {t: {va: 'Coneixements previs', es: 'Conocimientos previos'},
+   va: ['Necessita treballar i assolir coneixements bàsics previs per a poder avançar en la matèria.',
+    'Progressa en l’adquisició dels coneixements previs que li han de permetre avançar.',
+    'Els nous continguts l’ajuden a consolidar els coneixements previs de la matèria.',
+    'Té assolits els coneixements previs i està començant a aprendre els nous.',
+    'Té assolits la majoria dels coneixements previs, i això l’ajuda a comprendre els continguts nous.',
+    'Té assolits els coneixements previs i és capaç de relacionar-los amb els nous.'],
+   es: ['Necesita trabajar y afianzar conocimientos básicos previos para poder avanzar en la materia.',
+    'Progresa en la adquisición de los conocimientos previos que le han de permitir avanzar.',
+    'Los nuevos contenidos le ayudan a consolidar los conocimientos previos de la materia.',
+    'Tiene adquiridos los conocimientos previos y está empezando a aprender los nuevos.',
+    'Tiene adquiridos la mayoría de los conocimientos previos, y eso le ayuda a comprender los contenidos nuevos.',
+    'Tiene adquiridos los conocimientos previos y es capaz de relacionarlos con los nuevos.']},
+  {t: {va: 'Dificultats', es: 'Dificultades'},
+   va: ['Té dificultats importants per a comprendre i treballar la matèria.',
+    'Té algunes dificultats per a comprendre i treballar la matèria.',
+    'No mostra dificultats greus per a comprendre i treballar la matèria.',
+    'No mostra dificultats d’aprenentatge o és capaç de superar-les.',
+    'Entén amb facilitat el que s’explica a classe.',
+    'Entén amb facilitat el que s’explica i, a més, ajuda els companys que ho necessiten.'],
+   es: ['Tiene dificultades importantes para comprender y trabajar la materia.',
+    'Tiene algunas dificultades para comprender y trabajar la materia.',
+    'No muestra dificultades graves para comprender y trabajar la materia.',
+    'No muestra dificultades de aprendizaje o es capaz de superarlas.',
+    'Entiende con facilidad lo que se explica en clase.',
+    'Entiende con facilidad lo que se explica y, además, ayuda a los compañeros que lo necesitan.']},
+  {t: {va: 'Hàbits d’estudi', es: 'Hábitos de estudio'},
+   va: ['Encara no té hàbits d’estudi ni de treball diari.',
+    'Necessita millorar els hàbits d’estudi i el treball diari, a classe i a casa.',
+    'Cal reforçar els seus hàbits d’estudi i de treball diari perquè siguen constants.',
+    'Té hàbits d’estudi, encara que convé revisar la constància del treball diari.',
+    'Té bons hàbits d’estudi i de treball diari, i els aprofita.',
+    'Té uns hàbits d’estudi excel·lents: sap com estudiar i treballa amb autonomia.'],
+   es: ['Todavía no tiene hábitos de estudio ni de trabajo diario.',
+    'Necesita mejorar los hábitos de estudio y el trabajo diario, en clase y en casa.',
+    'Conviene reforzar sus hábitos de estudio y de trabajo diario para que sean constantes.',
+    'Tiene hábitos de estudio, aunque conviene revisar la constancia del trabajo diario.',
+    'Tiene buenos hábitos de estudio y de trabajo diario, y los aprovecha.',
+    'Tiene unos hábitos de estudio excelentes: sabe cómo estudiar y trabaja con autonomía.']},
+  {t: {va: 'Participació', es: 'Participación'},
+   va: ['No participa a classe.',
+    'Participa quan se li pregunta, però li costa seguir el que s’explica.',
+    'Participa quan se li pregunta i segueix el que s’explica.',
+    'Participa a classe i parla amb correcció dels temes que es tracten.',
+    'Participa sovint i amb interés, i fa aportacions que ajuden la classe.',
+    'Participa cada dia aportant idees pròpies i noves maneres de veure els problemes.'],
+   es: ['No participa en clase.',
+    'Participa cuando se le pregunta, pero le cuesta seguir lo que se explica.',
+    'Participa cuando se le pregunta y sigue lo que se explica.',
+    'Participa en clase y habla con corrección de los temas que se tratan.',
+    'Participa a menudo y con interés, y hace aportaciones que ayudan a la clase.',
+    'Participa cada día aportando ideas propias y nuevas maneras de ver los problemas.']}];
+/* los grupos de casillas: «antes» va delante de las filas (lo bueno), el resto detrás */
+const CM_EXTRA = [
+  {k: 'fort', antes: true, g: {va: 'Fa bé (matemàtiques)', es: 'Hace bien (matemáticas)'}, x: [
+    {va: 'Calcula amb seguretat.', es: 'Calcula con seguridad.'},
+    {va: 'Raona i explica com ho ha fet.', es: 'Razona y explica cómo lo ha hecho.'},
+    {va: 'Llig bé els enunciats i planteja bé els problemes.', es: 'Lee bien los enunciados y plantea bien los problemas.'},
+    {va: 'Treballa amb constància les fitxes de classe.', es: 'Trabaja con constancia las fichas de clase.'},
+    {va: 'Porta l’àlbum de teoria al dia i ben cuidat.', es: 'Lleva el álbum de teoría al día y bien cuidado.'},
+    {va: 'Ha millorat clarament al llarg de l’avaluació.', es: 'Ha mejorado claramente a lo largo de la evaluación.'},
+    {va: 'Treballa bé en equip i ajuda els companys.', es: 'Trabaja bien en equipo y ayuda a los compañeros.'}]},
+  {k: 'sus', antes: true, g: {va: 'Si està suspés: el positiu (completa els «…»)', es: 'Si suspende: lo positivo (completa los «…»)'}, x: [
+    {va: 'Progressa de manera positiva en …', es: 'Progresa de manera positiva en …'},
+    {va: 'Mostra fortaleses en …', es: 'Muestra fortalezas en …'},
+    {va: 'Té interés per la matèria, però necessita treballar més …', es: 'Tiene interés por la materia, pero necesita trabajar más …'}]},
+  {k: 'trab', g: {va: 'Ha de treballar (matemàtiques)', es: 'Tiene que trabajar (matemáticas)'}, x: [
+    {va: 'Ha de mostrar el procés: escriure les operacions, no sols el resultat.', es: 'Tiene que mostrar el proceso: escribir las operaciones, no solo el resultado.'},
+    {va: 'Ha de llegir els enunciats amb calma abans de començar.', es: 'Tiene que leer los enunciados con calma antes de empezar.'},
+    {va: 'Ha de revisar les respostes abans d’entregar.', es: 'Tiene que revisar las respuestas antes de entregar.'},
+    {va: 'Ha de repassar cada dia a casa el que s’ha treballat a classe.', es: 'Tiene que repasar cada día en casa lo trabajado en clase.'},
+    {va: 'Ha d’acabar les fitxes i portar-les fetes.', es: 'Tiene que terminar las fichas y traerlas hechas.'},
+    {va: 'Ha de portar el material a classe (fitxes, àlbum).', es: 'Tiene que traer el material a clase (fichas, álbum).'},
+    {va: 'Ha de reforçar les operacions amb nombres enters (els signes).', es: 'Tiene que reforzar las operaciones con números enteros (los signos).'},
+    {va: 'Ha de reforçar les potències i les seues propietats.', es: 'Tiene que reforzar las potencias y sus propiedades.'},
+    {va: 'Ha de reforçar les fraccions.', es: 'Tiene que reforzar las fracciones.'},
+    {va: 'Ha de reforçar la divisibilitat (mcd i mcm).', es: 'Tiene que reforzar la divisibilidad (mcd y mcm).'}]},
+  {k: 'rec', auto: true, g: {va: 'Recuperació', es: 'Recuperación'}, x: []},
+  {k: 'fam', g: {va: 'Per a la família', es: 'Para la familia'}, x: [
+    {va: 'Convindria revisar a casa que fa els deures cada dia.', es: 'Convendría revisar en casa que hace los deberes cada día.'},
+    {va: 'Pot practicar a casa amb les aplicacions de l’aula, enllaçades a Aules.', es: 'Puede practicar en casa con las aplicaciones del aula, enlazadas en Aules.'},
+    {va: 'Si ho necessiten, poden demanar una entrevista amb el professor.', es: 'Si lo necesitan, pueden pedir una entrevista con el profesor.'}]},
+  {k: 'abs', g: {va: 'Absentisme', es: 'Absentismo'}, x: [
+    {va: 'La falta d’assistència a classe li dificulta assolir els coneixements.', es: 'La falta de asistencia a clase le dificulta adquirir los conocimientos.'},
+    {va: 'Caldria fer un seguiment de la seua assistència diària al centre.', es: 'Habría que hacer un seguimiento de su asistencia diaria al centro.'}]},
+  {k: 'conv', g: {va: 'Convivència i conducta', es: 'Convivencia y conducta'}, x: [
+    {va: 'El seu comportament permet desenvolupar les classes amb normalitat.', es: 'Su comportamiento permite desarrollar las clases con normalidad.'},
+    {va: 'El seu comportament dificulta desenvolupar les classes amb normalitat.', es: 'Su comportamiento dificulta desarrollar las clases con normalidad.'},
+    {va: 'Atén les indicacions del professorat.', es: 'Atiende las indicaciones del profesorado.'},
+    {va: 'Li costa atendre les indicacions del professorat.', es: 'Le cuesta atender las indicaciones del profesorado.'},
+    {va: 'És respectuós/osa amb els companys i amb el professorat.', es: 'Es respetuoso/a con los compañeros y con el profesorado.'},
+    {va: 'És puntual i, si arriba tard, demana permís per a entrar.', es: 'Es puntual y, si llega tarde, pide permiso para entrar.'}]},
+  {k: 'nou', g: {va: 'Alumnat nouvingut', es: 'Alumnado recién llegado'}, x: [
+    {va: 'El seu coneixement de les llengües oficials millora cada dia.', es: 'Su conocimiento de las lenguas oficiales mejora cada día.'},
+    {va: 'Està millorant la seua competència comunicativa per a poder avançar en aquesta assignatura.', es: 'Está mejorando su competencia comunicativa para poder avanzar en esta asignatura.'},
+    {va: 'Convé reforçar el castellà i el valencià fora del centre.', es: 'Conviene reforzar el castellano y el valenciano fuera del centro.'},
+    {va: 'Fa les activitats proposades, encara que el seu nivell encara no és l’adequat per a fer-les totes.', es: 'Hace las actividades propuestas, aunque su nivel todavía no es el adecuado para hacerlas todas.'}]}];
+/* nivel de salida según la nota de Itaca: 1-4 insuficiente (con trabajo, salvo que se cambie), 5, 6, 7-8, 9-10 */
+const cmNivel = it => it == null ? null : it < 5 ? 1 : it === 5 ? 2 : it === 6 ? 3 : it <= 8 ? 4 : 5;
+const cmRec = (E, r, L) => { const us = (r.recupera || []).map(i => E.u[i] && E.u[i].nombre).filter(Boolean); if (!us.length) return '';
+  const lista = us.length === 1 ? us[0] : us.slice(0, -1).join(', ') + (L === 'va' ? ' i ' : ' y ') + us[us.length - 1];
+  return L === 'va' ? 'En la pròxima avaluació haurà de recuperar: ' + lista + '.' : 'En la próxima evaluación tendrá que recuperar: ' + lista + '.'; };
+function cmTexto(S, L, rec){
+  const de = grupo => S.x.filter(id => id.split('.')[0] === grupo).map(id => { const g = CM_EXTRA.find(e => e.k === grupo), b = +id.split('.')[1]; return g && g.x[b] && g.x[b][L]; }).filter(Boolean);
+  const fr = [];
+  for (const e of CM_EXTRA) if (e.antes) fr.push(...de(e.k));
+  S.r.forEach((v, i) => { if (v != null) fr.push(CM_FILAS[i][L][v]); });
+  for (const e of CM_EXTRA) if (!e.antes){ if (e.auto){ if (S.rec !== false && rec) fr.push(rec); } else fr.push(...de(e.k)); }
+  return fr.join(' ');
+}
+function pintaComentarios(C){
+  const gs = gruposDe(''); H.g = gs.includes(H.g) ? H.g : gs.includes((NT.ultimaEv || {}).g) ? NT.ultimaEv.g : gs[0]; H.ev = H.ev || (NT.ultimaEv || {}).ev || 1;
+  const g = H.g, N = nAlumnos(g), E = evalDe(g, H.ev), k = g + '|' + H.ev, L = NT.comentIdioma === 'es' ? 'es' : 'va';
+  NT.coment = NT.coment || {}; const CM = NT.coment[k] = NT.coment[k] || {};
+  if (!H.cn || H.cn > N || noViene(g, H.cn)) H.cn = vecino(g, 0, N, 1) || 1;
+  const n = H.cn, r = notaEval(E, g, n), it = r.nota == null ? null : itaca(r.nota, E.red), niv0 = cmNivel(it);
+  const S = CM[n] ? CM[n] : {r: Array(CM_FILAS.length).fill(niv0), x: [], t: null};
+  const rec = cmRec(E, r, L), nom = (LISTA[g] || {})[n], hechos = Object.keys(CM).filter(m => +m <= N && !noViene(g, m)).length;
+  const texto = S.t != null ? S.t : cmTexto(S, L, rec);
+  const NV = CM_NIV[L];
+  let h = `<div class="caja"><div class="fila"><select id="cmG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
+    <select id="cmEv">${[1, 2, 3].map(v => `<option value="${v}"${v === H.ev ? ' selected' : ''}>${v}.ª evaluación</option>`).join('')}</select>
+    <span class="seg" style="margin-left:auto"><button data-cml="va"${L === 'va' ? ' class="si"' : ''} style="width:auto;padding:0 10px">VAL</button><button data-cml="es"${L === 'es' ? ' class="si"' : ''} style="width:auto;padding:0 10px">CAS</button></span></div>
+    <div class="fila" style="margin-top:10px;justify-content:space-between"><button class="btn" id="cmAnt"${vecino(g, n, N, -1) ? '' : ' disabled'}>‹</button>
+      <b style="font-size:20px">n.º ${n}${nom ? ' · ' + esc(corto(nom)) : ''}</b><button class="btn" id="cmSig"${vecino(g, n, N, 1) ? '' : ' disabled'}>›</button></div>
+    <p class="nota" style="text-align:center;margin:6px 0 0">${it == null ? 'Sin nota de la evaluación todavía: elige el nivel a mano.' : `Nota ${coma(r.nota)} · Itaca <b>${it}</b> → ${NV[niv0]}`} · ${hechos} de ${vienenHasta(g, N)} con comentario</p>
+    <div class="fila" style="margin-top:8px;flex-wrap:wrap;gap:6px">${NV.map((t, i) => `<button class="btn peq${S.r.every(v => v === i) ? ' prim' : ''}" data-cmtodo="${i}">${t}</button>`).join('')}</div>
+    <p class="nota" style="margin:4px 0 0">Un toque arriba pone todas las filas en ese nivel; después cambia la que no case. Tocar el nivel marcado de una fila la quita del comentario.</p></div>
+    <div class="caja">${CM_FILAS.map((f, i) => `<div class="cmF"><b>${f.t[L]}</b><div class="seg" style="margin-top:4px">${NV.map((t, j) => `<button data-cmf="${i}:${j}"${S.r[i] === j ? ' class="si"' : ''} title="${esc(t)}">${['I0', 'I', '5', '6', '7-8', '9-10'][j]}</button>`).join('')}</div>
+      <p class="cmT${S.r[i] == null ? ' apagado' : ''}">${esc(f[L][S.r[i] == null ? (niv0 == null ? 2 : niv0) : S.r[i]])}</p></div>`).join('')}</div>
+    <div class="caja cmX">${CM_EXTRA.map(e => e.auto
+      ? (rec ? `<label><input type="checkbox" id="cmRec"${S.rec !== false ? ' checked' : ''}> <b>${e.g[L]}:</b> ${esc(rec)}</label>` : '')
+      : `<details${e.x.some((_, b) => S.x.includes(e.k + '.' + b)) || e.k === 'fort' || e.k === 'trab' ? ' open' : ''}><summary style="cursor:pointer"><b>${e.g[L]}</b></summary>${e.x.map((t, b) => `<label><input type="checkbox" data-cmx="${e.k}.${b}"${S.x.includes(e.k + '.' + b) ? ' checked' : ''}> ${esc(t[L])}</label>`).join('')}</details>`).join('')}</div>
+    <div class="caja"><h2 style="margin-top:0">El comentario</h2><textarea id="cmTexto">${esc(texto)}</textarea>
+      <div class="fila" style="margin-top:6px"><span class="nota" id="cmCuenta">${texto.length} caracteres${S.t != null ? ' · retocado a mano' : ''}</span>${S.t != null ? '<button class="btn peq" id="cmDeshaz" style="margin-left:auto">Volver al de las filas</button>' : ''}</div>
+      <div class="fila" style="margin-top:10px"><button class="btn acento" id="cmCopia">Copiar</button><button class="btn prim" id="cmCopiaSig"${vecino(g, n, N, 1) ? '' : ' disabled'}>Copiar y siguiente ›</button></div></div>`;
+  C.innerHTML = h;
+  const guarda = () => { CM[n] = S; guardaNotas(); };
+  const otro = () => { NT.ultimaEv = {g: H.g, ev: H.ev}; pintaHerramienta(); };
+  $('#cmG').onchange = e => { H.g = e.target.value; H.cn = null; otro(); };
+  $('#cmEv').onchange = e => { H.ev = +e.target.value; otro(); };
+  C.querySelectorAll('[data-cml]').forEach(b => b.onclick = () => { if (S.t != null && !confirm('Este comentario está retocado a mano. Al cambiar de idioma se vuelve al de las filas. ¿Seguir?')) return;
+    NT.comentIdioma = b.dataset.cml; if (CM[n]) S.t = null; guardaNotas(); otro(); });
+  $('#cmAnt').onclick = () => { H.cn = vecino(g, n, N, -1) || n; otro(); };
+  $('#cmSig').onclick = () => { H.cn = vecino(g, n, N, 1) || n; otro(); };
+  C.querySelectorAll('[data-cmtodo]').forEach(b => b.onclick = () => { S.r = S.r.map(() => +b.dataset.cmtodo); S.t = null; guarda(); otro(); });
+  C.querySelectorAll('[data-cmf]').forEach(b => b.onclick = () => { const [i, j] = b.dataset.cmf.split(':').map(Number); S.r[i] = S.r[i] === j ? null : j; S.t = null; guarda(); otro(); });
+  C.querySelectorAll('[data-cmx]').forEach(x => x.onchange = () => { const id = x.dataset.cmx; S.x = x.checked ? S.x.concat(id) : S.x.filter(y => y !== id); S.t = null; guarda(); otro(); });
+  if ($('#cmRec')) $('#cmRec').onchange = e => { S.rec = e.target.checked; S.t = null; guarda(); otro(); };
+  $('#cmTexto').oninput = e => { S.t = e.target.value; guarda(); $('#cmCuenta').textContent = S.t.length + ' caracteres · retocado a mano'; };
+  if ($('#cmDeshaz')) $('#cmDeshaz').onclick = () => { S.t = null; guarda(); otro(); };
+  const copia = async () => { const t = $('#cmTexto').value.trim(); if (!t) { aviso('No hay nada que copiar'); return false; }
+    if (/…/.test(t) && !confirm('El comentario aún tiene puntos suspensivos «…» por completar. ¿Copiarlo igualmente?')) return false;
+    if (!CM[n]) guarda();
+    try { await navigator.clipboard.writeText(t); aviso('Copiado el del n.º ' + n + ': pégalo en Itaca', 2200); return true; }
+    catch (e) { const ta = $('#cmTexto'); ta.select(); try { document.execCommand('copy'); aviso('Copiado'); return true; } catch (e2) { aviso('No he podido copiar: selecciona el texto y cópialo a mano', 4000); return false; } } };
+  $('#cmCopia').onclick = copia;
+  $('#cmCopiaSig').onclick = async () => { if (await copia()){ H.cn = vecino(g, n, N, 1) || n; otro(); } };
 }
 function pintaFila(E, g, n){
   const tr = document.querySelector('.tabla tr[data-n="' + n + '"]'); if (!tr) return;
