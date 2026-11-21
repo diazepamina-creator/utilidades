@@ -500,7 +500,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.28';
+const VERSION = '1.29';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -2346,7 +2346,7 @@ function pintaFichas(C){
     <p class="nota" style="margin:8px 0 0">${esc(f.app)} · ${esc(f.titulo)}${f.subtitulo ? ' · ' + esc(f.subtitulo) : ''}</p>
     <div class="fila nota" style="margin-top:8px">Alumnos: ${campoN('cN', H.g, N)} ${campoNV('cNV', H.g)}
       ${LISTA[H.g] ? `<span style="flex:1">Con nombres (solo mientras la app esté abierta).</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div></div>`;
-  const hechos = Object.entries(R.al).filter(([n, a]) => +n <= N && !noViene(H.g, n) && (taller ? a.v != null : a.ne || (a.v1 || []).some(x => x != null)));
+  const hechos = Object.entries(R.al).filter(([n, a]) => +n <= N && !noViene(H.g, n) && (taller ? a.v != null : a.ne || a.en || (a.v1 || []).some(x => x != null)));
   h += `<div class="fila" style="margin:6px 0">${['lista', 'estad', 'resumen'].map(v => `<button class="btn peq${(H.vista || 'lista') === v ? ' prim' : ''}" data-vista="${v}">${{lista: 'Lista', estad: 'Estadísticas', resumen: 'Resumen'}[v]}</button>`).join('')}
     <span class="nota" style="margin-left:auto" id="fCuenta">${hechos.length} de ${vienenHasta(H.g, N)}</span></div>`;
   const vista = H.vista || 'lista';
@@ -2363,14 +2363,23 @@ function pintaFichas(C){
     h += `<div class="rej${LISTA[H.g] ? ' connom' : ''}">`;
     for (let n = 1; n <= N; n++){ const a = R.al[n], r = notaFicha(a), nom = (LISTA[H.g] || {})[n]; let s = '<small>&nbsp;</small>', cl = '';
       if (noViene(H.g, n)){ h += `<button class="num nv" disabled aria-label="n.º ${n}: no viene"><b>${n}</b><small>no viene</small></button>`; continue; }
+      if (H.entregas){ const st = !a ? '' : a.ne ? 'ne' : (a.en || notaFicha(a).v1 != null || (a.v1 || []).some(x => x != null)) ? 'en' : '';
+        h += `<button class="num${st === 'en' ? ' hecho' : st === 'ne' ? ' np' : ''}" data-ent="${n}"><b>${n}</b>${nom ? `<i>${esc(corto(nom))}</i>` : ''}<small>${st === 'en' ? '✓ entregada' : st === 'ne' ? 'no la entrega' : '&nbsp;'}</small></button>`; continue; }
       if (a && a.ne){ s = '<small>no la entrega</small>'; cl = ' np'; }
       else if (r.v1 != null){ s = `<small class="${tonoNota(mejorFicha(a))}">${coma(r.v1)}${r.v2 != null ? ' → ' + coma(r.v2) : ''}</small>`; cl = ' hecho'; }
       else if (a && (a.v1 || []).some(x => x != null)){ s = '<small>…</small>'; cl = ' amedias'; }
       h += `<button class="num${cl}" data-n="${n}"${nom ? ` data-q="${esc(llano(nom))}"` : ''}><b>${n}</b>${nom ? `<i>${esc(corto(nom))}</i>` : ''}${s}</button>`; }
-    h += '</div><p class="nota">Toca un número para corregir su ficha. «7 → 9»: la 1.ª vuelta y la 2.ª.</p>';
+    h += H.entregas ? '</div><p class="nota"><b>Solo entregas:</b> un toque, ✓ entregada; otro, no la entrega; otro, en blanco. Sin rúbrica: para cuando aún no está corregida. Lo corregido cuenta como entregado.</p>'
+      : '</div><p class="nota">Toca un número para corregir su ficha. «7 → 9»: la 1.ª vuelta y la 2.ª.</p>';
   }
-  h += `<div class="fila" style="margin-top:12px"><button class="btn peq" id="fTabla">Copiar como tabla</button><button class="btn peq peligro" id="fBorra">Borrar lo de esta ficha</button></div>`;
+  h += `<div class="fila" style="margin-top:12px">${!taller && vista === 'lista' ? `<button class="btn peq${H.entregas ? ' prim' : ''}" id="fEnt">${H.entregas ? 'Volver a corregir' : 'Solo entregas'}</button>` : ''}<button class="btn peq" id="fTabla">Copiar como tabla</button><button class="btn peq peligro" id="fBorra">Borrar lo de esta ficha</button></div>`;
   C.innerHTML = h;
+  if ($('#fEnt')) $('#fEnt').onclick = () => { H.entregas = !H.entregas; pintaHerramienta(); };
+  C.querySelectorAll('.num[data-ent]').forEach(b => b.onclick = () => { const n = +b.dataset.ent, a = R.al[n];
+    const corregida = a && (notaFicha(a).v1 != null || (a.v1 || []).some(x => x != null));
+    if (corregida) return aviso('Esa ya está corregida (cuenta como entregada): para cambiarla, «Volver a corregir»', 3500);
+    if (!a) R.al[n] = {en: true, t: Date.now()}; else if (a.en){ delete a.en; a.ne = true; a.t = Date.now(); } else delete R.al[n];
+    guardaNotas(); pintaHerramienta(); });
   $('#fG').onchange = e => { H.g = e.target.value; H.f = null; pintaHerramienta(); };
   $('#fF').onchange = e => { H.f = e.target.value; pintaHerramienta(); };
   atarN('cN', H.g, pintaHerramienta); atarNV('cNV', H.g, pintaHerramienta);
@@ -2391,6 +2400,7 @@ function pintaFichas(C){
 function tablaFicha(f, R, N){
   const filas = [['n.º', '1.ª vuelta', '2.ª vuelta'].concat(FIC.rubrica.map(r => r.nombre + ' (' + r.c + ')'), ['códigos', 'arreglados', 'reto', 'bloques con fallos'])];
   for (let n = 1; n <= N; n++){ const a = R.al[n]; if (noViene(H.g, n)){ filas.push([n, 'no viene']); continue; } if (!a) continue; if (a.ne){ filas.push([n, 'no la entrega']); continue; }
+    if (a.en && notaFicha(a).v1 == null){ filas.push([n, 'entregada (sin corregir)']); continue; }
     const r = notaFicha(a); filas.push([n, coma(r.v1), coma(r.v2)].concat([0, 1, 2, 3, 4].map(i => (a.v1 || [])[i] == null ? '' : a.v1[i]),
       [r.codigos.join(' '), FIC.rubrica.filter((x, i) => (a.ar || [])[i]).map(x => x.c).join(' '), a.reto ? '+' : '', (a.b || []).join(' ')])); }
   return filas;
@@ -2430,7 +2440,7 @@ function tablaResumen(fs, g, N, taller){
     if (noViene(g, n)){ filas.push([n, 'no viene']); continue; }
     for (const f of usadas){ const a = corrF(f.id, g).al[n];
       if (taller){ if (a && a.v != null){ fila.push(a.v); s += a.v; pos += 2; } else fila.push('—'); }
-      else if (!a) fila.push(''); else if (a.ne){ fila.push('NE'); k++; } else { const v = mejorFicha(a); if (v == null) fila.push('…'); else { fila.push(coma(v)); s += v; k++; } } }
+      else if (!a) fila.push(''); else if (a.ne){ fila.push('NE'); k++; } else { const v = mejorFicha(a); if (v == null) fila.push(a.en ? '✓' : '…'); else { fila.push(coma(v)); s += v; k++; } } }
     fila.push(taller ? (pos ? coma(10 * s / pos) : '') : (k ? coma(s / k) : ''));
     filas.push(fila); }
   return filas;
@@ -2820,19 +2830,22 @@ function pintaReloj(C){
 }
 
 /* ── LA NOTA DE LA EVALUACIÓN ── */
-const UNIDADES0 = {'1|1': [{nombre: 'Divisibilidad', examen: null}, {nombre: 'Enteros', examen: 'enteros-1eso'}, {nombre: 'Potencias', examen: 'potencias-1eso'}],
-  '2|1': [{nombre: 'Enteros', examen: 'enteros-2eso'}, {nombre: 'Racionales', examen: null}]};
+const UNIDADES0 = {'1|1': [{nombre: 'Divisibilidad', examen: 'divisibilidad-1eso'}, {nombre: 'Enteros', examen: 'enteros-1eso'}, {nombre: 'Potencias', examen: 'potencias-1eso'}],
+  '2|1': [{nombre: 'Divisibilidad', examen: 'divisibilidad-2eso'}, {nombre: 'Enteros', examen: 'enteros-2eso'}, {nombre: 'Racionales', examen: 'racionales-2eso'}]};
 const REDONDEOS = {aprobado: 'Redondear, pero por debajo de 5 hacia abajo (4,9 → 4)', normal: 'Redondear (4,5 → 5)', truncar: 'Quitar los decimales (6,9 → 6)'};
 function evalDe(g, ev){
   const k = g + '|' + ev;
-  if (!NT.eval[k]) NT.eval[k] = {u: JSON.parse(JSON.stringify(UNIDADES0[g[0] + '|' + ev] || [])), p: {ex: 80, cu: 10, se: 10}, cu: g[0] === '1' ? 'Álbum' : 'Libreta', red: 'aprobado', al: {}};
-  return NT.eval[k];
+  if (!NT.eval[k]) NT.eval[k] = {u: JSON.parse(JSON.stringify(UNIDADES0[g[0] + '|' + ev] || [])), p: {ex: 80, cu: 10, se: 10}, cu: g[0] === '1' ? 'Álbum' : 'Libreta', red: 'aprobado', al: {}, enl: 1};
+  const E = NT.eval[k];
+  /* 1.28: las unidades creadas antes, sin examen, se enlazan UNA vez con el de su nombre si ya tiene rúbrica (divisibilidad, racionales) */
+  if (!E.enl && RUB){ for (const u of E.u) if (!u.examen){ const ex = RUB.examenes.find(x => x.curso[0] === g[0] && llano(x.unidad || x.tema) === llano(u.nombre)); if (ex) u.examen = ex.id; } E.enl = 1; }
+  return E;
 }
 const itaca = (v, modo) => v == null ? null : Math.max(1, Math.min(10, modo === 'truncar' ? Math.floor(v + 1e-9) : modo === 'normal' ? Math.floor(v + 0.5 + 1e-9) : v < 5 ? Math.floor(v + 1e-9) : Math.floor(v + 0.5 + 1e-9)));
 /* la nota de un alumno: la de noviembre y, si recupera, la recalculada */
 function notaEval(E, g, n){
   const A = E.al[n] || {}, us = E.u.map((u, i) => { const man = leeNum((A.u || {})[i]); return man != null ? man : u.examen ? notaDeCorrector(u.examen, g, n) : null; });
-  const cu = leeNum(A.cu), se = leeNum(A.se), falta = [];
+  const cu = leeNum(A.cu), seF = segFichas(g, n), se = leeNum(A.se) != null ? leeNum(A.se) : seF, falta = [];
   E.u.forEach((u, i) => { if (us[i] == null) falta.push(u.nombre); }); if (cu == null) falta.push(E.cu); if (se == null) falta.push('seguimiento');
   const calc = xs => { const m = xs.reduce((s, v) => s + v, 0) / (xs.length || 1); return (E.p.ex * m + E.p.cu * cu + E.p.se * se) / (E.p.ex + E.p.cu + E.p.se); };
   if (falta.length || !E.u.length) return {us, falta, nota: null};
@@ -2851,6 +2864,7 @@ function notaEval(E, g, n){
 function pintaEvaluacion(C){
   const gs = gruposDe(''); H.g = gs.includes(H.g) ? H.g : gs.includes((NT.ultimaEv || {}).g) ? NT.ultimaEv.g : gs[0]; H.ev = H.ev || (NT.ultimaEv || {}).ev || 1;
   NT.ultimaEv = {g: H.g, ev: H.ev};
+  if (H.g === 'T4') return pintaTaller(C, gs);
   const g = H.g, E = evalDe(g, H.ev), N = nAlumnos(g);
   let h = `<div class="caja"><div class="fila"><select id="eG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
     <select id="eEv">${[1, 2, 3].map(v => `<option value="${v}"${v === H.ev ? ' selected' : ''}>${v}.ª evaluación</option>`).join('')}</select>
@@ -2869,9 +2883,9 @@ function pintaEvaluacion(C){
     if (noViene(g, n)){ h += `<tr class="nv"><td><b>${n}</b></td><td colspan="${E.u.length + 4}"><small class="nota">no viene</small></td></tr>`; continue; }
     h += `<tr data-n="${n}"><td><b>${n}</b>${nom ? `<br><small class="nota nomc">${esc(corto(nom))}</small>` : ''}</td>` + E.u.map((u, i) => { const ph = u.examen ? notaDeCorrector(u.examen, g, n) : null;
       return `<td><input inputmode="decimal" data-f="u${i}" value="${esc((A.u || {})[i] == null ? '' : String(A.u[i]).replace('.', ','))}" placeholder="${ph == null ? '' : coma(ph)}"${ph != null ? ' class="del"' : ''}></td>`; }).join('')
-      + `<td><input inputmode="decimal" data-f="cu" value="${esc(A.cu == null ? '' : String(A.cu).replace('.', ','))}"></td><td><input inputmode="decimal" data-f="se" value="${esc(A.se == null ? '' : String(A.se).replace('.', ','))}"></td>
+      + `<td><input inputmode="decimal" data-f="cu" value="${esc(A.cu == null ? '' : String(A.cu).replace('.', ','))}"></td><td><input inputmode="decimal" data-f="se" value="${esc(A.se == null ? '' : String(A.se).replace('.', ','))}" placeholder="${segFichas(g, n) == null ? '' : coma(segFichas(g, n), 1)}"${segFichas(g, n) != null ? ' class="del"' : ''}></td>
       <td class="nf"></td><td class="it"></td></tr>`; }
-  h += `</tbody></table></div><p class="nota">En verde, la nota que viene del corrector (solo los exámenes corregidos del todo): si escribes encima, manda la tuya. Una casilla vacía es que falta.</p>
+  h += `</tbody></table></div><p class="nota">En verde, la nota que viene del corrector (solo los exámenes corregidos del todo) y, en «Seguim.», la de las fichas entregadas (entregadas / recogidas × 10): si escribes encima, manda la tuya. Una casilla vacía es que falta.</p>
     <div class="caja"><h2>Pegar una columna</h2><p class="nota" style="margin-top:0">Desde tu hoja: una nota por renglón empezando por el n.º 1, o «n.º nota» en cada renglón.</p>
       <div class="fila"><select id="ePegaCol">${cols.map(c => `<option value="${c.k}">${esc(c.t)}</option>`).join('')}</select><button class="btn peq" id="ePega">Pegar</button></div>
       <textarea id="ePegaT" rows="3" style="width:100%;margin-top:8px;border:1.5px solid var(--linea);border-radius:10px;padding:8px;font:14px ui-monospace,monospace"></textarea></div>
@@ -3040,48 +3054,175 @@ function cmTexto(S, L, ev, rec){
   }
   return fr.join(' ');
 }
+/* ── COMENTARIOS CON DATOS (1.29) ──
+   La propuesta de Claude (21 nov 2026), que Andrés eligió: el comentario sale de lo que ya está en la app, alumno por
+   alumno, y no de una plantilla. Tres partes, siempre en este orden: lo que hace bien (la pregunta de sus exámenes en la
+   que mejor le fue), lo que tiene que reforzar (la peor, con su error con nombre más repetido), las fichas entregadas, y
+   el próximo paso (con la recuperación, que sale sola). Los exámenes, los de las unidades de «Nota de la evaluación»
+   corregidos del todo en el corrector. Cada pregunta se nombra por lo que trabaja («la suma y la resta de enteros»), no
+   por su título de examen («Entra gente, alguien se retira»): CM_TIT; y cada error, por lo que hace el alumno: CM_ERR.
+   Todo en castellano y en valenciano. El modelo de ítems (1.28) sigue ahí, en «Modelo», para quien lo prefiera, y sus
+   casillas de convivencia, asistencia, etc. se pueden añadir debajo. Si se añade un examen nuevo con preguntas o errores
+   que no están aquí, la pregunta se nombra por su título (en castellano) hasta que se añada. */
+const CM_TIT = {
+  'Múltiplos y divisores': cmP('els múltiples i els divisors', 'los múltiplos y los divisores'), 'Criterios de divisibilidad': cmP('els criteris de divisibilitat', 'los criterios de divisibilidad'),
+  'Números primos': cmP('els nombres primers', 'los números primos'), 'Descomponer en factores primos': cmP('la descomposició en factors primers', 'la descomposición en factores primos'),
+  'Máximo común divisor y mínimo común múltiplo': cmP('el càlcul del mcd i del mcm', 'el cálculo del mcd y del mcm'), 'La pareja: mcd · mcm = a · b': cmP('la relació entre el mcd i el mcm', 'la relación entre el mcd y el mcm'),
+  'Los múltiplos': cmP('els múltiples', 'los múltiplos'), 'Los divisores de 12': cmP('els divisors', 'los divisores'), '¿Cae el 2? ¿Cae el 5?': cmP('els criteris del 2 i del 5', 'los criterios del 2 y del 5'),
+  'Romper hasta el final': cmP('la descomposició en factors primers', 'la descomposición en factores primos'), 'Las piezas que están en los dos': cmP('el màxim comú divisor', 'el máximo común divisor'),
+  'mcd y mcm': cmP('el càlcul del mcd i del mcm', 'el cálculo del mcd y del mcm'), 'Problemas': cmP('els problemes de mcd i mcm', 'los problemas de mcd y mcm'), 'Razona': cmP('el raonament sense fer comptes', 'el razonamiento sin hacer cuentas'),
+  '¿Qué dice la placa?': cmP('la lectura i l’escriptura de potències', 'la lectura y la escritura de potencias'), 'Calcula': cmP('el càlcul de potències', 'el cálculo de potencias'),
+  'La base negativa': cmP('les potències de base negativa', 'las potencias de base negativa'), 'Una sola potencia': cmP('les propietats de les potències', 'las propiedades de las potencias'),
+  'El ojo de Liza': cmP('la detecció d’errors en les potències', 'la detección de errores en las potencias'), 'Potencias de 10': cmP('les potències de 10', 'las potencias de 10'),
+  'La raíz cuadrada': cmP('l’arrel quadrada', 'la raíz cuadrada'), 'Todo junto, renglón a renglón': cmP('les operacions combinades', 'las operaciones combinadas'),
+  'Problema': cmP('la resolució de problemes', 'la resolución de problemas'), 'Calcula escribiendo los factores': cmP('el càlcul de potències', 'el cálculo de potencias'),
+  'Pegar y clonar': cmP('el producte de potències i la potència d’una potència', 'el producto de potencias y la potencia de una potencia'), 'La raya': cmP('el quocient de potències', 'el cociente de potencias'),
+  'El lado del cuadrado': cmP('l’arrel quadrada', 'la raíz cuadrada'), '¿Dónde acaba la bandera?': cmP('la suma d’enters en la recta', 'la suma de enteros en la recta'),
+  'Ordenar y comparar': cmP('la comparació i l’ordenació d’enters', 'la comparación y la ordenación de enteros'), 'Sumar y restar': cmP('la suma i la resta d’enters', 'la suma y la resta de enteros'),
+  'En cadena y con paréntesis': cmP('les sumes i restes encadenades amb parèntesis', 'las sumas y restas encadenadas con paréntesis'), 'Multiplicar y dividir': cmP('la multiplicació i la divisió d’enters', 'la multiplicación y la división de enteros'),
+  'El ojo de Argos': cmP('la detecció d’errors en les operacions', 'la detección de errores en las operaciones'), 'En la regla': cmP('la representació en la recta', 'la representación en la recta'),
+  'Ordenar': cmP('l’ordenació d’enters', 'la ordenación de enteros'), 'Fuerza, bando y orden': cmP('el valor absolut i l’ordre', 'el valor absoluto y el orden'),
+  'Multiplicar, dividir y potencias': cmP('la multiplicació, la divisió i les potències d’enters', 'la multiplicación, la división y las potencias de enteros'), 'Operaciones combinadas': cmP('les operacions combinades', 'las operaciones combinadas'),
+  'Lejos y cerca': cmP('el valor absolut i l’ordre', 'el valor absoluto y el orden'), 'Entra gente, alguien se retira': cmP('la suma i la resta d’enters', 'la suma y la resta de enteros'),
+  'Las pociones y su propio frasco': cmP('la multiplicació, la divisió i les potències d’enters', 'la multiplicación, la división y las potencias de enteros'), 'Todo junto': cmP('les operacions combinades', 'las operaciones combinadas'),
+  'Equivalentes y simplificar': cmP('les fraccions equivalents i la simplificació', 'las fracciones equivalentes y la simplificación'), 'Comparar y ordenar': cmP('la comparació i l’ordenació de fraccions', 'la comparación y la ordenación de fracciones'),
+  'Las cuatro operaciones': cmP('les operacions amb fraccions', 'las operaciones con fracciones'), 'Potencias de fracciones': cmP('les potències de fraccions', 'las potencias de fracciones'),
+  'Número y fracción': cmP('la idea de nombre racional', 'la idea de número racional'), 'Fracción de una cantidad y problema': cmP('la fracció d’una quantitat i els problemes', 'la fracción de una cantidad y los problemas')};
+const CM_ERR = {
+  'Primo por impar': cmP('confon senar amb primer', 'confunde impar con primo'), 'Sin terminar': cmP('deixa les descomposicions sense acabar', 'deja las descomposiciones sin terminar'),
+  'mcd y mcm cambiados': cmP('confon el mcd amb el mcm', 'confunde el mcd con el mcm'), 'Sin potencias': cmP('no escriu el resultat amb potències', 'no escribe el resultado con potencias'),
+  'El área entre 60': cmP('divideix l’àrea en lloc de les mesures dels costats', 'divide el área en lugar de las medidas de los lados'), 'mcm donde va mcd': cmP('usa el mcm quan el problema demana el mcd', 'usa el mcm cuando el problema pide el mcd'),
+  'confundir g^2 con 2·g': cmP('confon una potència amb una multiplicació (x² amb 2·x)', 'confunde una potencia con una multiplicación (x² con 2·x)'),
+  'sumar los exponentes al clonar': cmP('suma els exponents en elevar una potència a una altra', 'suma los exponentes al elevar una potencia a otra'),
+  'multiplicar la base por el exponente': cmP('multiplica la base per l’exponent (2³ no és 6)', 'multiplica la base por el exponente (2³ no es 6)'),
+  'creer que g^0 vale 0': cmP('creu que una potència d’exponent 0 val 0', 'cree que una potencia de exponente 0 vale 0'),
+  'el menos de delante': cmP('aplica l’exponent al signe de davant (−2² no és 4)', 'aplica el exponente al signo de delante (−2² no es 4)'),
+  'multiplicar los exponentes al pegar': cmP('multiplica els exponents en multiplicar potències de la mateixa base', 'multiplica los exponentes al multiplicar potencias de la misma base'),
+  'sumar los exponentes en la raya': cmP('suma els exponents en dividir potències', 'suma los exponentes al dividir potencias'), 'clonar solo el último': cmP('eleva només l’últim factor d’un producte', 'eleva solo el último factor de un producto'),
+  'olvidar el hueco': cmP('oblida els zeros en escriure potències de 10', 'olvida los ceros al escribir potencias de 10'), 'la raíz es la mitad': cmP('confon l’arrel quadrada amb la meitat', 'confunde la raíz cuadrada con la mitad'),
+  'cortar por el sitio equivocado': cmP('no respecta l’ordre de les operacions', 'no respeta el orden de las operaciones'), 'fuerza y bando': cmP('suma els nombres sense tindre en compte el signe', 'suma los números sin tener en cuenta el signo'),
+  'fuerza y orden': cmP('ordena els negatius pel seu valor absolut (−8 no és major que −3)', 'ordena los negativos por su valor absoluto (−8 no es mayor que −3)'),
+  'sumar fuerzas en contra': cmP('suma els valors absoluts quan els signes són diferents', 'suma los valores absolutos cuando los signos son distintos'),
+  'dos menos': cmP('s’equivoca en restar un nombre negatiu', 'se equivoca al restar un número negativo'), 'el espejo olvidado': cmP('oblida canviar el signe en restar', 'olvida cambiar el signo al restar'),
+  'el espejo a medias': cmP('lleva un parèntesi precedit de menys sense canviar tots els signes', 'quita un paréntesis precedido de menos sin cambiar todos los signos'),
+  'el signo del producto': cmP('s’equivoca amb el signe d’un producte de diversos factors', 'se equivoca con el signo de un producto de varios factores'), 'restar al revés': cmP('resta en l’ordre contrari', 'resta en el orden contrario'),
+  'de derecha a izquierda': cmP('fa les multiplicacions i divisions de dreta a esquerra', 'hace las multiplicaciones y divisiones de derecha a izquierda'),
+  'el menos que se cuela': cmP('fica el signe menys en la potència quan no està entre parèntesis', 'mete el signo menos en la potencia cuando no está entre paréntesis'),
+  'elevar es multiplicar': cmP('confon elevar amb multiplicar', 'confunde elevar con multiplicar'), 'triplicar lo que no toca': cmP('aplica l’operació a una dada que no correspon', 'aplica la operación a un dato que no corresponde'),
+  'contar las horas': cmP('compta malament els intervals', 'cuenta mal los intervalos'), 'simplificar a medias': cmP('no simplifica fins a la fracció irreductible', 'no simplifica hasta la fracción irreducible'),
+  'ordenar por el denominador': cmP('compara fraccions només pel denominador', 'compara fracciones solo por el denominador'), 'los negativos al revés': cmP('ordena les fraccions negatives a l’inrevés', 'ordena las fracciones negativas al revés'),
+  'sumar arriba y abajo': cmP('suma numeradors i denominadors per separat', 'suma numeradores y denominadores por separado'), 'dividir sin invertir': cmP('divideix fraccions sense multiplicar per la inversa', 'divide fracciones sin multiplicar por la inversa'),
+  'elevar solo el de arriba': cmP('eleva només el numerador', 'eleva solo el numerador'), 'el signo con exponente par': cmP('s’equivoca amb el signe d’una potència d’exponent parell', 'se equivoca con el signo de una potencia de exponente par'),
+  'el signo del cuadrado': cmP('deixa negatiu un parèntesi elevat al quadrat', 'deja negativo un paréntesis elevado al cuadrado'),
+  'el número es la fracción': cmP('confon el nombre amb la seua escriptura (3/4 i 6/8 són el mateix nombre)', 'confunde el número con su escritura (3/4 y 6/8 son el mismo número)'),
+  'restar las fracciones al total': cmP('resta les fraccions del total sense calcular la part', 'resta las fracciones al total sin calcular la parte')};
+const CM_PASOS = [
+  {k: 'rep', t: cmP('L’ajudarà repassar {x} amb les fitxes i l’aplicació del tema.', 'Le ayudará repasar {x} con las fichas y la app del tema.')},
+  {k: 'ent', t: cmP('Ha d’entregar les fitxes a temps.', 'Tiene que entregar las fichas a tiempo.')},
+  {k: 'pro', t: cmP('Ha de mostrar tot el procés en els exàmens.', 'Tiene que mostrar todo el proceso en los exámenes.')},
+  {k: 'rev', t: cmP('Ha de revisar les respostes abans d’entregar.', 'Tiene que revisar las respuestas antes de entregar.')},
+  {k: 'ret', t: cmP('Pot anar més enllà amb els reptes de les fitxes.', 'Puede ir más allá con los retos de las fichas.')},
+  {k: 'ani', t: cmP('L’animem a continuar treballant així.', 'Le animamos a seguir trabajando así.')}];
+/* lo que dicen los exámenes de un alumno: por cada «cosa que se trabaja», el % de puntos; y sus errores con nombre */
+function cmDatos(E, g, n){
+  const por = {}, errs = {}, exs = [];
+  for (const u of E.u){ if (!u.examen) continue; const ex = examenDe(u.examen), R = NT.corr[claveCorr(u.examen, g)], a = R && R.al[n];
+    if (!ex || !a || a.np || !Object.keys(a.x || {}).length) continue; const r = notaExamen(ex, a); if (r.faltan) continue;
+    exs.push(ex.tema);
+    for (const p of r.modelo.preguntas){ const nom = CM_TIT[p.titulo] ? p.titulo : p.titulo, k = (CM_TIT[p.titulo] ? 'T:' : 'X:') + nom;
+      const o = por[k] = por[k] || {k, tit: p.titulo, s: 0, max: 0}; o.s += r.porP[p.n] || 0; o.max += p.puntos;
+      for (const i of (a.e || {})[p.n] || []){ const e = p.errores[i]; if (e) errs[e.nombre] = (errs[e.nombre] || 0) + 1; } } }
+  const qs = Object.values(por).filter(o => o.max > 0).map(o => Object.assign(o, {pct: o.s / o.max}));
+  const fort = qs.filter(o => o.pct >= 0.75).sort((a, b) => b.pct - a.pct || b.max - a.max);
+  const fal = qs.filter(o => o.pct < 0.5).sort((a, b) => a.pct - b.pct || b.max - a.max);
+  const err = Object.entries(errs).sort((a, b) => b[1] - a[1]).map(([nombre, veces]) => ({nombre, veces}));
+  return {exs, fort, fal, err};
+}
+const cmFrase = (tit, L) => CM_TIT[tit] ? CM_TIT[tit][L] : (L === 'va' ? '«' + tit + '»' : '«' + tit + '»');
+function cmTextoDatos(S, L, D, ent, rec, niv){
+  const d = S.d || {}, fr = [];
+  const fk = d.fort === undefined ? (D.fort[0] || {}).k : d.fort, fo = D.fort.find(o => o.k === fk);
+  const lk = d.fal === undefined ? (D.fal[0] || {}).k : d.fal, fa = D.fal.find(o => o.k === lk);
+  const en = d.err === undefined ? (D.err[0] || {}).nombre : d.err, er = en && CM_ERR[en] ? CM_ERR[en][L] : null;
+  if (fo) fr.push((fo.pct >= 0.9 ? (L === 'va' ? 'Domina ' : 'Domina ') : (L === 'va' ? 'Fa bé ' : 'Hace bien ')) + cmFrase(fo.tit, L) + '.');
+  if (fa) fr.push((L === 'va' ? 'Ha de reforçar ' : 'Tiene que reforzar ') + cmFrase(fa.tit, L) + (er ? (L === 'va' ? ', perquè ' : ', porque ') + er : '') + '.');
+  else if (er) fr.push((L === 'va' ? 'Ha de vigilar un error: ' : 'Tiene que vigilar un error: ') + er + '.');
+  if (ent.y && d.fich !== false) fr.push(ent.x === ent.y ? (L === 'va' ? 'Ha entregat totes les fitxes (' + ent.y + ').' : 'Ha entregado todas las fichas (' + ent.y + ').')
+    : (L === 'va' ? 'Ha entregat ' + ent.x + ' de ' + ent.y + ' fitxes.' : 'Ha entregado ' + ent.x + ' de ' + ent.y + ' fichas.'));
+  if (S.rec !== false && rec) fr.push(rec);
+  const pasos = d.pasos || cmPasos0(D, ent, niv, fa);
+  for (const P of CM_PASOS) if (pasos.includes(P.k)){ if (P.k === 'rep' && !fa) continue; fr.push(P.t[L].replace('{x}', fa ? cmFrase(fa.tit, L) : '')); }
+  for (const G of CM_G){ if (G.uno || G.auto) continue; S.x.filter(id => id.split('.')[0] === G.k).map(id => +id.split('.')[1]).sort((a, b) => a - b).forEach(i => { if (G.x[i]) fr.push(G.x[i][L]); }); }
+  return fr.join(' ');
+}
+const cmPasos0 = (D, ent, niv, fa) => { const p = []; if (fa) p.push('rep'); if (ent.y && ent.x < ent.y) p.push('ent'); if (!fa && niv != null && niv >= 4) p.push('ani'); if (niv === 5) p.push('ret'); return p; };
 function pintaComentarios(C){
   const gs = gruposDe(''); H.g = gs.includes(H.g) ? H.g : gs.includes((NT.ultimaEv || {}).g) ? NT.ultimaEv.g : gs[0]; H.ev = H.ev || (NT.ultimaEv || {}).ev || 1;
-  const g = H.g, ev = H.ev, N = nAlumnos(g), E = evalDe(g, ev), k = g + '|' + ev, L = NT.comentIdioma === 'es' ? 'es' : 'va';
+  if (H.g === 'T4'){ H.g = gs.find(x => x !== 'T4') || H.g; }
+  const g = H.g, ev = H.ev, N = nAlumnos(g), E = evalDe(g, ev), k = g + '|' + ev, L = NT.comentIdioma === 'es' ? 'es' : 'va', modo = NT.comentModo === 'modelo' ? 'modelo' : 'datos';
   NT.coment = NT.coment || {}; const CM = NT.coment[k] = NT.coment[k] || {};
   if (!H.cn || H.cn > N || noViene(g, H.cn)) H.cn = vecino(g, 0, N, 1) || 1;
   const n = H.cn, r = notaEval(E, g, n), it = r.nota == null ? null : itaca(r.nota, E.red), niv0 = cmNivel(it);
   const S = CM[n] && CM[n].u ? CM[n] : cmDef(niv0, ev);   /* lo de la 1.27 (sin «u») se rehace desde la nota */
   const rec = cmRec(E, r, L), nom = (LISTA[g] || {})[n], hechos = Object.keys(CM).filter(m => +m <= N && !noViene(g, m) && CM[m].u).length;
-  const texto = S.t != null ? S.t : cmTexto(S, L, ev, rec), NV = CM_NIV[L];
+  const D = cmDatos(E, g, n), ent = entregasFichas(g, n), d = S.d || {};
+  const texto = S.t != null ? S.t : modo === 'datos' ? cmTextoDatos(S, L, D, ent, rec, niv0) : cmTexto(S, L, ev, rec), NV = CM_NIV[L];
   const per = ev === 3 ? (L === 'va' ? 'durant el curs' : 'durante el curso') : (L === 'va' ? 'en aquesta avaluació' : 'en esta evaluación');
-  let h = `<div class="caja"><div class="fila"><select id="cmG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
+  const chips = (lista, cual, campo, txt) => lista.slice(0, 4).map(o => `<button class="btn peq${cual === o[campo] ? ' prim' : ''}" data-cd="${campo === 'nombre' ? 'err' : txt}:${esc(o[campo])}" style="white-space:normal;height:auto;padding:6px 10px;text-align:left">${esc(campo === 'nombre' ? (CM_ERR[o.nombre] ? CM_ERR[o.nombre][L] : o.nombre) + ' (×' + o.veces + ')' : cmFrase(o.tit, L) + ' · ' + Math.round(100 * o.pct) + ' %')}</button>`).join('')
+    + `<button class="btn peq${cual === null ? ' prim' : ''}" data-cd="${campo === 'nombre' ? 'err' : txt}:">ninguna</button>`;
+  let h = `<div class="caja"><div class="fila"><select id="cmG">${gs.filter(x => x !== 'T4').map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
     <select id="cmEv">${[1, 2, 3].map(v => `<option value="${v}"${v === ev ? ' selected' : ''}>${v}.ª evaluación</option>`).join('')}</select>
     <span class="seg" style="margin-left:auto"><button data-cml="va"${L === 'va' ? ' class="si"' : ''} style="width:auto;padding:0 10px">VAL</button><button data-cml="es"${L === 'es' ? ' class="si"' : ''} style="width:auto;padding:0 10px">CAS</button></span></div>
+    <div class="fila" style="margin-top:8px"><span class="seg"><button data-cmm="datos"${modo === 'datos' ? ' class="si"' : ''} style="width:auto;padding:0 12px">Con datos</button><button data-cmm="modelo"${modo === 'modelo' ? ' class="si"' : ''} style="width:auto;padding:0 12px">Modelo de ítems</button></span></div>
     <div class="fila" style="margin-top:10px;justify-content:space-between"><button class="btn" id="cmAnt"${vecino(g, n, N, -1) ? '' : ' disabled'}>‹</button>
       <b style="font-size:20px">n.º ${n}${nom ? ' · ' + esc(corto(nom)) : ''}</b><button class="btn" id="cmSig"${vecino(g, n, N, 1) ? '' : ' disabled'}>›</button></div>
-    <p class="nota" style="text-align:center;margin:6px 0 0">${it == null ? 'Sin nota de la evaluación todavía: elige el nivel a mano.' : `Nota ${coma(r.nota)} · Itaca <b>${it}</b> → ${NV[niv0]}`} · ${hechos} de ${vienenHasta(g, N)} con comentario</p>
-    <div class="fila" style="margin-top:8px;flex-wrap:wrap;gap:6px">${NV.map((t, i) => `<button class="btn peq" data-cmniv="${i}">${t}</button>`).join('')}</div>
-    <p class="nota" style="margin:4px 0 0">Un nivel pone de salida a), b), c) y d); después cambia lo que no case y añade lo que quieras.</p></div>
+    <p class="nota" style="text-align:center;margin:6px 0 0">${it == null ? 'Sin nota de la evaluación todavía.' : `Nota ${coma(r.nota)} · Itaca <b>${it}</b> → ${NV[niv0]}`} · ${hechos} de ${vienenHasta(g, N)} con comentario</p></div>`;
+  if (modo === 'datos'){
+    const fk = d.fort === undefined ? (D.fort[0] || {}).k : d.fort, lk = d.fal === undefined ? (D.fal[0] || {}).k : d.fal, en = d.err === undefined ? (D.err[0] || {}).nombre : d.err;
+    const pasos = d.pasos || cmPasos0(D, ent, niv0, D.fal.find(o => o.k === lk));
+    h += `<div class="caja"><p class="nota" style="margin-top:0">${D.exs.length ? 'Sale de: ' + D.exs.map(esc).join(', ') + (ent.y ? ' y ' + ent.y + ' fichas recogidas' : '') + '.' : 'No hay exámenes suyos corregidos del todo en el corrector' + (ent.y ? '; sí ' + ent.y + ' fichas recogidas' : '') + '. Completa con «Añadir del modelo» o pasa al «Modelo de ítems».'}</p>
+      ${D.fort.length ? `<div class="cmF"><b>${L === 'va' ? 'Fa bé' : 'Hace bien'}</b><div class="fila" style="gap:6px;flex-wrap:wrap;margin-top:4px">${chips(D.fort, fk === undefined ? null : fk, 'k', 'fort')}</div></div>` : ''}
+      ${D.fal.length ? `<div class="cmF"><b>${L === 'va' ? 'Ha de reforçar' : 'Tiene que reforzar'}</b><div class="fila" style="gap:6px;flex-wrap:wrap;margin-top:4px">${chips(D.fal, lk === undefined ? null : lk, 'k', 'fal')}</div></div>` : ''}
+      ${D.err.length ? `<div class="cmF"><b>${L === 'va' ? 'El seu error' : 'Su error'}</b><div class="fila" style="gap:6px;flex-wrap:wrap;margin-top:4px">${chips(D.err, en === undefined ? null : en, 'nombre')}</div></div>` : ''}
+      ${ent.y ? `<label class="nota" style="display:block;margin-top:10px"><input type="checkbox" id="cdFich"${d.fich !== false ? ' checked' : ''}> Fichas: ha entregado ${ent.x} de ${ent.y}</label>` : ''}
+      ${rec ? `<label class="nota" style="display:block;margin-top:6px"><input type="checkbox" id="cmRec"${S.rec !== false ? ' checked' : ''}> ${esc(rec)}</label>` : ''}
+      <div class="cmF cmX"><b>${L === 'va' ? 'El pròxim pas' : 'El próximo paso'}</b>${CM_PASOS.map(P => (P.k === 'rep' && !D.fal.find(o => o.k === lk)) ? '' : `<label><input type="checkbox" data-cp="${P.k}"${pasos.includes(P.k) ? ' checked' : ''}> ${esc(P.t[L].replace('{x}', (D.fal.find(o => o.k === lk) ? cmFrase(D.fal.find(o => o.k === lk).tit, L) : '')))}</label>`).join('')}</div></div>
+      <div class="caja cmX"><details${S.x.length ? ' open' : ''}><summary style="cursor:pointer"><b>Añadir del modelo</b> <span class="nota">(convivencia, asistencia, familia, recién llegados…)</span></summary>${CM_G.filter(G => !G.uno && !G.auto).map(G => `<p style="margin:8px 0 2px"><b>${G.t[L]}</b></p>${G.x.map((t, b) => `<label><input type="checkbox" data-cmx="${G.k}.${b}"${S.x.includes(G.k + '.' + b) ? ' checked' : ''}> ${esc(t[L])}</label>`).join('')}`).join('')}</details></div>`;
+  } else {
+    h += `<div class="caja"><div class="fila" style="flex-wrap:wrap;gap:6px">${NV.map((t, i) => `<button class="btn peq" data-cmniv="${i}">${t}</button>`).join('')}</div>
+      <p class="nota" style="margin:4px 0 0">Un nivel pone de salida a), b), c) y d); después cambia lo que no case y añade lo que quieras.</p></div>
     <div class="caja">${CM_G.filter(G => G.uno).map(G => `<div class="cmF"><b>${G.t[L]}</b>${G.x.map((x, i) => (G.final && G.final.includes(i) && ev !== 3) ? '' :
       `<button class="btn peq cmUno${S.u[G.k] === i ? ' prim' : ''}" data-cmu="${G.k}:${i}" style="display:block;width:100%;text-align:left;margin-top:5px;white-space:normal;height:auto;padding:7px 10px">${esc(x[L].replace('{p}', per))}</button>`).join('')}</div>`).join('')}</div>
     <div class="caja cmX">${CM_G.filter(G => !G.uno).map(G => G.auto
       ? (rec ? `<label><input type="checkbox" id="cmRec"${S.rec !== false ? ' checked' : ''}> <b>${G.t[L]}:</b> ${esc(rec)}</label>` : '')
-      : `<details${G.obre || G.x.some((_, b) => S.x.includes(G.k + '.' + b)) ? ' open' : ''}><summary style="cursor:pointer"><b>${G.t[L]}</b></summary>${G.x.map((t, b) => `<label><input type="checkbox" data-cmx="${G.k}.${b}"${S.x.includes(G.k + '.' + b) ? ' checked' : ''}> ${esc(t[L])}</label>`).join('')}</details>`).join('')}</div>
-    <div class="caja"><h2 style="margin-top:0">El comentario</h2><textarea id="cmTexto">${esc(texto)}</textarea>
-      <div class="fila" style="margin-top:6px"><span class="nota" id="cmCuenta">${texto.length} caracteres${S.t != null ? ' · retocado a mano' : ''}</span>${S.t != null ? '<button class="btn peq" id="cmDeshaz" style="margin-left:auto">Volver al de las casillas</button>' : ''}</div>
+      : `<details${G.obre || G.x.some((_, b) => S.x.includes(G.k + '.' + b)) ? ' open' : ''}><summary style="cursor:pointer"><b>${G.t[L]}</b></summary>${G.x.map((t, b) => `<label><input type="checkbox" data-cmx="${G.k}.${b}"${S.x.includes(G.k + '.' + b) ? ' checked' : ''}> ${esc(t[L])}</label>`).join('')}</details>`).join('')}</div>`;
+  }
+  h += `<div class="caja"><h2 style="margin-top:0">El comentario</h2><textarea id="cmTexto">${esc(texto)}</textarea>
+      <div class="fila" style="margin-top:6px"><span class="nota" id="cmCuenta">${texto.length} caracteres${S.t != null ? ' · retocado a mano' : ''}</span>${S.t != null ? '<button class="btn peq" id="cmDeshaz" style="margin-left:auto">Volver al automático</button>' : ''}</div>
       <div class="fila" style="margin-top:10px"><button class="btn acento" id="cmCopia">Copiar</button><button class="btn prim" id="cmCopiaSig"${vecino(g, n, N, 1) ? '' : ' disabled'}>Copiar y siguiente ›</button></div></div>`;
   C.innerHTML = h;
   const guarda = () => { CM[n] = S; guardaNotas(); };
   const otro = () => { NT.ultimaEv = {g: H.g, ev: H.ev}; pintaHerramienta(); };
+  const toca = f => { f(); S.t = null; guarda(); otro(); };
   $('#cmG').onchange = e => { H.g = e.target.value; H.cn = null; otro(); };
   $('#cmEv').onchange = e => { H.ev = +e.target.value; otro(); };
-  C.querySelectorAll('[data-cml]').forEach(b => b.onclick = () => { if (S.t != null && !confirm('Este comentario está retocado a mano. Al cambiar de idioma se vuelve al de las casillas. ¿Seguir?')) return;
+  C.querySelectorAll('[data-cml]').forEach(b => b.onclick = () => { if (S.t != null && !confirm('Este comentario está retocado a mano. Al cambiar de idioma se vuelve al automático. ¿Seguir?')) return;
     NT.comentIdioma = b.dataset.cml; if (CM[n]) S.t = null; guardaNotas(); otro(); });
+  C.querySelectorAll('[data-cmm]').forEach(b => b.onclick = () => { if (S.t != null && !confirm('Este comentario está retocado a mano. Al cambiar de forma se vuelve al automático. ¿Seguir?')) return;
+    NT.comentModo = b.dataset.cmm; if (CM[n]) S.t = null; guardaNotas(); otro(); });
   $('#cmAnt').onclick = () => { H.cn = vecino(g, n, N, -1) || n; otro(); };
   $('#cmSig').onclick = () => { H.cn = vecino(g, n, N, 1) || n; otro(); };
-  C.querySelectorAll('[data-cmniv]').forEach(b => b.onclick = () => { const D = cmDef(+b.dataset.cmniv, ev), auto = new Set(CM_G.filter(G => G.def && !G.uno).map(G => G.k));
-    S.u = D.u; S.x = S.x.filter(id => !auto.has(id.split('.')[0])).concat(D.x); S.t = null; guarda(); otro(); });
-  C.querySelectorAll('[data-cmu]').forEach(b => b.onclick = () => { const [kk, i] = b.dataset.cmu.split(':'); S.u[kk] = S.u[kk] === +i ? null : +i; S.t = null; guarda(); otro(); });
-  C.querySelectorAll('[data-cmx]').forEach(x => x.onchange = () => { const id = x.dataset.cmx; S.x = x.checked ? S.x.concat(id) : S.x.filter(y => y !== id); S.t = null; guarda(); otro(); });
-  if ($('#cmRec')) $('#cmRec').onchange = e => { S.rec = e.target.checked; S.t = null; guarda(); otro(); };
+  C.querySelectorAll('[data-cd]').forEach(b => b.onclick = () => toca(() => { const i = b.dataset.cd.indexOf(':'), campo = b.dataset.cd.slice(0, i), v = b.dataset.cd.slice(i + 1); S.d = S.d || {}; S.d[campo] = v || null; if (campo === 'fal') delete S.d.pasos; }));
+  if ($('#cdFich')) $('#cdFich').onchange = e => toca(() => { S.d = S.d || {}; S.d.fich = e.target.checked; });
+  C.querySelectorAll('[data-cp]').forEach(x => x.onchange = () => toca(() => { S.d = S.d || {}; const cur = S.d.pasos || cmPasos0(D, ent, niv0, D.fal.find(o => o.k === (S.d.fal === undefined ? (D.fal[0] || {}).k : S.d.fal)));
+    S.d.pasos = x.checked ? cur.concat(x.dataset.cp) : cur.filter(p => p !== x.dataset.cp); }));
+  C.querySelectorAll('[data-cmniv]').forEach(b => b.onclick = () => toca(() => { const Dd = cmDef(+b.dataset.cmniv, ev), auto = new Set(CM_G.filter(G => G.def && !G.uno).map(G => G.k));
+    S.u = Dd.u; S.x = S.x.filter(id => !auto.has(id.split('.')[0])).concat(Dd.x); }));
+  C.querySelectorAll('[data-cmu]').forEach(b => b.onclick = () => toca(() => { const [kk, i] = b.dataset.cmu.split(':'); S.u[kk] = S.u[kk] === +i ? null : +i; }));
+  C.querySelectorAll('[data-cmx]').forEach(x => x.onchange = () => toca(() => { const id = x.dataset.cmx; S.x = x.checked ? S.x.concat(id) : S.x.filter(y => y !== id); }));
+  if ($('#cmRec')) $('#cmRec').onchange = e => toca(() => { S.rec = e.target.checked; });
   $('#cmTexto').oninput = e => { S.t = e.target.value; guarda(); $('#cmCuenta').textContent = S.t.length + ' caracteres · retocado a mano'; };
-  if ($('#cmDeshaz')) $('#cmDeshaz').onclick = () => { S.t = null; guarda(); otro(); };
+  if ($('#cmDeshaz')) $('#cmDeshaz').onclick = () => toca(() => {});
   const copia = async () => { const t = $('#cmTexto').value.trim(); if (!t) { aviso('No hay nada que copiar'); return false; }
     if (/…/.test(t) && !confirm('El comentario aún tiene puntos suspensivos «…» por completar. ¿Copiarlo igualmente?')) return false;
     if (!CM[n] || !CM[n].u) guarda();
@@ -3089,6 +3230,71 @@ function pintaComentarios(C){
     catch (e) { const ta = $('#cmTexto'); ta.select(); try { document.execCommand('copy'); aviso('Copiado'); return true; } catch (e2) { aviso('No he podido copiar: selecciona el texto y cópialo a mano', 4000); return false; } } };
   $('#cmCopia').onclick = copia;
   $('#cmCopiaSig').onclick = async () => { if (await copia()){ H.cn = vecino(g, n, N, 1) || n; otro(); } };
+}
+
+/* las fichas de 1.º y 2.º de un alumno: cuántas ha entregado de las que ya se han recogido en su grupo (una ficha cuenta
+   si hay algo anotado en ella para alguien del grupo). Lo corregido cuenta como entregado; «no la entrega» y en blanco, no. */
+const segFichas = (g, n) => { const e = entregasFichas(g, n); return e.y ? 10 * e.x / e.y : null; };
+function entregasFichas(g, n){ let x = 0, y = 0;
+  for (const f of fichasDe(g)){ if (f.tipo === 'taller') continue; const R = (NT.fichas || {})[f.id + '|' + g]; if (!R || !Object.keys(R.al).length) continue;
+    y++; const a = R.al[n]; if (a && !a.ne && (a.en || notaFicha(a).v1 != null || (a.v1 || []).some(v => v != null))) x++; }
+  return {x, y}; }
+/* ── EL TALLER DE REFUERZO DE 4.º (1.28): su rúbrica (latex/taller/rubrica-taller.tex) ──
+   Cuatro criterios (A gestión del trabajo, B perseverancia y error, C respeto y convivencia, D cooperación), de 1 a 4, en
+   tres momentos de observación por evaluación. Nota de cada criterio = nivel × 2,5; el 80 % es la media de A–D del ÚLTIMO
+   momento con datos (evaluación continua: valora la mejora; los anteriores quedan de evidencia). Fichas (20 %): las del
+   taller anotadas en «Corregir fichas» (0 no entregada · 1 entregada · 2 corregida tras la revisión; «—» no le toca),
+   puntos / puntos posibles × 10. Nota del taller = 0,8 · rúbrica + 0,2 · fichas. Se guarda en NT.taller['T4|ev']. */
+const TAL_CRIT = [
+  {c: 'A', t: 'Gestión del trabajo', d: ['Llega tarde o sin material a menudo; necesita que se le pida varias veces que empiece.', 'Empieza cuando se le indica, pero pierde buena parte de la sesión.', 'Llega a tiempo con el material y trabaja la mayor parte de la sesión.', 'Empieza sin que se lo pidan, organiza su tarea y aprovecha toda la sesión.']},
+  {c: 'B', t: 'Perseverancia y error', d: ['Abandona en cuanto algo no sale o no lo intenta.', 'Lo intenta, pero se bloquea y espera a que se lo resuelvan.', 'Lo intenta, pide ayuda concreta y corrige cuando se le indica.', 'Prueba otras vías, revisa por su cuenta y usa el error para aprender.']},
+  {c: 'C', t: 'Respeto y convivencia', d: ['Interrumpe o molesta el trabajo de los demás de forma habitual.', 'Respeta con recordatorios; a veces distrae.', 'Respeta a compañeros y docente y el turno de palabra.', 'Además contribuye a un buen clima: ayuda a que otros se centren.']},
+  {c: 'D', t: 'Cooperación', d: ['No colabora cuando la tarea es en pareja o grupo.', 'Colabora si se le asigna un papel concreto.', 'Colabora, comparte lo que sabe y escucha.', 'Explica a otros con paciencia y ayuda sin darles la solución.']}];
+const talDe = ev => { NT.taller = NT.taller || {}; const k = 'T4|' + ev; return NT.taller[k] || (NT.taller[k] = {m: [{}, {}, {}], red: 'aprobado'}); };
+/* la nota de fichas del taller de un alumno (todas las fichas del taller anotadas; las que no le tocan no cuentan) */
+function notaFichasTaller(g, n){ let s = 0, pos = 0;
+  for (const f of fichasDe(g)){ const R = (NT.fichas || {})[f.id + '|' + g], a = R && R.al[n]; if (a && a.v != null){ s += a.v; pos += 2; } }
+  return pos ? 10 * s / pos : null; }
+function notaTaller(T, g, n){
+  let m = null; for (let i = 2; i >= 0; i--){ const x = (T.m[i] || {})[n]; if (x && TAL_CRIT.every(c => x[c.c])){ m = i; break; } }
+  const rub = m == null ? null : TAL_CRIT.reduce((s, c) => s + T.m[m][n][c.c] * 2.5, 0) / TAL_CRIT.length, fi = notaFichasTaller(g, n);
+  return {m, rub, fi, nota: rub == null || fi == null ? null : 0.8 * rub + 0.2 * fi};
+}
+function pintaTaller(C, gs){
+  const g = 'T4', ev = H.ev, T = talDe(ev), N = nAlumnos(g); H.tm = H.tm == null ? 0 : H.tm; const M = T.m[H.tm];
+  let h = `<div class="caja"><div class="fila"><select id="eG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
+    <select id="eEv">${[1, 2, 3].map(v => `<option value="${v}"${v === ev ? ' selected' : ''}>${v}.ª evaluación</option>`).join('')}</select>
+    <span class="nota">Alumnos: ${campoN('eN', g, N)} ${campoNV('eNV', g)}</span></div>
+    <p class="nota" style="margin:8px 0 0">Rúbrica de trabajo y convivencia (80 %): nivel × 2,5, media de A–D del <b>último momento</b> con los cuatro puestos. Fichas (20 %): las del taller en «Corregir fichas». Nota = 0,8 · rúbrica + 0,2 · fichas.</p>
+    <div class="fila" style="margin-top:10px"><span class="seg">${[0, 1, 2].map(i => `<button data-tm="${i}"${H.tm === i ? ' class="si"' : ''} style="width:auto;padding:0 14px">M${i + 1}</button>`).join('')}</span>
+      <label class="nota" style="margin-left:auto;max-width:62%">Itaca: <select id="tRed" style="max-width:100%">${Object.entries(REDONDEOS).map(([k, t]) => `<option value="${k}"${T.red === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>
+    <details class="nota" style="margin-top:8px"><summary style="cursor:pointer">Los niveles de cada criterio</summary>${TAL_CRIT.map(c => `<p style="margin:6px 0 2px"><b>${c.c}. ${c.t}</b></p>${c.d.map((d, i) => `<div>${i + 1} · ${esc(d)}</div>`).join('')}`).join('')}</details></div>
+    <div class="caja" style="padding:4px 12px">`;
+  for (let n = 1; n <= N; n++){
+    if (noViene(g, n)){ h += `<div class="cas nv"><span><b>${n}</b> <small>no viene</small></span></div>`; continue; }
+    const x = M[n] || {}, r = notaTaller(T, g, n), nom = (LISTA[g] || {})[n];
+    h += `<div style="padding:8px 0;border-bottom:1px solid var(--linea)"><div class="fila" style="justify-content:space-between"><b>${n}${nom ? ' <small>' + esc(corto(nom)) + '</small>' : ''}</b>
+      <span class="nota" data-tn="${n}">${r.nota != null ? `<b class="${tonoNota(r.nota)}">${coma(r.nota)}</b> · Itaca <b>${itaca(r.nota, T.red)}</b>` : `rúbrica ${coma(r.rub)}${r.m != null ? ' (M' + (r.m + 1) + ')' : ''} · fichas ${coma(r.fi)}`}</span></div>
+      <div class="fila" style="gap:6px;margin-top:4px;flex-wrap:wrap">${TAL_CRIT.map(c => `<span class="seg seg4" data-tc="${n}:${c.c}"><button disabled style="width:26px;font-weight:700;opacity:1">${c.c}</button>${[1, 2, 3, 4].map(v => `<button data-v="${v}"${x[c.c] === v ? ' class="si"' : ''} style="width:32px">${v}</button>`).join('')}</span>`).join('')}</div></div>`;
+  }
+  h += `</div><div class="fila"><button class="btn peq" id="tTabla">Copiar como tabla</button><button class="btn peq peligro" id="tBorra">Borrar el momento M${H.tm + 1}</button></div>`;
+  C.innerHTML = h;
+  const otra = () => { guardaNotas(); pintaHerramienta(); };
+  $('#eG').onchange = e => { H.g = e.target.value; otra(); };
+  $('#eEv').onchange = e => { H.ev = +e.target.value; otra(); };
+  atarN('eN', g, () => pintaHerramienta()); atarNV('eNV', g, () => pintaHerramienta());
+  C.querySelectorAll('[data-tm]').forEach(b => b.onclick = () => { H.tm = +b.dataset.tm; pintaHerramienta(); });
+  $('#tRed').onchange = e => { T.red = e.target.value; otra(); };
+  C.querySelectorAll('[data-tc] button[data-v]').forEach(b => b.onclick = () => { const [n, c] = b.parentElement.dataset.tc.split(':'), v = +b.dataset.v, x = M[n] = M[n] || {};
+    x[c] = x[c] === v ? undefined : v; if (x[c] === undefined) delete x[c]; if (!Object.keys(x).length) delete M[n];
+    b.parentElement.querySelectorAll('button[data-v]').forEach(o => o.className = (x[c] === +o.dataset.v ? 'si' : '')); guardaNotas();
+    const r = notaTaller(T, g, +n), sp = C.querySelector('[data-tn="' + n + '"]');
+    sp.innerHTML = r.nota != null ? `<b class="${tonoNota(r.nota)}">${coma(r.nota)}</b> · Itaca <b>${itaca(r.nota, T.red)}</b>` : `rúbrica ${coma(r.rub)}${r.m != null ? ' (M' + (r.m + 1) + ')' : ''} · fichas ${coma(r.fi)}`; });
+  $('#tTabla').onclick = () => { const filas = [['n.º'].concat(...[0, 1, 2].map(i => TAL_CRIT.map(c => 'M' + (i + 1) + c.c)), ['rúbrica (80 %)', 'fichas (20 %)', 'nota', 'Itaca'])];
+    for (let n = 1; n <= N; n++){ if (noViene(g, n)){ filas.push([n, 'no viene']); continue; } const r = notaTaller(T, g, n);
+      filas.push([n].concat(...[0, 1, 2].map(i => TAL_CRIT.map(c => ((T.m[i] || {})[n] || {})[c.c] || '')), [coma(r.rub), coma(r.fi), coma(r.nota), r.nota == null ? '' : itaca(r.nota, T.red)])); }
+    copiaTabla(filas, 'taller-' + ev + '.tsv'); };
+  $('#tBorra').onclick = () => { if (!Object.keys(M).length) return aviso('No hay nada en M' + (H.tm + 1)); if (!confirm('¿Borrar los niveles del momento M' + (H.tm + 1) + '?')) return; T.m[H.tm] = {}; otra(); };
 }
 function pintaFila(E, g, n){
   const tr = document.querySelector('.tabla tr[data-n="' + n + '"]'); if (!tr) return;
