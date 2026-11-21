@@ -1874,7 +1874,7 @@ function atarN(id, g, repinta){
       if (fuera.length && !confirm('Con ' + v + ' alumnos dejan de verse las notas del n.º ' + fuera.join(', ') + ' (no se borran: vuelven si se sube otra vez el número). ¿Seguir?')){ e.target.value = antes; return; } }
     NT.alumnos[g] = v; N_ABIERTO.delete(g); guardaNotas(); repinta(); };
 }
-/* 1.26 · LOS QUE NO VIENEN. Alumnado matriculado que no viene nunca (en 1.º B, el n.º 13 en noviembre de 2026): su
+/* 1.26 · LOS QUE NO VIENEN. Alumnado matriculado que no viene nunca: su
    número se queda (los números de lista no se corren a mitad de curso: los alumnos los saben y van en el álbum), pero
    sale en gris, no se abre al corregir, «anterior», «siguiente» y «siguiente sin corregir» se lo saltan, y no cuenta
    en «x de N», ni en las estadísticas, ni en la recuperación, ni en el sorteo. Si tenía notas, no se borran: dejan de
