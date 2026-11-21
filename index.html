@@ -500,7 +500,7 @@ body.nativa #vPantalla,body.nativa #qrPantalla,body.nativa #azPant,body.nativa #
 
 <script>
 'use strict';
-const VERSION = '1.29';
+const VERSION = '1.30';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
 const {PDFDocument, degrees} = PDFLib;
@@ -1926,7 +1926,7 @@ function notaDeCorrector(exId, g, n){
 let LISTA = {};
 const corto = nom => { if (nom.includes(',')){ const [ape, n] = nom.split(','); return (n.trim().split(/\s+/)[0] || '') + ' ' + (ape.trim()[0] || '') + '.'; }
   const w = nom.trim().split(/\s+/); return w[0] + (w[1] ? ' ' + w[1][0] + '.' : ''); };
-const normGrupo = s => { s = String(s || '').trim(); if (/taller/i.test(s)) return 'T4';
+const normGrupo = s => { s = String(s || '').trim(); if (/taller|refuer/i.test(s) || /^R\s*4$/i.test(s)) return 'T4';   /* 1.30: en el CSV y en el cuaderno el taller es «R4» */
   const m = /^\D*([1-4])\s*(?:r|n|t|º|o|°|\.º|er|ero|ndo|do)?\s*(?:d'|de\s+)?(?:ESO)?\s*[-·.]?\s*([A-H])$/i.exec(s); return m ? m[1] + m[2].toUpperCase() : null; };
 /* un renglón de CSV en trozos, respetando las comillas; cada trozo, tal como venía (para reescribirlo igual) */
 function trozosCSV(l, sep){ const out = []; let cur = '', q = false;
@@ -3265,6 +3265,7 @@ function pintaTaller(C, gs){
   let h = `<div class="caja"><div class="fila"><select id="eG">${gs.map(x => `<option value="${x}"${x === g ? ' selected' : ''}>${etqGrupo(x)}</option>`).join('')}</select>
     <select id="eEv">${[1, 2, 3].map(v => `<option value="${v}"${v === ev ? ' selected' : ''}>${v}.ª evaluación</option>`).join('')}</select>
     <span class="nota">Alumnos: ${campoN('eN', g, N)} ${campoNV('eNV', g)}</span></div>
+    <div class="fila" style="margin-top:8px">${LISTA[g] ? `<span class="nota" style="flex:1">Con nombres (solo mientras la app esté abierta).</span><button class="btn peq" id="cOlvida">Olvidar nombres</button>` : `<button class="btn peq" id="cLista">Cargar nombres (CSV)</button>`}<input type="file" id="cListaF" accept=".csv,text/csv,text/plain,text/comma-separated-values" hidden></div>
     <p class="nota" style="margin:8px 0 0">Rúbrica de trabajo y convivencia (80 %): nivel × 2,5, media de A–D del <b>último momento</b> con los cuatro puestos. Fichas (20 %): las del taller en «Corregir fichas». Nota = 0,8 · rúbrica + 0,2 · fichas.</p>
     <div class="fila" style="margin-top:10px"><span class="seg">${[0, 1, 2].map(i => `<button data-tm="${i}"${H.tm === i ? ' class="si"' : ''} style="width:auto;padding:0 14px">M${i + 1}</button>`).join('')}</span>
       <label class="nota" style="margin-left:auto;max-width:62%">Itaca: <select id="tRed" style="max-width:100%">${Object.entries(REDONDEOS).map(([k, t]) => `<option value="${k}"${T.red === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label></div>
@@ -3294,6 +3295,7 @@ function pintaTaller(C, gs){
     for (let n = 1; n <= N; n++){ if (noViene(g, n)){ filas.push([n, 'no viene']); continue; } const r = notaTaller(T, g, n);
       filas.push([n].concat(...[0, 1, 2].map(i => TAL_CRIT.map(c => ((T.m[i] || {})[n] || {})[c.c] || '')), [coma(r.rub), coma(r.fi), coma(r.nota), r.nota == null ? '' : itaca(r.nota, T.red)])); }
     copiaTabla(filas, 'taller-' + ev + '.tsv'); };
+  montaNombres(C);
   $('#tBorra').onclick = () => { if (!Object.keys(M).length) return aviso('No hay nada en M' + (H.tm + 1)); if (!confirm('¿Borrar los niveles del momento M' + (H.tm + 1) + '?')) return; T.m[H.tm] = {}; otra(); };
 }
 function pintaFila(E, g, n){
